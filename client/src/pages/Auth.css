@@ -1,0 +1,215 @@
+/* Universal box-sizing fix */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+
+
+/* Container */
+.auth-container {
+  width: 100%;
+  max-width: 420px;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Card - Instagram style glass blur */
+.auth-card {
+  background: rgba(255, 255, 255, 0.9); /* solid glass white */
+  /* backdrop-filter: blur(12px);   ❌ remove blur */
+  padding: 25px 28px;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 350px;
+  text-align: center;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  animation: fadeIn 0.8s ease-in-out;
+}
+
+
+/* Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Logo */
+.logo {
+  width: 80px;
+  margin: 0 auto 18px auto;
+  display: block;
+}
+
+/* Title */
+.auth-card h2 {
+  margin-bottom: 14px;
+  color: #222;
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+}
+
+/* Input Fields */
+.auth-card input {
+  width: 100%;
+  padding: 10px;
+  margin: 6px 0;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.auth-card input:focus {
+  border-color: #6c63ff;
+  box-shadow: 0px 0px 8px rgba(108, 99, 255, 0.3);
+}
+
+/* Buttons */
+.btn-primary {
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6c63ff, #4cafef);
+  color: white;
+  font-weight: bold;
+  font-size: 15px;
+  cursor: pointer;
+  margin: 10px 0;
+  padding: 10px;
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* Forgot password */
+.forgot-password {
+  display: block;
+  text-align: right;
+  margin-top: -2px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #007bff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: 0.2s;
+}
+
+.forgot-password:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
+/* Switch button */
+.switch-btn {
+  margin-top: 8px;
+  border: none;
+  background: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 13px;
+  transition: 0.2s;
+}
+
+.switch-btn:hover {
+  color: #222;
+  text-decoration: underline;
+}
+
+.msg {
+  color: #e74c3c;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+/* Google Button */
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 9px;
+  width: 100%;
+  margin-top: 12px;
+  transition: 0.3s;
+}
+
+.google-btn:hover {
+  background: #f8f8f8;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.google-btn img {
+  width: 20px;
+  height: 20px;
+}
+
+/* Divider */
+.divider {
+  margin: 12px 0;
+  display: flex;
+  align-items: center;
+  color: #666;
+  font-size: 13px;
+}
+
+.divider hr {
+  flex: 1;
+  border: none;
+  border-top: 1px solid #ccc;
+}
+
+.divider span {
+  margin: 0 10px;
+}
+
+/* Remember Me */
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #444;
+  margin: 5px 0 6px 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.remember-me input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #6c63ff;
+  cursor: pointer;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 18px 20px;
+    max-width: 90%;
+  }
+
+  .logo {
+    width: 70px;
+    margin-bottom: 12px;
+  }
+}

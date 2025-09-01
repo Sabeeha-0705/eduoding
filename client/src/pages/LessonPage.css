@@ -1,0 +1,91 @@
+/* src/pages/LessonPage.css */
+.lesson-page {
+  max-width: 900px;
+  margin: 30px auto;
+  padding: 20px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  font-family: "Poppins", sans-serif;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: #6c63ff;
+  font-size: 14px;
+  cursor: pointer;
+  margin-bottom: 15px;
+}
+
+.back-btn:hover {
+  text-decoration: underline;
+}
+
+.lesson-page h1 {
+  font-size: 24px;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.video-container {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 ratio */
+  height: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.video-container iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* Mobile Responsive */
+@media (max-width: 600px) {
+  .lesson-page {
+    padding: 15px;
+  }
+
+  .lesson-page h1 {
+    font-size: 20px;
+  }
+}
+.notes-section {
+  margin-top: 20px;
+}
+
+.notes-section h3 {
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.notes-section textarea {
+  width: 100%;
+  height: 120px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  padding: 10px;
+  font-size: 14px;
+  resize: none;
+}
+
+.save-note-btn {
+  margin-top: 10px;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6c63ff, #4cafef);
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.save-note-btn:hover {
+  background: linear-gradient(135deg, #4a47d5, #2196f3);
+}
