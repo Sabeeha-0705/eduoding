@@ -1,0 +1,55 @@
+import express from "express";
+import Note from "../models/Note.js";
+import authMiddleware from "../middleware/authMiddleware.js"; // your JWT middleware
+
+const router = express.Router();
+
+// ✅ Add new note
+router.post("/", authMiddleware, async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ message: "Note content is required" });
+    }
+
+    const note = new Note({
+      userId: req.user.id,
+      content,
+    });
+
+    await note.save();
+    res.status(201).json(note);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ✅ Get all notes for logged-in user
+router.get("/", authMiddleware, async (req, res) => {
+  try {
+    const notes = await Note.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    res.json(notes);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// ✅ Delete a note
+router.delete("/:id", authMiddleware, async (req, res) => {
+  try {
+    const note = await Note.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id,
+    });
+
+    if (!note) {
+      return res.status(404).json({ message: "Note not found" });
+    }
+
+    res.json({ message: "Note deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+export default router;

@@ -4,21 +4,24 @@ const lessonSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
 
-    type: { 
-      type: String, 
-      enum: ["youtube", "upload"], 
-      required: true 
-    }, // youtube / upload
-
-    videoUrl: { type: String, required: true }, // YouTube link OR uploaded file path
-
-    // 👇 New field to link lesson to a course
-    courseId: { 
-      type: Number,   // same as your Dashboard course IDs (1,2,3…)
-      required: true 
+    type: {
+      type: String,
+      enum: ["youtube", "upload"], // YouTube link OR uploaded file
+      required: true,
     },
 
-    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+    videoUrl: { type: String, required: true }, // YouTube link OR upload path
+
+    // Link lesson to a course (string IDs: "1","2","3",...)
+    courseId: {
+      type: String,
+      required: true,
+    },
+
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
   { timestamps: true }
 );

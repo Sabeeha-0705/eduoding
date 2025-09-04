@@ -1,25 +1,30 @@
 // routes/lessonRoutes.js
 import { Router } from "express";
 import multer from "multer";
-import { addLesson, getLessons, getLessonById } from "../controllers/lessonController.js";
+import path from "path";
+import {
+  addLesson,
+  getLessons,
+  getLessonById,
+} from "../controllers/lessonController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = Router();
 
-// 🔹 Multer config → saves files in uploads/ folder
+// Multer config → saves files in uploads/ folder
 const storage = multer.diskStorage({
   destination: "uploads/",
   filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
+    cb(null, Date.now() + path.extname(file.originalname)); // unique filename
   },
 });
 
 const upload = multer({ storage });
 
-// 🔹 Add lesson → either YouTube link OR file upload
+// ✅ Add lesson → YouTube link OR file upload
 router.post("/", protect, upload.single("video"), addLesson);
 
-// 🔹 Public routes
+// ✅ Public routes
 router.get("/", getLessons);
 router.get("/:id", getLessonById);
 
