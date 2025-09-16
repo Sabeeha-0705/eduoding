@@ -7,13 +7,13 @@ const BASE_URL =
   "https://eduoding-backend.onrender.com/api" ||
   "http://localhost:5000/api";
 
-export const api = axios.create({
+const API = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
 });
 
 // 🔐 Attach token from localStorage / sessionStorage
-api.interceptors.request.use(
+API.interceptors.request.use(
   (config) => {
     const token =
       localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
@@ -24,11 +24,9 @@ api.interceptors.request.use(
 );
 
 // 🔁 Optional: normalize errors
-api.interceptors.response.use(
+API.interceptors.response.use(
   (res) => res,
   (err) => {
-    // You can handle 401 here (e.g., redirect to /login)
-    // if (err?.response?.status === 401) { window.location.href = "/login"; }
     const msg =
       err?.response?.data?.message ||
       err?.message ||
@@ -36,3 +34,7 @@ api.interceptors.response.use(
     return Promise.reject(new Error(msg));
   }
 );
+
+// 👉 support both named + default
+export const api = API;
+export default API;
