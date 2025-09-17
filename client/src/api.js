@@ -1,7 +1,7 @@
+// src/api.js
 import axios from "axios";
 
-// Prefer environment variable VITE_API_BASE, otherwise use your Render backend URL.
-// NOTE: import.meta.env reads Vite env vars that start with VITE_
+// prefer Vite env var; fallback to Render URL; finally localhost for dev
 const BASE_URL =
   import.meta.env.VITE_API_BASE ||
   "https://eduoding-backend.onrender.com/api";

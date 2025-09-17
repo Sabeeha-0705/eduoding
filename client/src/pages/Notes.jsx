@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import API from "../api";
+import { api } from "../api"; // ✅ named import (consistent with api.js)
 
 export default function Notes() {
   const [notes, setNotes] = useState([]);
@@ -13,10 +13,10 @@ export default function Notes() {
 
   const fetchNotes = async () => {
     try {
-      const res = await API.get("/notes");
-      setNotes(res.data);
+      const res = await api.get("/notes");
+      setNotes(res.data || []);
     } catch (err) {
-      console.error(err.response?.data || err.message);
+      console.error("Fetch failed:", err.response?.data || err.message);
     }
   };
 
@@ -25,11 +25,12 @@ export default function Notes() {
     if (!content.trim()) return;
     setLoading(true);
     try {
-      const res = await API.post("/notes", { content });
-      setNotes([res.data, ...notes]);
+      const res = await api.post("/notes", { content });
+      setNotes([res.data, ...notes]); // prepend new note
       setContent("");
     } catch (err) {
-      console.error(err.response?.data || err.message);
+      console.error("Add failed:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Failed to save note");
     } finally {
       setLoading(false);
     }
@@ -37,17 +38,19 @@ export default function Notes() {
 
   // ✅ Delete note
   const deleteNote = async (id) => {
+    if (!window.confirm("Delete this note?")) return;
     try {
-      await API.delete(`/notes/${id}`);
+      await api.delete(`/notes/${id}`);
       setNotes(notes.filter((n) => n._id !== id));
     } catch (err) {
-      console.error(err.response?.data || err.message);
+      console.error("Delete failed:", err.response?.data || err.message);
+      alert("Failed to delete note");
     }
   };
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">My Notes</h1>
+      <h1 className="text-2xl font-bold mb-4">📝 My Notes</h1>
 
       {/* Input */}
       <div className="flex gap-2 mb-4">
@@ -60,8 +63,8 @@ export default function Notes() {
         />
         <button
           onClick={addNote}
-          disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          disabled={loading || !content.trim()}
+          className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
         >
           {loading ? "Saving..." : "Save"}
         </button>
@@ -77,7 +80,14 @@ export default function Notes() {
               key={note._id}
               className="border rounded p-3 flex justify-between items-center"
             >
-              <span>{note.content}</span>
+              <div>
+                <p>{note.content}</p>
+                {note.createdAt && (
+                  <small className="text-gray-500">
+                    {new Date(note.createdAt).toLocaleString()}
+                  </small>
+                )}
+              </div>
               <button
                 onClick={() => deleteNote(note._id)}
                 className="text-red-500 hover:text-red-700"

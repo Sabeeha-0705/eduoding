@@ -1,0 +1,31 @@
+/* src/pages/Landing.css */
+.landing-root {
+  min-height: 100vh;
+  display:flex;
+  flex-direction:column;
+  background: linear-gradient(180deg,#0f1724 0%, #07102a 100%);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+}
+.landing-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:18px 36px;
+}
+.brand{
+  font-weight:700;
+  font-size:20px;
+  color:#fff;
+}
+nav .btn{ margin-left:8px; text-decoration:none; padding:8px 12px; border-radius:8px; background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.08); }
+.landing-main{ flex:1; display:flex; align-items:center; justify-content:center; padding:48px; }
+.hero{ max-width:900px; text-align:center; }
+.hero h1{ font-size:48px; margin-bottom:12px; color: #f8fafc; }
+.hero p{ color: #cbd5e1; margin-bottom:20px; }
+.cta .btn{ display:inline-block; margin:0 8px; text-decoration:none; padding:12px 20px; border-radius:10px;}
+.btn.primary{ background: linear-gradient(90deg,#6c63ff,#4cafef); color:#fff; }
+.btn.outline{ background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.12); }
+
+.landing-footer{ margin-top:40px; text-align:center; color:#94a3b8; }
+@media (max-width:700px){ .hero h1{ font-size:28px } .landing-header{ padding:12px } }
