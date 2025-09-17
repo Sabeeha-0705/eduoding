@@ -1,12 +1,12 @@
+// server/routes/noteRoutes.js
 import express from "express";
 import Note from "../models/Note.js";
-import protect from "../middleware/authMiddleware.js";
-
+import protect from "../middleware/authMiddleware.js"; // default import (protect)
 
 const router = express.Router();
 
 // ✅ Add new note
-router.post("/", authMiddleware, async (req, res) => {
+router.post("/", protect, async (req, res) => {
   try {
     const { content } = req.body;
     if (!content) {
@@ -26,7 +26,7 @@ router.post("/", authMiddleware, async (req, res) => {
 });
 
 // ✅ Get all notes for logged-in user
-router.get("/", authMiddleware, async (req, res) => {
+router.get("/", protect, async (req, res) => {
   try {
     const notes = await Note.find({ userId: req.user.id }).sort({ createdAt: -1 });
     res.json(notes);
@@ -36,7 +36,7 @@ router.get("/", authMiddleware, async (req, res) => {
 });
 
 // ✅ Delete a note
-router.delete("/:id", authMiddleware, async (req, res) => {
+router.delete("/:id", protect, async (req, res) => {
   try {
     const note = await Note.findOneAndDelete({
       _id: req.params.id,
