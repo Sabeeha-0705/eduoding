@@ -1,11 +1,33 @@
 // src/pages/Auth.jsx
 import { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
-import { jwtDecode } from "jwt-decode";
+// removed: import jwtDecode from "jwt-decode";
 import { api } from "../api";
 import bg from "../assets/bg.png";
 import "./Auth.css";
 import { useNavigate } from "react-router-dom";
+
+/**
+ * Small client-side JWT payload decoder (base64url -> JSON).
+ * Works only to read token payload on client (do NOT rely on this for security).
+ */
+const decodeJwt = (token) => {
+  try {
+    const payload = token.split(".")[1];
+    // base64url -> base64
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    // decode
+    const json = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(json);
+  } catch (err) {
+    return null;
+  }
+};
 
 function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -30,13 +52,17 @@ function AuthPage() {
     try {
       if (isLogin) {
         const res = await api.post("/auth/login", data);
-        if (remember) {
-          localStorage.setItem("authToken", res.data.token);
+        if (res?.data?.token) {
+          if (remember) {
+            localStorage.setItem("authToken", res.data.token);
+          } else {
+            sessionStorage.setItem("authToken", res.data.token);
+          }
+          setMsg("✅ Logged in!");
+          navigate("/dashboard");
         } else {
-          sessionStorage.setItem("authToken", res.data.token);
+          setMsg("Login failed: no token returned.");
         }
-        setMsg("✅ Logged in!");
-        navigate("/dashboard");
       } else {
         const res = await api.post("/auth/register", data);
         setMsg(res.data.message || "OTP sent to email!");
@@ -44,7 +70,7 @@ function AuthPage() {
         setEmail(data.email);
       }
     } catch (err) {
-      setMsg(err.response?.data?.message || "Error");
+      setMsg(err.response?.data?.message || err.message || "Error");
     }
   };
 
@@ -82,16 +108,26 @@ function AuthPage() {
   // ✅ Google Login
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
-      const token = credentialResponse.credential;
-      const userInfo = jwtDecode(token);
+      const token = credentialResponse?.credential;
+      if (!token) {
+        setMsg("Google login failed: no credential returned");
+        return;
+      }
 
+      // decode token payload locally (for UI use only)
+      const userInfo = decodeJwt(token);
+
+      // send Google token to backend for verification + app token
       const res = await api.post("/auth/google", { token });
-      if (res.data.token) {
+      if (res.data?.token) {
         localStorage.setItem("authToken", res.data.token);
         setMsg("✅ Google login success!");
         navigate("/dashboard");
+      } else {
+        setMsg("Google login failed: no app token returned");
       }
     } catch (err) {
+      console.error(err);
       setMsg("Google login failed");
     }
   };
@@ -112,13 +148,7 @@ function AuthPage() {
         <div className="auth-card">
           <img src="/logo.png" alt="Logo" className="logo" />
           <h2>
-            {forgotMode
-              ? "Forgot Password"
-              : isLogin
-              ? "Login"
-              : otpStep
-              ? "Verify OTP"
-              : "Sign Up"}
+            {forgotMode ? "Forgot Password" : isLogin ? "Login" : otpStep ? "Verify OTP" : "Sign Up"}
           </h2>
 
           {/* Forgot Password Form */}
@@ -126,11 +156,7 @@ function AuthPage() {
             <form onSubmit={handleForgot}>
               <input type="email" name="email" placeholder="Enter your email" required />
               <button type="submit" className="btn-primary">Send Reset Link</button>
-              <button
-                type="button"
-                className="switch-btn"
-                onClick={() => setForgotMode(false)}
-              >
+              <button type="button" className="switch-btn" onClick={() => setForgotMode(false)}>
                 Back to Login
               </button>
             </form>
@@ -156,9 +182,7 @@ function AuthPage() {
 
               {/* Normal Login/Register */}
               <form onSubmit={handleSubmit}>
-                {!isLogin && (
-                  <input type="text" name="username" placeholder="Username" required />
-                )}
+                {!isLogin && <input type="text" name="username" placeholder="Username" required />}
 
                 <input type="email" name="email" placeholder="Email" required />
 
@@ -180,7 +204,7 @@ function AuthPage() {
                       transform: "translateY(-50%)",
                       cursor: "pointer",
                       fontSize: "14px",
-                      color: "#555"
+                      color: "#555",
                     }}
                   >
                     {showPassword ? "🙈" : "👁️"}
@@ -206,7 +230,7 @@ function AuthPage() {
                         transform: "translateY(-50%)",
                         cursor: "pointer",
                         fontSize: "14px",
-                        color: "#555"
+                        color: "#555",
                       }}
                     >
                       {showConfirmPassword ? "🙈" : "👁️"}
@@ -240,9 +264,7 @@ function AuthPage() {
 
               {/* Switch Button */}
               <button className="switch-btn" onClick={() => setIsLogin(!isLogin)}>
-                {isLogin
-                  ? "Don't have an account? Sign Up"
-                  : "Already have an account? Login"}
+                {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Login"}
               </button>
             </>
           )}
@@ -253,5 +275,5 @@ function AuthPage() {
     </div>
   );
 }
-export default AuthPage;
 
+export default AuthPage;
