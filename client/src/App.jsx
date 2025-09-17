@@ -1,6 +1,4 @@
-// src/App.jsx
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Landing from "./pages/Landing";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import CoursePage from "./pages/CoursePage";
@@ -10,29 +8,31 @@ import AddLesson from "./pages/AddLesson";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Notes from "./pages/Notes";
-
-/**
- * Router structure:
- *  - "/"            -> Landing (public)
- *  - "/auth"        -> Login / Signup page (public)
- *  - "/forgot-password", "/reset-password" -> public
- *  - /dashboard, /notes, /course/* -> protected (wrap with ProtectedRoute)
- *
- * Note: update any UI links to point to `/auth` instead of `/` if you previously used root for Auth.
- */
+import Landing from "./pages/Landing"; // <-- exact filename match required
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public */}
+        {/* Landing page (public) */}
         <Route path="/" element={<Landing />} />
+
+        {/* Auth routes */}
         <Route path="/auth" element={<Auth />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/add-lesson" element={<AddLesson />} />
 
-        {/* Protected */}
+        {/* Add Lesson (protected admin/teacher area) */}
+        <Route
+          path="/add-lesson"
+          element={
+            <ProtectedRoute>
+              <AddLesson />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Notes (protected) */}
         <Route
           path="/notes"
           element={
@@ -42,6 +42,7 @@ export default function App() {
           }
         />
 
+        {/* Dashboard (protected) */}
         <Route
           path="/dashboard"
           element={
@@ -51,6 +52,7 @@ export default function App() {
           }
         />
 
+        {/* Course page (protected) */}
         <Route
           path="/course/:id"
           element={
@@ -60,6 +62,7 @@ export default function App() {
           }
         />
 
+        {/* Lesson Page (protected) */}
         <Route
           path="/course/:courseId/lesson/:lessonId"
           element={
@@ -68,9 +71,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* fallback: any unknown route -> landing (or 404 if you have one) */}
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
