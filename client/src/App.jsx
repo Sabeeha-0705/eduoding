@@ -1,4 +1,6 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+// src/App.jsx
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import CoursePage from "./pages/CoursePage";
@@ -7,18 +9,39 @@ import ProtectedRoute from "./pages/ProtectedRoute";
 import AddLesson from "./pages/AddLesson";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Notes from "./pages/Notes";
+
+/**
+ * Router structure:
+ *  - "/"            -> Landing (public)
+ *  - "/auth"        -> Login / Signup page (public)
+ *  - "/forgot-password", "/reset-password" -> public
+ *  - /dashboard, /notes, /course/* -> protected (wrap with ProtectedRoute)
+ *
+ * Note: update any UI links to point to `/auth` instead of `/` if you previously used root for Auth.
+ */
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Auth */}
-        <Route path="/" element={<Auth />} />
+        {/* Public */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/auth" element={<Auth />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/add-lesson" element={<AddLesson />} />
 
-        {/* Dashboard */}
+        {/* Protected */}
+        <Route
+          path="/notes"
+          element={
+            <ProtectedRoute>
+              <Notes />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/dashboard"
           element={
@@ -28,7 +51,6 @@ export default function App() {
           }
         />
 
-        {/* Course Page */}
         <Route
           path="/course/:id"
           element={
@@ -38,7 +60,6 @@ export default function App() {
           }
         />
 
-        {/* Lesson Page */}
         <Route
           path="/course/:courseId/lesson/:lessonId"
           element={
@@ -47,6 +68,9 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* fallback: any unknown route -> landing (or 404 if you have one) */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
