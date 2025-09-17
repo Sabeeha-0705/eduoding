@@ -8,24 +8,36 @@ export default function Landing() {
       <header className="landing-header">
         <div className="brand">Eduoding</div>
         <nav>
-          <Link to="/auth" className="btn small">Login</Link>
+          <Link to="/dashboard" className="nav-btn">Dashboard</Link>
+          <Link to="/" className="nav-outline">Login</Link>
         </nav>
       </header>
 
-      <main className="landing-main">
-        <div className="hero">
-          <h1>Learn. Build. Certify.</h1>
-          <p>Practical courses, real projects and official certificates — start today.</p>
-          <div className="cta">
-            <Link to="/auth" className="btn primary">Login</Link>
-            <Link to="/auth" className="btn outline">Sign up</Link>
+      <main className="hero">
+        <div className="hero-inner">
+          <h1>Learn practical skills. Build real projects. Get certified.</h1>
+          <p className="subtitle">
+            Hands-on courses, project-based learning and official certificates — start today.
+          </p>
+
+          <div className="cta-row">
+            <Link to="/" className="btn-primary">Login</Link>
+            <Link to="/" className="btn-outline">Sign up</Link>
           </div>
         </div>
-
-        <footer className="landing-footer">
-          <p>&copy; {new Date().getFullYear()} Eduoding. All rights reserved.</p>
-        </footer>
+        <div className="hero-image" aria-hidden="true">
+          {/* optional: place svg/illustration here or use background image */}
+        </div>
       </main>
+
+      <footer className="landing-footer">
+        <div>© {new Date().getFullYear()} Eduoding. All rights reserved.</div>
+        <div className="footer-links">
+          <a href="/about">About</a>
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+        </div>
+      </footer>
     </div>
   );
 }

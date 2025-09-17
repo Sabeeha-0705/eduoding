@@ -1,31 +1,56 @@
 /* src/pages/Landing.css */
-.landing-root {
-  min-height: 100vh;
-  display:flex;
-  flex-direction:column;
-  background: linear-gradient(180deg,#0f1724 0%, #07102a 100%);
-  color: #fff;
-  font-family: Inter, system-ui, sans-serif;
-}
-.landing-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:18px 36px;
-}
-.brand{
-  font-weight:700;
-  font-size:20px;
-  color:#fff;
-}
-nav .btn{ margin-left:8px; text-decoration:none; padding:8px 12px; border-radius:8px; background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.08); }
-.landing-main{ flex:1; display:flex; align-items:center; justify-content:center; padding:48px; }
-.hero{ max-width:900px; text-align:center; }
-.hero h1{ font-size:48px; margin-bottom:12px; color: #f8fafc; }
-.hero p{ color: #cbd5e1; margin-bottom:20px; }
-.cta .btn{ display:inline-block; margin:0 8px; text-decoration:none; padding:12px 20px; border-radius:10px;}
-.btn.primary{ background: linear-gradient(90deg,#6c63ff,#4cafef); color:#fff; }
-.btn.outline{ background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.12); }
+/* import a Google font in index.html or main css:
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"> */
 
-.landing-footer{ margin-top:40px; text-align:center; color:#94a3b8; }
-@media (max-width:700px){ .hero h1{ font-size:28px } .landing-header{ padding:12px } }
+:root{
+  --bg:#071224;
+  --primary:#6C63FF;
+  --accent-start:#6C63FF;
+  --accent-end:#4CAFEE;
+  --muted:#9AA4B2;
+  --surface: rgba(255,255,255,0.03);
+  --text:#F5F7FB;
+  --radius:12px;
+}
+
+*{box-sizing:border-box;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+
+.landing-root{min-height:100vh;background:linear-gradient(180deg,var(--bg) 0%, #081226 60%);color:var(--text);display:flex;flex-direction:column;}
+.landing-header{display:flex;justify-content:space-between;align-items:center;padding:22px 36px;}
+.brand{font-weight:700;font-size:20px;letter-spacing:0.2px;}
+nav a{margin-left:12px;text-decoration:none;font-weight:600;}
+.nav-btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 14px;border-radius:10px;color:var(--text)}
+.nav-outline{background:transparent;border:1px solid rgba(255,255,255,0.12);padding:8px 14px;border-radius:10px;color:var(--text)}
+
+.hero{display:flex;align-items:center;justify-content:center;padding:40px 24px 80px;gap:28px;flex:1;}
+.hero-inner{max-width:980px;text-align:center;padding:28px;border-radius:var(--radius);}
+.hero h1{font-size:48px;margin:12px 0 18px;line-height:1.04;font-weight:700;color:var(--text);}
+.subtitle{color:var(--muted);font-size:18px;margin-bottom:24px;}
+
+.cta-row{display:inline-flex;gap:14px;}
+.btn-primary{
+  padding:12px 24px;border-radius:12px;font-weight:700;color:#fff;text-decoration:none;
+  background: linear-gradient(135deg,var(--accent-start),var(--accent-end));
+  box-shadow: 0 8px 30px rgba(76,175,238,0.12);
+}
+.btn-outline{
+  padding:12px 22px;border-radius:12px;background:transparent;border:1px solid rgba(255,255,255,0.08);color:var(--text);
+  display:inline-flex;align-items:center;text-decoration:none;font-weight:600;
+}
+
+.hero-image{width:360px;height:360px;border-radius:18px;background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));box-shadow: 0 12px 40px rgba(0,0,0,0.6);display:none;}
+
+.landing-footer{padding:24px 36px;border-top:1px solid rgba(255,255,255,0.02);display:flex;justify-content:space-between;color:var(--muted);font-size:13px}
+
+/* responsive */
+@media(min-width:1100px){
+  .hero{padding-top:80px;}
+  .hero{flex-direction:row;}
+  .hero-image{display:block}
+}
+@media(max-width:720px){
+  .hero h1{font-size:30px}
+  .hero-image{display:none}
+  .landing-header{padding:16px}
+  .landing-footer{font-size:12px;padding:16px}
+}
