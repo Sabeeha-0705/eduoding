@@ -1,6 +1,7 @@
 import express from "express";
 import Note from "../models/Note.js";
-import authMiddleware from "../middleware/authMiddleware.js"; // your JWT middleware
+import protect from "../middleware/authMiddleware.js";
+
 
 const router = express.Router();
 
