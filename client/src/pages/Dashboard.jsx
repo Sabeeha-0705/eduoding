@@ -1,3 +1,4 @@
+// src/pages/Dashboard.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
@@ -5,54 +6,106 @@ import "./Dashboard.css";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState("courses"); 
+  const [activeTab, setActiveTab] = useState("courses");
+  const [notes, setNotes] = useState([]);
+  const [progressData, setProgressData] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // helper to get token from either storage (Remember or not)
+  const getToken = () =>
+    localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchAll = async () => {
+      setLoading(true);
       try {
-        const token = localStorage.getItem("authToken");
+        const token = getToken();
         if (!token) {
-          window.location.href = "/";
+          navigate("/", { replace: true });
           return;
         }
 
-        const res = await api.get("/auth/profile", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setUser(res.data.user);
+        // 1) profile
+        const profileRes = await api.get("/auth/profile");
+        setUser(profileRes.data.user);
+
+        // 2) notes - backend route (protected) is GET /api/notes which returns user's notes
+        try {
+          const notesRes = await api.get("/notes");
+          setNotes(notesRes.data || []);
+        } catch (err) {
+          // fallback: if backend notes not available, load localStorage notes
+          console.warn("Notes fetch failed, falling back to localStorage:", err.message);
+          const localNotes = [];
+          Object.keys(localStorage).forEach((k) => {
+            if (k.startsWith("note-")) {
+              localNotes.push({ _id: k, content: localStorage.getItem(k) });
+            }
+          });
+          setNotes(localNotes);
+        }
+
+        // 3) progress - backend protected route GET /api/progress
+        try {
+          const progRes = await api.get("/progress");
+          setProgressData(progRes.data || []);
+        } catch (err) {
+          console.warn("Progress fetch failed:", err.message);
+          setProgressData([]);
+        }
       } catch (err) {
         console.error("Profile fetch failed", err);
-        window.location.href = "/";
+        navigate("/", { replace: true });
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchProfile();
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const logout = () => {
     localStorage.removeItem("authToken");
-    window.location.href = "/";
+    sessionStorage.removeItem("authToken");
+    navigate("/", { replace: true });
+  };
+
+  // Delete note (backend + update UI)
+  const handleDeleteNote = async (noteId) => {
+    try {
+      // if noteId was stored as key (fallback localStorage), remove that
+      if (noteId.startsWith("note-") && localStorage.getItem(noteId)) {
+        localStorage.removeItem(noteId);
+        setNotes((n) => n.filter((x) => x._id !== noteId));
+        return;
+      }
+
+      // Try backend delete
+      await api.delete(`/notes/${noteId}`);
+      setNotes((n) => n.filter((x) => x._id !== noteId));
+    } catch (err) {
+      console.error("Delete note failed:", err.message || err);
+      alert("Failed to delete note");
+    }
+  };
+
+  // Helper to get course progress from progressData
+  const getProgressForCourse = (courseId) => {
+    const p = progressData.find((x) => x.courseId === String(courseId));
+    return p ? p.completedPercent : 0;
   };
 
   const courses = [
-    { id: 1, title: "Full Stack Web Development (MERN)", desc: "Learn MongoDB, Express, React, Node.js with real projects.", progress: 60 },
-    { id: 2, title: "Data Science & AI", desc: "Master Python, Machine Learning, and AI applications.", progress: 40 },
-    { id: 3, title: "Cloud & DevOps", desc: "Hands-on AWS, Docker, Kubernetes, CI/CD pipelines.", progress: 20 },
-    { id: 4, title: "Cybersecurity & Ethical Hacking", desc: "Protect systems, learn penetration testing & network security.", progress: 10 },
-    { id: 5, title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes.", progress: 75 },
+    { id: "1", title: "Full Stack Web Development (MERN)", desc: "Learn MongoDB, Express, React, Node.js with real projects." },
+    { id: "2", title: "Data Science & AI", desc: "Master Python, Machine Learning, and AI applications." },
+    { id: "3", title: "Cloud & DevOps", desc: "Hands-on AWS, Docker, Kubernetes, CI/CD pipelines." },
+    { id: "4", title: "Cybersecurity & Ethical Hacking", desc: "Protect systems, learn penetration testing & network security." },
+    { id: "5", title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes." },
   ];
 
-  // ✅ Fetch all notes from localStorage
-  const getAllNotes = () => {
-    const notes = [];
-    for (let key in localStorage) {
-      if (key.startsWith("note-")) {
-        notes.push({ key, text: localStorage[key] });
-      }
-    }
-    return notes;
-  };
+  if (loading) return <div className="dashboard-container"><main className="main-content"><p>Loading...</p></main></div>;
 
   return (
     <div className="dashboard-container">
@@ -61,15 +114,13 @@ export default function Dashboard() {
         <div className="logo">Eduoding</div>
         <nav>
           <ul>
-            <li onClick={() => setActiveTab("courses")}>📘 Courses</li>
-            <li onClick={() => setActiveTab("notes")}>📝 Notes</li>
-            <li onClick={() => setActiveTab("progress")}>📊 Progress</li>
-            <li onClick={() => setActiveTab("settings")}>⚙ Settings</li>
+            <li className={activeTab === "courses" ? "active" : ""} onClick={() => setActiveTab("courses")}>📘 Courses</li>
+            <li className={activeTab === "notes" ? "active" : ""} onClick={() => setActiveTab("notes")}>📝 Notes</li>
+            <li className={activeTab === "progress" ? "active" : ""} onClick={() => setActiveTab("progress")}>📊 Progress</li>
+            <li className={activeTab === "settings" ? "active" : ""} onClick={() => setActiveTab("settings")}>⚙ Settings</li>
           </ul>
         </nav>
-        <button className="logout-btn" onClick={logout}>
-          Logout
-        </button>
+        <button className="logout-btn" onClick={logout}>Logout</button>
       </aside>
 
       {/* Main Content */}
@@ -86,21 +137,16 @@ export default function Dashboard() {
                     <div key={course.id} className="course-card">
                       <h3>{course.title}</h3>
                       <p>{course.desc}</p>
+
                       <div className="progress-bar">
                         <div
                           className="progress"
-                          style={{ width: `${course.progress}%` }}
+                          style={{ width: `${getProgressForCourse(course.id)}%` }}
                         ></div>
                       </div>
-                      <p className="progress-text">{course.progress}% Completed</p>
+                      <p className="progress-text">{getProgressForCourse(course.id)}% Completed</p>
 
-                      {/* 👇 Pass course.id when navigating */}
-                      <button
-                        className="join-btn"
-                        onClick={() => navigate(`/course/${course.id}`)}
-                      >
-                        Join Course
-                      </button>
+                      <button className="join-btn" onClick={() => navigate(`/course/${course.id}`)}>Join Course</button>
                     </div>
                   ))}
                 </div>
@@ -110,12 +156,15 @@ export default function Dashboard() {
             {activeTab === "notes" && (
               <>
                 <h3>📝 Your Notes</h3>
-                {getAllNotes().length > 0 ? (
+                {notes.length > 0 ? (
                   <ul className="notes-list">
-                    {getAllNotes().map((note, idx) => (
-                      <li key={idx}>
-                        <strong>{note.key}</strong>
-                        <p>{note.text}</p>
+                    {notes.map((note) => (
+                      <li key={note._id}>
+                        <p>{note.content || note.text}</p>
+                        <small style={{ color: "#666" }}>{note._id}</small>
+                        <div>
+                          <button className="small-btn" onClick={() => handleDeleteNote(note._id)}>Delete</button>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -125,11 +174,31 @@ export default function Dashboard() {
               </>
             )}
 
-            {activeTab === "progress" && <p>📊 Progress tracking coming soon!</p>}
-            {activeTab === "settings" && <p>⚙ Settings page coming soon!</p>}
+            {activeTab === "progress" && (
+              <div>
+                <h3>📊 Progress</h3>
+                <p>Progress tracking coming soon — but here's live data:</p>
+                <ul>
+                  {progressData.length === 0 ? <li>No progress data</li> :
+                    progressData.map((p) => (
+                      <li key={p._id}>
+                        Course: {p.courseId} — {p.completedPercent}% completed
+                      </li>
+                    ))
+                  }
+                </ul>
+              </div>
+            )}
+
+            {activeTab === "settings" && (
+              <div>
+                <h3>⚙ Settings</h3>
+                <p>Change password, update profile, notification prefs — coming soon.</p>
+              </div>
+            )}
           </div>
         ) : (
-          <p>Loading...</p>
+          <p>Loading user...</p>
         )}
       </main>
     </div>
