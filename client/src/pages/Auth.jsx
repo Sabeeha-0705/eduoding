@@ -1,7 +1,7 @@
 // src/pages/Auth.jsx
 import { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
-import jwtDecode from "jwt-decode";
+import { jwtDecode } from "jwt-decode";
 import { api } from "../api";
 import bg from "../assets/bg.png";
 import "./Auth.css";
