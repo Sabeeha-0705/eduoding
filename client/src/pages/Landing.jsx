@@ -1,9 +1,11 @@
 // src/pages/Landing.jsx
 import { Link } from "react-router-dom";
-import logo from "/logo.png"; // public/logo.png
+// public/logo.png (keep in /public)
+import logo from "/logo.png";
+// small badge (recommended in src/assets/badge.svg)
 import badge from "../assets/badge.svg";
 
-// hero + collage images (ensure these files exist in src/assets)
+// hero + collage images (should exist under src/assets)
 import hero from "../assets/undraw_coding_joxb.svg";
 import review from "../assets/undraw_code-review_ept3.svg";
 import webapp from "../assets/undraw_web-app_141a.svg";
@@ -16,14 +18,16 @@ export default function Landing() {
       {/* Header */}
       <header className="landing-header">
         <div className="landing-left">
+          {/* small badge then wordmark logo */}
           <img src={badge} alt="Eduoding badge" className="badge" />
           <img src={logo} alt="Eduoding" className="landing-logo" />
           <span className="brand">Eduoding</span>
         </div>
 
         <nav className="landing-nav">
-          <Link to="/login" className="nav-btn outline">Login</Link>
-          <Link to="/register" className="nav-btn ghost">Sign up</Link>
+          {/* point to /auth so your Auth page opens */}
+          <Link to="/auth" className="nav-btn outline">Login</Link>
+          <Link to="/auth" className="nav-btn ghost">Sign up</Link>
         </nav>
       </header>
 
@@ -37,13 +41,12 @@ export default function Landing() {
           </h1>
 
           <p className="lead">
-            Instructor-led courses, project work, and verified certificates —
-            start building today.
+            Instructor-led courses, project work, and verified certificates — start building today.
           </p>
 
           <div className="cta-buttons">
-            <Link to="/register" className="btn primary">Get Started</Link>
-            <Link to="/register" className="btn secondary">Sign up</Link>
+            <Link to="/auth" className="btn primary">Get Started</Link>
+            <Link to="/auth" className="btn secondary">Sign up</Link>
           </div>
 
           <p className="trusted">Trusted by learners worldwide · Certificate on course completion</p>
@@ -62,9 +65,8 @@ export default function Landing() {
           <div className="about-text">
             <h2>Why Eduoding?</h2>
             <p>
-              We teach by building. Short modules with hands-on projects,
-              mentor feedback and an industry-aligned curriculum so you finish
-              with a portfolio and a certificate employers respect.
+              We teach by building. Short modules with hands-on projects, mentor feedback and an industry-aligned
+              curriculum so you finish with a portfolio and a certificate employers respect.
             </p>
 
             <ul className="about-list">
@@ -75,12 +77,11 @@ export default function Landing() {
 
             <div style={{ marginTop: 14 }}>
               <Link to="/courses" className="btn outline">Browse Courses</Link>
-              <Link to="/register" className="btn primary" style={{ marginLeft: 10 }}>Start Learning</Link>
+              <Link to="/auth" className="btn primary" style={{ marginLeft: 10 }}>Start Learning</Link>
             </div>
           </div>
 
           <div className="about-media">
-            {/* reuse hero in smaller card for visual balance */}
             <div className="about-media-card">
               <img src={webapp} alt="Platform preview" />
             </div>
