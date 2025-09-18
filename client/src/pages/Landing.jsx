@@ -1,54 +1,98 @@
 // src/pages/Landing.jsx
 import { Link } from "react-router-dom";
 import logo from "/logo.png"; // public/logo.png
-import svg1 from "../assets/undraw_coding_joxb.svg";
-import svg2 from "../assets/undraw_code-review_ept3.svg";
-import svg3 from "../assets/undraw_web-app_141a.svg";
+import badge from "../assets/badge.svg";
+
+// hero + collage images (ensure these files exist in src/assets)
+import hero from "../assets/undraw_coding_joxb.svg";
+import review from "../assets/undraw_code-review_ept3.svg";
+import webapp from "../assets/undraw_web-app_141a.svg";
+
 import "./Landing.css";
 
 export default function Landing() {
   return (
     <div className="landing-root">
+      {/* Header */}
       <header className="landing-header">
         <div className="landing-left">
+          <img src={badge} alt="Eduoding badge" className="badge" />
           <img src={logo} alt="Eduoding" className="landing-logo" />
           <span className="brand">Eduoding</span>
         </div>
+
         <nav className="landing-nav">
-          <Link to="/auth" className="nav-btn outline">Login</Link>
+          <Link to="/login" className="nav-btn outline">Login</Link>
+          <Link to="/register" className="nav-btn ghost">Sign up</Link>
         </nav>
       </header>
 
-      <section className="landing-hero">
-        <div className="hero-left">
-          <h1 className="hero-title">Practical learning. Real projects. Certificates.</h1>
-          <p className="hero-sub">
-            Instructor-led courses, project work, and verified certificates — start building today.
+      {/* Hero */}
+      <main className="landing-hero">
+        <div className="hero-text">
+          <h1>
+            Practical learning. <br />
+            Real projects. <br />
+            Certificates.
+          </h1>
+
+          <p className="lead">
+            Instructor-led courses, project work, and verified certificates —
+            start building today.
           </p>
 
-          <div className="hero-ctas">
-            <Link to="/auth" className="btn-primary">Get Started</Link>
-            <Link to="/auth" className="btn-ghost">Sign up</Link>
+          <div className="cta-buttons">
+            <Link to="/register" className="btn primary">Get Started</Link>
+            <Link to="/register" className="btn secondary">Sign up</Link>
           </div>
 
-          <p className="hero-note">Trusted by learners worldwide · Certificate on course completion</p>
+          <p className="trusted">Trusted by learners worldwide · Certificate on course completion</p>
         </div>
 
-        <div className="hero-right" aria-hidden="true">
-          <div className="collage">
-            <img src={svg1} alt="" className="collage-item item1" />
-            <img src={svg2} alt="" className="collage-item item2" />
-            <img src={svg3} alt="" className="collage-item item3" />
-            {/* optional overlay for visual polish */}
-            {/* <img src={heroOverlay} className="collage-overlay" alt="" /> */}
+        <div className="hero-images" aria-hidden="true">
+          <img src={hero} alt="Student coding" className="hero-main" />
+          <img src={review} alt="" className="hero-card card1" />
+          <img src={webapp} alt="" className="hero-card card2" />
+        </div>
+      </main>
+
+      {/* About / Split section */}
+      <section className="about-section">
+        <div className="about-inner">
+          <div className="about-text">
+            <h2>Why Eduoding?</h2>
+            <p>
+              We teach by building. Short modules with hands-on projects,
+              mentor feedback and an industry-aligned curriculum so you finish
+              with a portfolio and a certificate employers respect.
+            </p>
+
+            <ul className="about-list">
+              <li>📚 Project-first curriculum</li>
+              <li>👩‍🏫 Instructor & mentor support</li>
+              <li>🛠 Real-world tools & CI workflows</li>
+            </ul>
+
+            <div style={{ marginTop: 14 }}>
+              <Link to="/courses" className="btn outline">Browse Courses</Link>
+              <Link to="/register" className="btn primary" style={{ marginLeft: 10 }}>Start Learning</Link>
+            </div>
+          </div>
+
+          <div className="about-media">
+            {/* reuse hero in smaller card for visual balance */}
+            <div className="about-media-card">
+              <img src={webapp} alt="Platform preview" />
+            </div>
           </div>
         </div>
       </section>
 
+      {/* Footer */}
       <footer className="landing-footer">
         <div className="footer-inner">
-          <p>© {new Date().getFullYear()} Eduoding. All rights reserved.</p>
-          <p className="footer-small">Build projects • Earn certificates • Join a community</p>
+          <p>© 2025 Eduoding. All rights reserved.</p>
+          <p className="muted">Build projects • Earn certificates • Join a community</p>
         </div>
       </footer>
     </div>

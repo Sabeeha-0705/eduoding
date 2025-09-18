@@ -1,0 +1,23 @@
+<!-- src/assets/badge.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="eduodingBadgeTitle">
+  <title id="eduodingBadgeTitle">Eduoding badge</title>
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#7c63ff"/>
+      <stop offset="1" stop-color="#4fc3ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- soft rounded square background -->
+  <rect x="2" y="2" width="60" height="60" rx="12" fill="url(#g)" opacity="0.98"/>
+
+  <!-- stylized "E" mark -->
+  <g transform="translate(9,9)" fill="#fff">
+    <!-- top bar -->
+    <rect x="2" y="2" width="42" height="6" rx="3"/>
+    <!-- middle bar -->
+    <rect x="2" y="18" width="30" height="6" rx="3"/>
+    <!-- bottom bar -->
+    <rect x="2" y="34" width="42" height="6" rx="3"/>
+  </g>
+</svg>
