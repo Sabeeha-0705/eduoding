@@ -4,7 +4,7 @@ import api from "../api";
 // Upload file (multipart)
 export const uploadVideoFile = (formData, onProgress) =>
   api.post("/videos/upload", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
+    // REMOVE any manual "Content-Type": "multipart/form-data" header here.
     onUploadProgress: (evt) => {
       if (onProgress) onProgress(Math.round((evt.loaded * 100) / evt.total));
     },
