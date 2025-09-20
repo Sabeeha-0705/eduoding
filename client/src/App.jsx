@@ -10,6 +10,7 @@ import AddLesson from "./pages/AddLesson";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Notes from "./pages/Notes";
+import UploadPage from "./pages/UploadPage";
 import UploadVideo from "./pages/UploadVideo";
 import UploaderDashboard from "./pages/UploaderDashboard";
 
@@ -62,6 +63,8 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/uploader/upload" element={<UploadPage/>} />
+
         <Route
           path="/uploader/upload"
           element={

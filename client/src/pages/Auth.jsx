@@ -6,6 +6,7 @@ import bg from "../assets/bg.png";
 import "./Auth.css";
 import { useNavigate } from "react-router-dom";
 
+/* Small client-side JWT payload decoder (base64url -> JSON). UI-only. */
 const decodeJwt = (token) => {
   try {
     const payload = token.split(".")[1];
@@ -33,9 +34,6 @@ function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // NEW: "apply to be uploader" checkbox (UI-only)
-  const [applyUploader, setApplyUploader] = useState(false);
-
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -43,20 +41,12 @@ function AuthPage() {
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData);
 
-    // include our upload request flag only for register
-    if (!isLogin) {
-      data.requestUploader = applyUploader; // boolean
-    }
-
     try {
       if (isLogin) {
         const res = await api.post("/auth/login", data);
         if (res?.data?.token) {
-          if (remember) {
-            localStorage.setItem("authToken", res.data.token);
-          } else {
-            sessionStorage.setItem("authToken", res.data.token);
-          }
+          if (remember) localStorage.setItem("authToken", res.data.token);
+          else sessionStorage.setItem("authToken", res.data.token);
           setMsg("✅ Logged in!");
           navigate("/dashboard");
         } else {
@@ -75,9 +65,7 @@ function AuthPage() {
 
   const handleForgot = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const data = Object.fromEntries(formData);
-
+    const data = Object.fromEntries(new FormData(e.target));
     try {
       const res = await api.post("/auth/forgot-password", { email: data.email });
       setMsg(res.data.message || "Reset OTP sent to email!");
@@ -89,9 +77,7 @@ function AuthPage() {
 
   const handleOtpVerify = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const data = Object.fromEntries(formData);
-
+    const data = Object.fromEntries(new FormData(e.target));
     try {
       const res = await api.post("/auth/verify-otp", { email, otp: data.otp });
       setMsg(res.data.message);
@@ -109,16 +95,12 @@ function AuthPage() {
         setMsg("Google login failed: no credential returned");
         return;
       }
-
-      const userInfo = decodeJwt(token);
       const res = await api.post("/auth/google", { token });
       if (res.data?.token) {
         localStorage.setItem("authToken", res.data.token);
         setMsg("✅ Google login success!");
         navigate("/dashboard");
-      } else {
-        setMsg("Google login failed: no app token returned");
-      }
+      } else setMsg("Google login failed: no app token returned");
     } catch (err) {
       console.error(err);
       setMsg("Google login failed");
@@ -148,9 +130,7 @@ function AuthPage() {
             <form onSubmit={handleForgot}>
               <input type="email" name="email" placeholder="Enter your email" required />
               <button type="submit" className="btn-primary">Send Reset Link</button>
-              <button type="button" className="switch-btn" onClick={() => setForgotMode(false)}>
-                Back to Login
-              </button>
+              <button type="button" className="switch-btn" onClick={() => setForgotMode(false)}>Back to Login</button>
             </form>
           ) : otpStep ? (
             <form onSubmit={handleOtpVerify}>
@@ -159,17 +139,9 @@ function AuthPage() {
             </form>
           ) : (
             <>
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={() => setMsg("Google login failed")}
-                useOneTap={false}
-              />
+              <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setMsg("Google login failed")} useOneTap={false} />
 
-              <div className="divider">
-                <hr />
-                <span>OR</span>
-                <hr />
-              </div>
+              <div className="divider"><hr /><span>OR</span><hr /></div>
 
               <form onSubmit={handleSubmit}>
                 {!isLogin && <input type="text" name="username" placeholder="Username" required />}
@@ -184,18 +156,7 @@ function AuthPage() {
                     required
                     style={{ width: "100%", paddingRight: "35px" }}
                   />
-                  <span
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: "absolute",
-                      right: "10px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                      color: "#555",
-                    }}
-                  >
+                  <span onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", fontSize: "14px", color: "#555" }}>
                     {showPassword ? "🙈" : "👁️"}
                   </span>
                 </div>
@@ -209,58 +170,42 @@ function AuthPage() {
                       required
                       style={{ width: "100%", paddingRight: "35px" }}
                     />
-                    <span
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      style={{
-                        position: "absolute",
-                        right: "10px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                        color: "#555",
-                      }}
-                    >
+                    <span onClick={() => setShowConfirmPassword(!showConfirmPassword)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", fontSize: "14px", color: "#555" }}>
                       {showConfirmPassword ? "🙈" : "👁️"}
                     </span>
                   </div>
                 )}
 
-                {/* NEW: apply to be uploader checkbox (UI-only) */}
+                {/* ROLE SELECT (only shown on signup). WARNING: enabling uploader/admin here is insecure for production */}
                 {!isLogin && (
-                  <label className="remember-me" style={{ marginTop: 8 }}>
-                    <input
-                      type="checkbox"
-                      checked={applyUploader}
-                      onChange={(e) => setApplyUploader(e.target.checked)}
-                    />
-                    Apply to be uploader (request role)
-                  </label>
+                  <div style={{ textAlign: "left", marginTop: 8 }}>
+                    <label style={{ fontSize: 13, color: "#333", display: "block", marginBottom: 6 }}>
+                      Choose role (for testing only)
+                    </label>
+                    <select name="role" defaultValue="user" style={{ width: "100%", padding: 9, borderRadius: 6 }}>
+                      <option value="user">User</option>
+                      {/* uploader option included for local testing only — remove/disable for production */}
+                      <option value="uploader">Uploader (testing only)</option>
+                    </select>
+                    <small style={{ color: "#b02", display: "block", marginTop: 6 }}>
+                      ⚠️ Allowing uploader/admin during signup is insecure. For production, remove this and promote via admin script / Atlas.
+                    </small>
+                  </div>
                 )}
 
                 {isLogin && (
                   <label className="remember-me">
-                    <input
-                      type="checkbox"
-                      checked={remember}
-                      onChange={(e) => setRemember(e.target.checked)}
-                    />
+                    <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
                     Remember Me
                   </label>
                 )}
 
-                <button type="submit" className="btn-primary">
-                  {isLogin ? "Login" : "Sign Up"}
-                </button>
+                <button type="submit" className="btn-primary">{isLogin ? "Login" : "Sign Up"}</button>
               </form>
 
-              {isLogin && (
-                <p className="forgot-password" onClick={() => setForgotMode(true)}>
-                  Forgot Password?
-                </p>
-              )}
+              {isLogin && <p className="forgot-password" onClick={() => setForgotMode(true)}>Forgot Password?</p>}
 
-              <button className="switch-btn" onClick={() => setIsLogin(!isLogin)}>
+              <button className="switch-btn" onClick={() => { setIsLogin(!isLogin); setMsg(""); }}>
                 {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Login"}
               </button>
             </>
