@@ -1,22 +1,15 @@
 // src/pages/Auth.jsx
 import { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
-// removed: import jwtDecode from "jwt-decode";
 import { api } from "../api";
 import bg from "../assets/bg.png";
 import "./Auth.css";
 import { useNavigate } from "react-router-dom";
 
-/**
- * Small client-side JWT payload decoder (base64url -> JSON).
- * Works only to read token payload on client (do NOT rely on this for security).
- */
 const decodeJwt = (token) => {
   try {
     const payload = token.split(".")[1];
-    // base64url -> base64
     const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    // decode
     const json = decodeURIComponent(
       atob(base64)
         .split("")
@@ -37,17 +30,23 @@ function AuthPage() {
   const [remember, setRemember] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
 
-  // 👁️ Eye toggle states
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // NEW: "apply to be uploader" checkbox (UI-only)
+  const [applyUploader, setApplyUploader] = useState(false);
+
   const navigate = useNavigate();
 
-  // ✅ Login/Register
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData);
+
+    // include our upload request flag only for register
+    if (!isLogin) {
+      data.requestUploader = applyUploader; // boolean
+    }
 
     try {
       if (isLogin) {
@@ -74,7 +73,6 @@ function AuthPage() {
     }
   };
 
-  // ✅ Forgot Password
   const handleForgot = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -89,7 +87,6 @@ function AuthPage() {
     }
   };
 
-  // ✅ OTP Verify
   const handleOtpVerify = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -105,7 +102,6 @@ function AuthPage() {
     }
   };
 
-  // ✅ Google Login
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
       const token = credentialResponse?.credential;
@@ -114,10 +110,7 @@ function AuthPage() {
         return;
       }
 
-      // decode token payload locally (for UI use only)
       const userInfo = decodeJwt(token);
-
-      // send Google token to backend for verification + app token
       const res = await api.post("/auth/google", { token });
       if (res.data?.token) {
         localStorage.setItem("authToken", res.data.token);
@@ -151,7 +144,6 @@ function AuthPage() {
             {forgotMode ? "Forgot Password" : isLogin ? "Login" : otpStep ? "Verify OTP" : "Sign Up"}
           </h2>
 
-          {/* Forgot Password Form */}
           {forgotMode ? (
             <form onSubmit={handleForgot}>
               <input type="email" name="email" placeholder="Enter your email" required />
@@ -167,7 +159,6 @@ function AuthPage() {
             </form>
           ) : (
             <>
-              {/* Google Login */}
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
                 onError={() => setMsg("Google login failed")}
@@ -180,13 +171,11 @@ function AuthPage() {
                 <hr />
               </div>
 
-              {/* Normal Login/Register */}
               <form onSubmit={handleSubmit}>
                 {!isLogin && <input type="text" name="username" placeholder="Username" required />}
 
                 <input type="email" name="email" placeholder="Email" required />
 
-                {/* Password Field 👁️ */}
                 <div style={{ position: "relative" }}>
                   <input
                     type={showPassword ? "text" : "password"}
@@ -211,7 +200,6 @@ function AuthPage() {
                   </span>
                 </div>
 
-                {/* Confirm Password 👁️ (only signup) */}
                 {!isLogin && (
                   <div style={{ position: "relative" }}>
                     <input
@@ -238,7 +226,18 @@ function AuthPage() {
                   </div>
                 )}
 
-                {/* Remember Me */}
+                {/* NEW: apply to be uploader checkbox (UI-only) */}
+                {!isLogin && (
+                  <label className="remember-me" style={{ marginTop: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={applyUploader}
+                      onChange={(e) => setApplyUploader(e.target.checked)}
+                    />
+                    Apply to be uploader (request role)
+                  </label>
+                )}
+
                 {isLogin && (
                   <label className="remember-me">
                     <input
@@ -255,14 +254,12 @@ function AuthPage() {
                 </button>
               </form>
 
-              {/* Forgot Password */}
               {isLogin && (
                 <p className="forgot-password" onClick={() => setForgotMode(true)}>
                   Forgot Password?
                 </p>
               )}
 
-              {/* Switch Button */}
               <button className="switch-btn" onClick={() => setIsLogin(!isLogin)}>
                 {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Login"}
               </button>

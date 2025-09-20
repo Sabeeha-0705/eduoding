@@ -12,7 +12,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // helper to get token from either storage (Remember or not)
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
@@ -26,16 +25,13 @@ export default function Dashboard() {
           return;
         }
 
-        // 1) profile
         const profileRes = await api.get("/auth/profile");
         setUser(profileRes.data.user);
 
-        // 2) notes - backend route (protected) is GET /api/notes which returns user's notes
         try {
           const notesRes = await api.get("/notes");
           setNotes(notesRes.data || []);
         } catch (err) {
-          // fallback: if backend notes not available, load localStorage notes
           console.warn("Notes fetch failed, falling back to localStorage:", err.message);
           const localNotes = [];
           Object.keys(localStorage).forEach((k) => {
@@ -46,7 +42,6 @@ export default function Dashboard() {
           setNotes(localNotes);
         }
 
-        // 3) progress - backend protected route GET /api/progress
         try {
           const progRes = await api.get("/progress");
           setProgressData(progRes.data || []);
@@ -72,17 +67,14 @@ export default function Dashboard() {
     navigate("/", { replace: true });
   };
 
-  // Delete note (backend + update UI)
   const handleDeleteNote = async (noteId) => {
     try {
-      // if noteId was stored as key (fallback localStorage), remove that
       if (noteId.startsWith("note-") && localStorage.getItem(noteId)) {
         localStorage.removeItem(noteId);
         setNotes((n) => n.filter((x) => x._id !== noteId));
         return;
       }
 
-      // Try backend delete
       await api.delete(`/notes/${noteId}`);
       setNotes((n) => n.filter((x) => x._id !== noteId));
     } catch (err) {
@@ -91,7 +83,6 @@ export default function Dashboard() {
     }
   };
 
-  // Helper to get course progress from progressData
   const getProgressForCourse = (courseId) => {
     const p = progressData.find((x) => x.courseId === String(courseId));
     return p ? p.completedPercent : 0;
@@ -107,9 +98,11 @@ export default function Dashboard() {
 
   if (loading) return <div className="dashboard-container"><main className="main-content"><p>Loading...</p></main></div>;
 
+  // role check helper
+  const isUploader = user && (user.role === "uploader" || user.role === "admin");
+
   return (
     <div className="dashboard-container">
-      {/* Sidebar */}
       <aside className="sidebar">
         <div className="logo">Eduoding</div>
         <nav>
@@ -118,12 +111,22 @@ export default function Dashboard() {
             <li className={activeTab === "notes" ? "active" : ""} onClick={() => setActiveTab("notes")}>📝 Notes</li>
             <li className={activeTab === "progress" ? "active" : ""} onClick={() => setActiveTab("progress")}>📊 Progress</li>
             <li className={activeTab === "settings" ? "active" : ""} onClick={() => setActiveTab("settings")}>⚙ Settings</li>
+
+            {/* NEW: uploader links visible only if user is uploader/admin */}
+            {isUploader ? (
+              <>
+                <li onClick={() => navigate("/uploader/upload")}>⬆️ Upload Video</li>
+                <li onClick={() => navigate("/uploader/dashboard")}>📁 Uploader Dashboard</li>
+              </>
+            ) : (
+              // show request link (optional) if user wants uploader role
+              <li onClick={() => navigate("/request-uploader")}>✉ Request uploader role</li>
+            )}
           </ul>
         </nav>
         <button className="logout-btn" onClick={logout}>Logout</button>
       </aside>
 
-      {/* Main Content */}
       <main className="main-content">
         {user ? (
           <div>
