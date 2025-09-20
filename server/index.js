@@ -10,6 +10,9 @@ import authRoutes from "./routes/authRoutes.js";
 import lessonRoutes from "./routes/lessonRoutes.js";
 import noteRoutes from "./routes/noteRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
+import videoRoutes from "./routes/videoRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+
 
 dotenv.config();
 connectDB();
@@ -52,6 +55,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/lessons", lessonRoutes);
 app.use("/api/notes", noteRoutes);
 app.use("/api/progress", progressRoutes);
+app.use("/api/videos", videoRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Static uploads (NOTE: Render disk is ephemeral; consider Cloudinary/S3 for prod)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));

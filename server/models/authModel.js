@@ -7,7 +7,9 @@ const userSchema = new mongoose.Schema(
       required: [true, "Username is required"], 
       trim: true,
       minlength: [3, "Username must be at least 3 characters long"],
-      maxlength: [10, "Username must be less than 10 characters"]
+      maxlength: [10, "Username must be less than 10 characters"],
+      provider: { type: String, default: "local" },
+ role: { type: String, enum: ["student","uploader","admin"], default: "student" },
     },
 
     email: { 
@@ -28,6 +30,8 @@ const userSchema = new mongoose.Schema(
         message: props => `Password must include 1 uppercase, 1 lowercase, 1 number, and 1 special character`
       }
     },
+
+
 
     // Google Auth
     googleId: { type: String },

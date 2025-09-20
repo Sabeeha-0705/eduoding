@@ -10,6 +10,8 @@ import AddLesson from "./pages/AddLesson";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Notes from "./pages/Notes";
+import UploadVideo from "./pages/UploadVideo";
+import UploaderDashboard from "./pages/UploaderDashboard";
 
 export default function App() {
   return (
@@ -57,6 +59,23 @@ export default function App() {
           element={
             <ProtectedRoute>
               <LessonPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/uploader/upload"
+          element={
+            <ProtectedRoute>
+              <UploadVideo />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/uploader/dashboard"
+          element={
+            <ProtectedRoute>
+              <UploaderDashboard />
             </ProtectedRoute>
           }
         />
