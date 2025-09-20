@@ -2,8 +2,6 @@
 import { Link } from "react-router-dom";
 // public/logo.png (keep in /public)
 import logo from "/logo.png";
-// small badge (recommended in src/assets/badge.svg)
-import badge from "../assets/badge.svg";
 
 // hero + collage images (should exist under src/assets)
 import hero from "../assets/undraw_coding_joxb.svg";
@@ -18,10 +16,8 @@ export default function Landing() {
       {/* Header */}
       <header className="landing-header">
         <div className="landing-left">
-          {/* small badge then wordmark logo */}
-          <img src={badge} alt="Eduoding badge" className="badge" />
+          {/* Use only the main logo (bigger, clear) */}
           <img src={logo} alt="Eduoding" className="landing-logo" />
-          <span className="brand">Eduoding</span>
         </div>
 
         <nav className="landing-nav">
