@@ -1,81 +1,70 @@
 // server/controllers/videoController.js
 import Video from "../models/Video.js";
-import { extractMetadataAndThumbnail } from "../utils/videoProcessing.js";
-import path from "path";
-import fs from "fs";
-import mongoose from "mongoose";
-import fetch from "node-fetch"; // if Node >= 18 you can remove this import
 import { notifyAdminsAboutUpload } from "../utils/notify.js";
+import { v2 as cloudinary } from "cloudinary";
+import streamifier from "streamifier";
 
+// Cloudinary Config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
+// -------------------------------
+// 🔹 Upload file (Cloudinary stream)
 export const uploadVideoFile = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
-    // build public URL (adjust if you serve uploads from /uploads static)
-    const fileUrl = `/uploads/${req.file.filename}`;
-
-    // try extracting metadata and thumbnail (will return undefined on failure)
-    const fullPath = path.join(process.cwd(), "server", "uploads", req.file.filename);
-    let duration = null;
-    let thumbnail = null;
-    try {
-      const meta = await extractMetadataAndThumbnail(fullPath);
-      if (meta) {
-        duration = meta.duration || null;
-        thumbnail = meta.thumbnail || null;
-      }
-    } catch (metaErr) {
-      console.warn("Video metadata extraction failed:", metaErr.message || metaErr);
-      // continue without failing upload
-    }
+    // upload stream to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { resource_type: "video", folder: "eduoding" },
+        (err, result) => (err ? reject(err) : resolve(result))
+      );
+      streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+    });
 
     const video = await Video.create({
       title: req.body.title || req.file.originalname,
       description: req.body.description || "",
       uploaderId: req.user._id,
       sourceType: "upload",
-      fileUrl,
-      thumbnailUrl: thumbnail,
-      duration,
+      fileUrl: result.secure_url,
+      thumbnailUrl: result.thumbnail_url || null,
+      duration: result.duration || null,
       status: "pending",
     });
+
+    // 🔔 notify admins
+    await notifyAdminsAboutUpload(video, req.user);
 
     return res.json({ message: "Upload successful", video });
   } catch (err) {
     console.error("uploadVideoFile error:", err);
-    // better client error message when possible
-    const msg = err.message || "Upload failed";
-    return res.status(500).json({ message: msg });
+    return res.status(500).json({ message: err.message || "Upload failed" });
   }
 };
 
+// -------------------------------
+// 🔹 Add YouTube Video
 export const addYoutubeVideo = async (req, res) => {
   try {
     const { youtubeUrl, title, description } = req.body;
     if (!youtubeUrl) return res.status(400).json({ message: "YouTube URL required" });
 
-    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(youtubeUrl)}&format=json`;
-    let meta = {};
-    try {
-      const r = await fetch(oembedUrl);
-      if (r.ok) meta = await r.json();
-    } catch (e) {
-      // ignore and fallback
-      console.warn("oEmbed failed:", e && e.message);
-      meta = {};
-    }
-
-    const thumbnailUrl = meta.thumbnail_url || null;
     const video = await Video.create({
-      title: title || meta.title || "YouTube Video",
+      title: title || "YouTube Video",
       description: description || "",
       uploaderId: req.user._id,
       sourceType: "youtube",
       youtubeUrl,
-      thumbnailUrl,
       status: "pending",
     });
+
+    // 🔔 notify admins
+    await notifyAdminsAboutUpload(video, req.user);
 
     return res.json({ message: "YouTube video saved", video });
   } catch (err) {
@@ -84,6 +73,8 @@ export const addYoutubeVideo = async (req, res) => {
   }
 };
 
+// -------------------------------
+// 🔹 Get My Videos
 export const getMyVideos = async (req, res) => {
   try {
     const videos = await Video.find({ uploaderId: req.user._id }).sort({ createdAt: -1 });
@@ -94,16 +85,11 @@ export const getMyVideos = async (req, res) => {
   }
 };
 
+// -------------------------------
+// 🔹 Get Video by Id
 export const getVideoById = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    // Validate ObjectId first to avoid CastError
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid video id" });
-    }
-
-    const video = await Video.findById(id);
+    const video = await Video.findById(req.params.id);
     if (!video) return res.status(404).json({ message: "Video not found" });
     return res.json(video);
   } catch (err) {
@@ -112,17 +98,13 @@ export const getVideoById = async (req, res) => {
   }
 };
 
+// -------------------------------
+// 🔹 Update Video
 export const updateVideo = async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid video id" });
-    }
-
-    const video = await Video.findById(id);
+    const video = await Video.findById(req.params.id);
     if (!video) return res.status(404).json({ message: "Video not found" });
 
-    // only uploader or admin can edit
     if (String(video.uploaderId) !== String(req.user._id) && req.user.role !== "admin") {
       return res.status(403).json({ message: "Forbidden" });
     }

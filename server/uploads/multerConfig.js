@@ -1,30 +1,14 @@
-// server/upload/multerConfig.js
+// server/uploads/multerConfig.js
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 
-const uploadDir = path.join(process.cwd(), "server", "uploads"); // where mp4s will be stored
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename(req, file, cb) {
-    const safeName = `${Date.now()}-${file.originalname.replace(/\s+/g, "-")}`;
-    cb(null, safeName);
-  },
-});
-
+const storage = multer.memoryStorage(); // store file in memory (buffer)
 export const upload = multer({
   storage,
-  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB limit (change if needed)
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB
   fileFilter(req, file, cb) {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if ([".mp4", ".mov", ".mkv", ".webm"].includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only video files allowed (mp4, mov, mkv, webm)"));
-    }
+    const allowed = [".mp4", ".mov", ".mkv", ".webm"];
+    const ext = (file.originalname.match(/\.[^.]+$/) || [""])[0].toLowerCase();
+    if (allowed.includes(ext)) return cb(null, true);
+    cb(new Error("Only video files allowed (mp4, mov, mkv, webm)"));
   },
 });
