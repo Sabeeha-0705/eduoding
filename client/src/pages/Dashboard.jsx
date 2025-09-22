@@ -138,11 +138,11 @@ export default function Dashboard() {
         )}
 
         {/* Admin quick link (visible only to admin) */}
-        {user?.role === "admin" && (
-          <div className="sidebar-quick">
-            <button className="admin-btn" onClick={() => navigate("/admin")}>🛠 Admin Panel</button>
-          </div>
-        )}
+        {user.role === "admin" && (
+  <button onClick={() => navigate("/admin/requests")} className="btn-admin">
+    Admin Panel
+  </button>
+)}
 
         <div style={{ marginTop: "auto" }}>
           <div className="role-badge">Role: <strong>{user?.role || "user"}</strong></div>
