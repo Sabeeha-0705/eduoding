@@ -1,3 +1,4 @@
 // client/src/context/index.js
-export * from "./AuthContext";
-export { default } from "./AuthContext";
+export { default as AuthContext } from "./AuthContext.jsx";
+export { AuthProvider, useAuth } from "./AuthContext.jsx";
+
