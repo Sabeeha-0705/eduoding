@@ -45,7 +45,8 @@ const userSchema = new mongoose.Schema(
     // role for permissions
     role: { type: String, enum: ["user", "uploader", "admin"], default: "user" },
 
-    // any other fields (e.g. avatar, bio) can go here
+    // 🚨 NEW field: did user request uploader?
+    requestedUploader: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

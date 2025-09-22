@@ -1,12 +1,14 @@
+// server/controllers/authController.js
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/authModel.js";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
+import { notifyAdminsAboutUploaderRequest } from "../utils/notify.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// 🔹 Nodemailer transporter (Gmail)
+// Nodemailer transporter (Gmail)
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -15,7 +17,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// 🔹 Generate JWT helper
+// Generate JWT helper
 const generateToken = (user) => {
   return jwt.sign(
     { id: user._id, email: user.email },
@@ -24,7 +26,7 @@ const generateToken = (user) => {
   );
 };
 
-// 🔹 Send OTP Email
+// Send OTP Email
 const sendOTP = async (email, otp, subject = "Your OTP Code - Eduoding") => {
   await transporter.sendMail({
     from: `"Eduoding App" <${process.env.EMAIL_USER}>`,
@@ -35,10 +37,10 @@ const sendOTP = async (email, otp, subject = "Your OTP Code - Eduoding") => {
 };
 
 // -------------------------------
-// 🔹 Normal Signup with OTP
+// Signup with OTP + uploader request
 export const registerUser = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, requestedUploader } = req.body;
 
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ message: "User already exists" });
@@ -59,22 +61,31 @@ export const registerUser = async (req, res) => {
       otpExpires,
       isVerified: false,
       provider: "local",
+      role: "user", // 🚨 always user first
+      requestedUploader:
+        requestedUploader === true || requestedUploader === "true",
     });
 
     await user.save();
 
-    // Send OTP via Gmail
+    // Send OTP to user
     await sendOTP(email, otp);
+
+    // Notify admin if this user requested uploader
+    if (user.requestedUploader) {
+      console.log(`📩 ${email} requested uploader access`);
+      notifyAdminsAboutUploaderRequest(user).catch(console.error);
+    }
 
     res.json({ message: "OTP sent to email. Please verify." });
   } catch (err) {
+    console.error("registerUser error:", err);
     res.status(500).json({ message: err.message });
   }
 };
 
 // -------------------------------
-// 🔹 OTP Verification
-// 🔹 OTP Verification
+// OTP Verification
 export const verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -82,7 +93,6 @@ export const verifyOTP = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    // Force string comparison
     if (user.otp?.toString() !== otp.toString() || user.otpExpires < Date.now()) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
@@ -99,9 +109,8 @@ export const verifyOTP = async (req, res) => {
   }
 };
 
-
 // -------------------------------
-// 🔹 Normal Login
+// Login
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -113,11 +122,8 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Please verify your email first" });
     }
 
-    // Compare hashed password
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
+    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
     const token = generateToken(user);
     res.json({ message: "Login successful", token, user });
@@ -127,7 +133,7 @@ export const loginUser = async (req, res) => {
 };
 
 // -------------------------------
-// 🔹 Forgot Password (Send Reset OTP)
+// Forgot Password (OTP)
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -135,15 +141,12 @@ export const forgotPassword = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    // Generate OTP
     const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
     user.otp = resetOtp;
-    user.otpExpires = Date.now() + 5 * 60 * 1000; // 5 mins
+    user.otpExpires = Date.now() + 5 * 60 * 1000;
     await user.save();
 
-    // Send OTP
     await sendOTP(email, resetOtp, "Password Reset OTP");
-
     res.json({ message: "Reset OTP sent to your email" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -151,7 +154,7 @@ export const forgotPassword = async (req, res) => {
 };
 
 // -------------------------------
-// 🔹 Reset Password
+// Reset Password
 export const resetPassword = async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
@@ -162,11 +165,9 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
-    // Hash new password
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(newPassword, salt);
 
-    // Clear OTP
     user.otp = null;
     user.otpExpires = null;
     await user.save();
@@ -178,12 +179,10 @@ export const resetPassword = async (req, res) => {
 };
 
 // -------------------------------
-// 🔹 Google Login
+// Google Login
 export const googleLogin = async (req, res) => {
   try {
     const { token } = req.body;
-
-    // Verify Google token
     const ticket = await client.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
@@ -192,7 +191,6 @@ export const googleLogin = async (req, res) => {
     const payload = ticket.getPayload();
     const { email, name } = payload;
 
-    // Check if user exists
     let user = await User.findOne({ email });
     if (!user) {
       user = await User.create({
@@ -200,13 +198,11 @@ export const googleLogin = async (req, res) => {
         email,
         password: null,
         provider: "google",
-        isVerified: true, // Google login = trusted
+        isVerified: true,
       });
     }
 
-    // Generate our JWT
     const appToken = generateToken(user);
-
     res.json({ token: appToken, user });
   } catch (error) {
     console.error(error);

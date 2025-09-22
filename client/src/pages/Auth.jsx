@@ -34,6 +34,9 @@ function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // state to track uploader request
+  const [requestedUploader, setRequestedUploader] = useState(false);
+
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -53,7 +56,9 @@ function AuthPage() {
           setMsg("Login failed: no token returned.");
         }
       } else {
-        const res = await api.post("/auth/register", data);
+        // include requestedUploader flag
+        const payload = { ...data, requestedUploader: !!requestedUploader };
+        const res = await api.post("/auth/register", payload);
         setMsg(res.data.message || "OTP sent to email!");
         setOtpStep(true);
         setEmail(data.email);
@@ -145,7 +150,6 @@ function AuthPage() {
 
               <form onSubmit={handleSubmit}>
                 {!isLogin && <input type="text" name="username" placeholder="Username" required />}
-
                 <input type="email" name="email" placeholder="Email" required />
 
                 <div style={{ position: "relative" }}>
@@ -176,19 +180,22 @@ function AuthPage() {
                   </div>
                 )}
 
-                {/* ROLE SELECT (only shown on signup). WARNING: enabling uploader/admin here is insecure for production */}
+                {/* ROLE REQUEST (only on signup). This does NOT assign uploader directly. */}
                 {!isLogin && (
                   <div style={{ textAlign: "left", marginTop: 8 }}>
                     <label style={{ fontSize: 13, color: "#333", display: "block", marginBottom: 6 }}>
-                      Choose role (for testing only)
+                      Request special role
                     </label>
-                    <select name="role" defaultValue="user" style={{ width: "100%", padding: 9, borderRadius: 6 }}>
+                    <select
+                      value={requestedUploader ? "uploader" : "user"}
+                      onChange={(e) => setRequestedUploader(e.target.value === "uploader")}
+                      style={{ width: "100%", padding: 9, borderRadius: 6 }}
+                    >
                       <option value="user">User</option>
-                      {/* uploader option included for local testing only — remove/disable for production */}
-                      <option value="uploader">Uploader (testing only)</option>
+                      <option value="uploader">Uploader (request approval)</option>
                     </select>
                     <small style={{ color: "#b02", display: "block", marginTop: 6 }}>
-                      ⚠️ Allowing uploader/admin during signup is insecure. For production, remove this and promote via admin script / Atlas.
+                      ⚠️ You’ll remain a User until Admin approves. Uploader requests will notify admins.
                     </small>
                   </div>
                 )}
