@@ -1,8 +1,11 @@
 // server/controllers/videoController.js
 import Video from "../models/Video.js";
+import User from "../models/authModel.js"; // added to fetch uploader email/username
 import { notifyAdminsAboutUpload } from "../utils/notify.js";
+import sendEmail from "../utils/sendEmail.js"; // new helper
 import { v2 as cloudinary } from "cloudinary";
 import streamifier from "streamifier";
+//import mongoose from "mongoose";
 
 // Cloudinary Config
 cloudinary.config({
@@ -109,12 +112,39 @@ export const updateVideo = async (req, res) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
+    // save previous status to detect "published" transition
+    const prevStatus = video.status;
+
     const allowed = ["title", "description", "status", "thumbnailUrl"];
     allowed.forEach((k) => {
       if (req.body[k] !== undefined) video[k] = req.body[k];
     });
 
     await video.save();
+
+    // If admin changed status to published (and it wasn't published before) -> notify uploader
+    try {
+      if (prevStatus !== "published" && video.status === "published") {
+        const uploader = await User.findById(video.uploaderId).select("email username");
+        if (uploader && uploader.email) {
+          const frontendUrl = process.env.FRONTEND_URL || "";
+          const subject = `Your video "${video.title}" is published`;
+          const text = `${uploader.username || "User"}, your video "${video.title}" has been published.`;
+          const html = `
+            <p>Hi ${uploader.username || ""},</p>
+            <p>Your video "<strong>${video.title}</strong>" has been <strong>published</strong>.</p>
+            <p>View it: <a href="${frontendUrl}/video/${video._id}">${frontendUrl ? "Open video" : "Visit dashboard"}</a></p>
+            <p>— Eduoding team</p>
+          `;
+          await sendEmail({ to: uploader.email, subject, text, html });
+          console.log("✅ Notified uploader about publish:", uploader.email);
+        }
+      }
+    } catch (notifyErr) {
+      console.warn("Failed to notify uploader:", notifyErr && notifyErr.message);
+      // don't fail the main request if email fails
+    }
+
     return res.json({ message: "Updated", video });
   } catch (err) {
     console.error("updateVideo error:", err);
