@@ -11,7 +11,6 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // optional: decode token to get user or fetch user profile
-    // keep simple for build
   }, [token]);
 
   return (
@@ -22,5 +21,4 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
-
 export default AuthContext;
