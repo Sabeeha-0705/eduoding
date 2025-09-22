@@ -1,61 +1,24 @@
-// client/src/pages/AdminVideos.jsx
-import React, { useEffect, useState } from "react";
-import { getMyVideos, updateVideo } from "../api/videos";  // ✅ named exports
-import { useAuth } from "../context";                      // ✅ good
+// client/src/api/videos.js
+import api from "../api"; // axios instance (not "../api/videos")
 
-export default function AdminVideos() {
-  const [videos, setVideos] = useState([]);
-  const { token } = useAuth();
+// Upload file (multipart)
+export const uploadVideoFile = (formData, onProgress) =>
+  api.post("/videos/upload", formData, {
+    onUploadProgress: (evt) => {
+      if (onProgress) onProgress(Math.round((evt.loaded * 100) / evt.total));
+    },
+  });
 
-  // Fetch all pending videos
-  useEffect(() => {
-    const fetchPending = async () => {
-      try {
-        const res = await getMyVideos(); // ✅ no need to pass headers manually, interceptor handles token
-        const pending = res.data.filter((v) => v.status === "pending");
-        setVideos(pending);
-      } catch (err) {
-        console.error("Failed to fetch videos", err);
-      }
-    };
-    fetchPending();
-  }, [token]);
+// Save YouTube URL
+export const addYoutubeVideo = (payload) => api.post("/videos/youtube", payload);
 
-  // Approve handler
-  const approveVideo = async (id) => {
-    try {
-      await updateVideo(id, { status: "published" }); // ✅ wrapper handles URL + headers
-      setVideos((prev) => prev.filter((v) => v._id !== id));
-      alert("✅ Video approved!");
-    } catch (err) {
-      console.error("Approve failed", err);
-      alert("❌ Approve failed");
-    }
-  };
+// Get my videos
+export const getMyVideos = () => api.get("/videos/mine");
 
-  return (
-    <div className="p-4">
-      <h2 className="text-xl font-bold mb-4">Pending Videos</h2>
-      {videos.length === 0 ? (
-        <p>No pending videos 🎉</p>
-      ) : (
-        <ul className="space-y-4">
-          {videos.map((video) => (
-            <li key={video._id} className="p-4 border rounded flex justify-between">
-              <div>
-                <h3 className="font-semibold">{video.title}</h3>
-                <p>Status: {video.status}</p>
-              </div>
-              <button
-                className="bg-green-600 text-white px-4 py-2 rounded"
-                onClick={() => approveVideo(video._id)}
-              >
-                Approve
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
+// Get single
+export const getVideo = (id) => api.get(`/videos/${id}`);
+
+// Update metadata
+export const updateVideo = (id, data) => api.put(`/videos/${id}`, data);
+
+export default api;

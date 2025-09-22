@@ -1,67 +1,96 @@
 // client/src/pages/AdminVideos.jsx
-import React from "react";
-import { useEffect, useState } from "react";
-import api from "../api/videos"; // adjust path to your axios instance
-import { useAuth } from "../context";            // uses index.js
-
+import React, { useEffect, useState } from "react";
+import { getMyVideos, updateVideo } from "../api/videos"; // named exports
+import { useAuth } from "../context"; // uses context/index.js
 
 export default function AdminVideos() {
   const [videos, setVideos] = useState([]);
-  const { token } = useAuth(); // your auth hook
+  const [loading, setLoading] = useState(true);
+  const [approvingIds, setApprovingIds] = useState(new Set());
+  const { token } = useAuth(); // interceptor reads token from storage; token included so we re-run if auth changes
 
-  // Fetch all pending videos
   useEffect(() => {
+    let mounted = true;
     const fetchPending = async () => {
+      setLoading(true);
       try {
-        const res = await api.get("/api/videos/mine", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const pending = res.data.filter((v) => v.status === "pending");
-        setVideos(pending);
+        const res = await getMyVideos();
+        // support both res.data === array OR res.data.videos
+        const payload = Array.isArray(res.data) ? res.data : res.data?.videos ?? [];
+        const pending = payload.filter((v) => v.status === "pending");
+        if (mounted) setVideos(pending);
       } catch (err) {
         console.error("Failed to fetch videos", err);
+        if (mounted) setVideos([]);
+        alert("Failed to load videos. Check console for details.");
+      } finally {
+        if (mounted) setLoading(false);
       }
     };
     fetchPending();
+    return () => { mounted = false; };
   }, [token]);
 
-  // Approve handler
   const approveVideo = async (id) => {
+    // avoid duplicate clicks
+    if (approvingIds.has(id)) return;
+    setApprovingIds((s) => new Set(s).add(id));
+
     try {
-      await api.put(
-        `/api/videos/${id}`,
-        { status: "published" },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setVideos((prev) => prev.filter((v) => v._id !== id)); // remove from list
+      await updateVideo(id, { status: "published" });
+      // remove locally
+      setVideos((prev) => prev.filter((v) => v._id !== id));
       alert("✅ Video approved!");
     } catch (err) {
       console.error("Approve failed", err);
-      alert("❌ Approve failed");
+      alert("❌ Approve failed. See console for details.");
+    } finally {
+      setApprovingIds((s) => {
+        const copy = new Set(s);
+        copy.delete(id);
+        return copy;
+      });
     }
   };
+
+  if (loading) {
+    return (
+      <div className="p-4">
+        <h2 className="text-xl font-bold mb-4">Pending Videos</h2>
+        <p>Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4">
       <h2 className="text-xl font-bold mb-4">Pending Videos</h2>
+
       {videos.length === 0 ? (
         <p>No pending videos 🎉</p>
       ) : (
         <ul className="space-y-4">
-          {videos.map((video) => (
-            <li key={video._id} className="p-4 border rounded flex justify-between">
-              <div>
-                <h3 className="font-semibold">{video.title}</h3>
-                <p>Status: {video.status}</p>
-              </div>
-              <button
-                className="bg-green-600 text-white px-4 py-2 rounded"
-                onClick={() => approveVideo(video._id)}
+          {videos.map((video) => {
+            const approving = approvingIds.has(video._id);
+            return (
+              <li
+                key={video._id}
+                className="p-4 border rounded flex justify-between items-center"
               >
-                Approve
-              </button>
-            </li>
-          ))}
+                <div>
+                  <h3 className="font-semibold">{video.title}</h3>
+                  <p className="text-sm text-gray-600">Status: {video.status}</p>
+                </div>
+                <button
+                  className={`px-4 py-2 rounded text-white ${approving ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
+                  onClick={() => approveVideo(video._id)}
+                  disabled={approving}
+                >
+                  {approving ? "Approving…" : "Approve"}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
