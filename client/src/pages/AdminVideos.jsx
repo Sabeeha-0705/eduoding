@@ -2,7 +2,7 @@
 import React from "react";
 import { useEffect, useState } from "react";
 import api from "../api/videos"; // adjust path to your axios instance
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context";            // uses index.js
 
 
 export default function AdminVideos() {
