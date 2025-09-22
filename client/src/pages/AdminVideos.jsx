@@ -1,7 +1,8 @@
 // client/src/pages/AdminVideos.jsx
 import { useEffect, useState } from "react";
 import api from "../api/videos"; // adjust path to your axios instance
-import { useAuth } from "../context/AuthContext"; // if you have auth context
+import { useAuth } from "../context";
+
 
 export default function AdminVideos() {
   const [videos, setVideos] = useState([]);
