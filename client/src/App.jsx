@@ -10,11 +10,11 @@ import AddLesson from "./pages/AddLesson";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Notes from "./pages/Notes";
-import UploadPage from "./pages/UploadPage";
 import UploadVideo from "./pages/UploadVideo";
 import UploaderDashboard from "./pages/UploaderDashboard";
 import AdminVideos from "./pages/AdminVideos";
 import AdminRequests from "./pages/AdminRequests";
+import AdminRoute from "./pages/AdminRoute";
 
 export default function App() {
   return (
@@ -30,6 +30,22 @@ export default function App() {
         <Route path="/add-lesson" element={<AddLesson />} />
         <Route path="/admin/requests" element={<AdminRequests />} />
 <Route path="/admin/videos" element={<AdminVideos />} />
+<Route
+  path="/admin/requests"
+  element={
+    <AdminRoute>
+      <AdminRequests />
+    </AdminRoute>
+  }
+/>
+<Route
+  path="/admin/videos"
+  element={
+    <AdminRoute>
+      <AdminVideos />
+    </AdminRoute>
+  }
+/>
 
 
         {/* Protected */}
@@ -70,7 +86,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/uploader/upload" element={<UploadPage/>} />
+        
 
         <Route
           path="/uploader/upload"
