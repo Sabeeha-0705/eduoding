@@ -1,6 +1,6 @@
 // client/src/pages/AdminRequests.jsx
 import React, { useEffect, useState } from "react";
-import api from "../api"; // your axios instance that sets Authorization header
+import api from "../api"; // axios instance with baseURL set to .../api
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context";
 
@@ -16,15 +16,23 @@ export default function AdminRequests() {
       setLoading(true);
       setErr(null);
       try {
-        const res = await api.get("/admin/uploader-requests"); // baseURL should already be /api
+        // api baseURL should already include /api
+        const res = await api.get("/admin/uploader-requests");
         setRequests(res.data || []);
       } catch (e) {
         console.error("Fetch uploader requests failed:", e);
-        setErr(e.message || "Failed to load requests");
+        // friendly message
+        setErr(
+          e?.response?.data?.message ||
+            e?.message ||
+            "Failed to load uploader requests"
+        );
       } finally {
         setLoading(false);
       }
     };
+
+    // only fetch after token exists (protect route requires auth)
     if (token) fetchRequests();
   }, [token]);
 
@@ -36,7 +44,9 @@ export default function AdminRequests() {
       alert("User approved as uploader ✅");
     } catch (e) {
       console.error("Approve failed:", e);
-      alert(e.message || "Approve failed");
+      alert(
+        e?.response?.data?.message || e?.message || "Approve failed. See console."
+      );
     }
   };
 
@@ -52,24 +62,45 @@ export default function AdminRequests() {
       ) : (
         <ul className="space-y-4">
           {requests.map((u) => (
-            <li key={u._id} className="flex justify-between items-center border p-3 rounded">
+            <li
+              key={u._id}
+              className="flex justify-between items-center border p-3 rounded"
+            >
               <div>
                 <div style={{ fontWeight: 600 }}>{u.username || u.email}</div>
                 <div style={{ fontSize: 13, color: "#666" }}>{u.email}</div>
-                {u.requestedUploader && <div style={{ fontSize: 12, color: "#0a66c2" }}>Requested uploader</div>}
+                {u.requestedUploader && (
+                  <div style={{ fontSize: 12, color: "#0a66c2" }}>
+                    Requested uploader
+                  </div>
+                )}
               </div>
 
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   onClick={() => approve(u._id)}
-                  style={{ background: "#16a34a", color: "white", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
+                  style={{
+                    background: "#16a34a",
+                    color: "white",
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    cursor: "pointer",
+                  }}
                 >
                   Approve
                 </button>
 
                 <button
                   onClick={() => navigate(`/admin/user/${u._id}`)}
-                  style={{ background: "#f3f4f6", color: "#111827", padding: "8px 12px", borderRadius: 6, border: "1px solid #e5e7eb", cursor: "pointer" }}
+                  style={{
+                    background: "#f3f4f6",
+                    color: "#111827",
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #e5e7eb",
+                    cursor: "pointer",
+                  }}
                 >
                   View
                 </button>

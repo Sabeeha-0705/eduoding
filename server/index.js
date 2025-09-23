@@ -13,7 +13,6 @@ import progressRoutes from "./routes/progressRoutes.js";
 import videoRoutes from "./routes/videoRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 
-
 dotenv.config();
 connectDB();
 
@@ -30,7 +29,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin(origin, cb) {
-      // allow mobile apps / curl / server-to-server (no origin)
+      // allow server-to-server (no origin) and tooling
       if (!origin) return cb(null, true);
       if (allowedOrigins.includes(origin)) return cb(null, true);
       return cb(new Error(`CORS blocked for origin: ${origin}`));
@@ -42,7 +41,7 @@ app.use(
 // Preflight
 app.options("*", cors());
 
-// Paths
+// Paths for static files (uploads)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -58,8 +57,18 @@ app.use("/api/progress", progressRoutes);
 app.use("/api/videos", videoRoutes);
 app.use("/api/admin", adminRoutes);
 
-// Static uploads (NOTE: Render disk is ephemeral; consider Cloudinary/S3 for prod)
+// Static uploads (Render's disk is ephemeral; consider S3/Cloudinary for production)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// Simple logging to help debugging deploys
+console.log("Mounts registered: /api/auth, /api/lessons, /api/notes, /api/progress, /api/videos, /api/admin");
+
+// Generic error handler (so errors show clearly in Render logs)
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err && err.stack ? err.stack : err);
+  const status = err?.status || 500;
+  res.status(status).json({ message: err?.message || "Server error" });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
