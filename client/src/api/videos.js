@@ -1,5 +1,7 @@
 // client/src/api/videos.js
-import api from "./index.js"; // or "../api" — whichever exports your axios instance
+// client/src/api/videos.js
+import api from "../api";   // correct path to api.js in parent folder
+ // or "../api" — whichever exports your axios instance
 
 export const uploadVideoFile = (formData, onProgress) =>
   api.post("/videos/upload", formData, {
