@@ -1,42 +1,42 @@
 // client/src/pages/AdminRequests.jsx
 import React, { useEffect, useState } from "react";
-import { api } from "../api"; // your axios helper (must export `api`)
+import api from "../api"; // your axios instance that sets Authorization header
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context";
 
 export default function AdminRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const navigate = useNavigate();
+  const { token } = useAuth();
 
   useEffect(() => {
     const fetchRequests = async () => {
       setLoading(true);
       setErr(null);
       try {
-        // server: GET /api/admin/uploader-requests  (api baseURL should include /api)
-        const res = await api.get("/admin/uploader-requests");
+        const res = await api.get("/admin/uploader-requests"); // baseURL should already be /api
         setRequests(res.data || []);
       } catch (e) {
         console.error("Fetch uploader requests failed:", e);
-        setErr(e?.message || "Failed to load requests");
+        setErr(e.message || "Failed to load requests");
       } finally {
         setLoading(false);
       }
     };
-    fetchRequests();
-  }, []);
+    if (token) fetchRequests();
+  }, [token]);
 
   const approve = async (id) => {
     if (!window.confirm("Approve this user as uploader?")) return;
     try {
-      // server: PUT /api/admin/approve-uploader/:id
       await api.put(`/admin/approve-uploader/${id}`);
       setRequests((r) => r.filter((u) => u._id !== id));
       alert("User approved as uploader ✅");
     } catch (e) {
       console.error("Approve failed:", e);
-      alert(e?.message || "Approve failed");
+      alert(e.message || "Approve failed");
     }
   };
 
@@ -61,7 +61,7 @@ export default function AdminRequests() {
 
               <div style={{ display: "flex", gap: 8 }}>
                 <button
-                  onClick={() => approve(u._1d || u._id)}
+                  onClick={() => approve(u._id)}
                   style={{ background: "#16a34a", color: "white", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
                 >
                   Approve

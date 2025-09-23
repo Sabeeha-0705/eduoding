@@ -9,6 +9,7 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .map((s) => s.trim())
   .filter(Boolean);
 
+// existing upload notification (keeps what you had)
 export async function notifyAdminsAboutUpload(video, uploader) {
   if (!ADMIN_EMAILS.length) return;
 
@@ -30,13 +31,16 @@ export async function notifyAdminsAboutUpload(video, uploader) {
       text: `${uploader.email} uploaded "${video.title}". Check dashboard.`,
     });
 
-    console.log("📩 Notification email sent to admins");
+    console.log("📩 Notification email sent to admins (upload)");
   } catch (err) {
-    console.error("❌ Failed to send notification:", err.message);
+    console.error("❌ Failed to send notification (upload):", err.message);
   }
 }
+
+// --- NEW: notify admins when a user requests uploader access
 export async function notifyAdminsAboutUploaderRequest(user) {
   if (!ADMIN_EMAILS.length) return;
+
   try {
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -48,14 +52,17 @@ export async function notifyAdminsAboutUploaderRequest(user) {
       },
     });
 
+    const subject = `Uploader request: ${user.email}`;
+    const text = `${user.email} (${user.username || "—"}) has requested uploader access. Review in admin panel.`;
+
     await transporter.sendMail({
       from: `"Eduoding" <${process.env.SMTP_USER}>`,
       to: ADMIN_EMAILS,
-      subject: `Uploader Request: ${user.email}`,
-      text: `${user.email} requested uploader access. Open admin dashboard to approve.`,
+      subject,
+      text,
     });
 
-    console.log("📩 Admins notified about uploader request");
+    console.log("📩 Uploader request notification sent to admins");
   } catch (err) {
     console.error("❌ Failed to send uploader request notification:", err.message);
   }
