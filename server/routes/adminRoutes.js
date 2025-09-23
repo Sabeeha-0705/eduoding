@@ -5,19 +5,40 @@ import User from "../models/authModel.js";
 
 const router = express.Router();
 
-// POST /api/admin/promote  { email: "user@..." }
-// must be called by an existing admin user
-router.post("/promote", protect, async (req, res) => {
+// existing POST /promote route here...
+// --------------------------------------------------
+// NEW: list users who requested uploader role
+// GET  /api/admin/uploader-requests
+router.get("/uploader-requests", protect, async (req, res) => {
   try {
     if (req.user.role !== "admin") return res.status(403).json({ message: "Admin only" });
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ message: "Email required" });
-
-    const result = await User.updateOne({ email }, { $set: { role: "uploader" } });
-    return res.json({ message: "User promoted (uploader)", result });
+    // return users who asked for uploader but are still 'user'
+    const requests = await User.find({ requestedUploader: true, role: "user" }).select("username email createdAt");
+    return res.json(requests);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: err.message });
+    console.error("get uploader-requests:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// NEW: approve a request (promote the user)
+ // PUT /api/admin/approve-uploader/:id
+router.put("/approve-uploader/:id", protect, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") return res.status(403).json({ message: "Admin only" });
+
+    const userId = req.params.id;
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { role: "uploader", requestedUploader: false } },
+      { new: true }
+    );
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    return res.json({ message: "Uploader approved", user });
+  } catch (err) {
+    console.error("approve-uploader:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
