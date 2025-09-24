@@ -5,10 +5,10 @@ import User from "../models/authModel.js";
 /**
  * Protect middleware
  * - Accepts token from Authorization header "Bearer <token>"
- * - Also checks cookie "authToken" (useful if you set token in cookie)
+ * - Also checks cookie "authToken" (optional)
  * - Verifies JWT and attaches user (without password) to req.user
  */
-const protect = async (req, res, next) => {
+export const protect = async (req, res, next) => {
   let token;
 
   try {
@@ -59,4 +59,5 @@ const protect = async (req, res, next) => {
   }
 };
 
+// also export as default for files that import default
 export default protect;

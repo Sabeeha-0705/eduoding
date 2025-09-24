@@ -11,7 +11,6 @@ export const getUploaderRequests = async (req, res) => {
       return res.status(403).json({ message: "Admin only" });
     }
 
-    // select only safe fields (no password)
     const requests = await User.find({ requestedUploader: true, role: "user" })
       .select("username email requestedUploader createdAt");
 
@@ -40,17 +39,7 @@ export const approveUploader = async (req, res) => {
     user.requestedUploader = false;
     await user.save();
 
-    // return safe user (no password)
-    const safeUser = {
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-      requestedUploader: user.requestedUploader,
-      updatedAt: user.updatedAt,
-    };
-
-    return res.json({ message: "User promoted to uploader", user: safeUser });
+    return res.json({ message: "User promoted to uploader", user });
   } catch (err) {
     console.error("approveUploader:", err);
     return res.status(500).json({ message: "Server error" });
