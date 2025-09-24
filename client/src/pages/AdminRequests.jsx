@@ -9,19 +9,17 @@ export default function AdminRequests() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token } = useAuth(); // ensure your axios instance sends token automatically
 
   useEffect(() => {
     const fetchRequests = async () => {
       setLoading(true);
       setErr(null);
       try {
-        // api baseURL should already include /api
         const res = await api.get("/admin/uploader-requests");
         setRequests(res.data || []);
       } catch (e) {
         console.error("Fetch uploader requests failed:", e);
-        // friendly message
         setErr(
           e?.response?.data?.message ||
             e?.message ||
@@ -32,7 +30,6 @@ export default function AdminRequests() {
       }
     };
 
-    // only fetch after token exists (protect route requires auth)
     if (token) fetchRequests();
   }, [token]);
 

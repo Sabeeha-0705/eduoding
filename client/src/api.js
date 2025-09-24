@@ -2,10 +2,12 @@
 import axios from "axios";
 
 /**
- * Prefer Vite env var (set in client .env), fallback to Render backend URL,
- * then local dev fallback. Ensure the backend default includes "/api" if you
- * expect to call endpoints like "/admin/uploader-requests".
+ * API client
+ * - Uses Vite env var VITE_API_BASE if set (e.g. "https://.../api")
+ * - Fallback to Render backend URL (includes /api)
+ * - Keep timeout and interceptors for auth + centralized error handling
  */
+
 const BASE_URL =
   import.meta.env.VITE_API_BASE ||
   "https://eduoding-backend.onrender.com/api" ||
@@ -16,28 +18,27 @@ const API = axios.create({
   timeout: 15000,
 });
 
-/**
- * Attach token from local/session storage automatically to every request.
- */
+// Request interceptor: attach token automatically
 API.interceptors.request.use(
   (config) => {
     try {
+      // Key used by your app (you used "authToken" in code above)
       const token =
         localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
-      if (token) config.headers.Authorization = `Bearer ${token}`;
+      if (token) {
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     } catch (e) {
-      // ignore storage access errors
+      // ignore storage errors (e.g., SSR)
+      console.warn("Failed to read auth token from storage", e);
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-/**
- * Centralized response handling:
- * - convert most server responses into a single Error object with message
- * - if 401: clear tokens and redirect to /auth so user can re-login
- */
+// Response interceptor: normalize errors and handle 401
 API.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -47,28 +48,26 @@ API.interceptors.response.use(
       err?.message ||
       "Something went wrong. Please try again.";
 
-    // If unauthorized, clear local auth and send user to login (helps deployed apps)
+    // On 401, clear tokens and redirect to /auth (only in browser)
     if (status === 401) {
       try {
         localStorage.removeItem("authToken");
         sessionStorage.removeItem("authToken");
       } catch (e) {
-        // ignore
+        /* ignore */
       }
-      // safe redirect (only in browser)
       if (typeof window !== "undefined") {
-        // use replace so back button doesn't go to protected page
+        // Prevent going back to protected route
         window.location.replace("/auth");
       }
     }
 
-    // Attach response to error object so callers can inspect if needed
     const out = new Error(msg);
     out.response = err.response;
     return Promise.reject(out);
   }
 );
 
-// Keep both named and default exports to avoid breakage with different import styles
+// keep both default and named export (your code imports default)
 export const api = API;
 export default API;

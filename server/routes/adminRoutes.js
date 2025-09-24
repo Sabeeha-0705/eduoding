@@ -1,6 +1,6 @@
 // server/routes/adminRoutes.js
 import express from "express";
-import protect from "../middleware/authMiddleware.js"; // your middleware that sets req.user
+import protect from "../middleware/authMiddleware.js"; // must set req.user
 import { getUploaderRequests, approveUploader } from "../controllers/adminController.js";
 
 const router = express.Router();

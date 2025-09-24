@@ -1,13 +1,13 @@
 // client/src/pages/AdminVideos.jsx
 import React, { useEffect, useState } from "react";
-import { getMyVideos, updateVideo } from "../api/videos"; // named exports
-import { useAuth } from "../context"; // uses context/index.js
+import { getMyVideos, updateVideo } from "../api/videos"; // named exports — ensure file exists
+import { useAuth } from "../context";
 
 export default function AdminVideos() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [approvingIds, setApprovingIds] = useState(new Set());
-  const { token } = useAuth(); // interceptor reads token from storage; token included so we re-run if auth changes
+  const { token } = useAuth();
 
   useEffect(() => {
     let mounted = true;
@@ -15,35 +15,31 @@ export default function AdminVideos() {
       setLoading(true);
       try {
         const res = await getMyVideos();
-        // support both res.data === array OR res.data.videos
         const payload = Array.isArray(res.data) ? res.data : res.data?.videos ?? [];
         const pending = payload.filter((v) => v.status === "pending");
         if (mounted) setVideos(pending);
       } catch (err) {
         console.error("Failed to fetch videos", err);
         if (mounted) setVideos([]);
-        alert("Failed to load videos. Check console for details.");
+        alert("Failed to load videos. Check console.");
       } finally {
         if (mounted) setLoading(false);
       }
     };
-    fetchPending();
+    if (token) fetchPending();
     return () => { mounted = false; };
   }, [token]);
 
   const approveVideo = async (id) => {
-    // avoid duplicate clicks
     if (approvingIds.has(id)) return;
     setApprovingIds((s) => new Set(s).add(id));
-
     try {
       await updateVideo(id, { status: "published" });
-      // remove locally
       setVideos((prev) => prev.filter((v) => v._id !== id));
       alert("✅ Video approved!");
     } catch (err) {
       console.error("Approve failed", err);
-      alert("❌ Approve failed. See console for details.");
+      alert("Approve failed. See console.");
     } finally {
       setApprovingIds((s) => {
         const copy = new Set(s);
@@ -53,19 +49,11 @@ export default function AdminVideos() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="p-4">
-        <h2 className="text-xl font-bold mb-4">Pending Videos</h2>
-        <p>Loading…</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="p-4"><h2 className="text-xl mb-4">Pending Videos</h2><p>Loading…</p></div>;
 
   return (
     <div className="p-4">
       <h2 className="text-xl font-bold mb-4">Pending Videos</h2>
-
       {videos.length === 0 ? (
         <p>No pending videos 🎉</p>
       ) : (
@@ -73,10 +61,7 @@ export default function AdminVideos() {
           {videos.map((video) => {
             const approving = approvingIds.has(video._id);
             return (
-              <li
-                key={video._id}
-                className="p-4 border rounded flex justify-between items-center"
-              >
+              <li key={video._id} className="p-4 border rounded flex justify-between items-center">
                 <div>
                   <h3 className="font-semibold">{video.title}</h3>
                   <p className="text-sm text-gray-600">Status: {video.status}</p>

@@ -1,11 +1,9 @@
 // server/controllers/adminController.js
-import mongoose from "mongoose";
 import User from "../models/authModel.js";
 
 /**
  * GET /api/admin/uploader-requests
- * Returns users who requested uploader (regardless of current role).
- * Use this if you want admin to see all requests even if role was changed.
+ * Returns users who requested uploader role and are still role === 'user'
  */
 export const getUploaderRequests = async (req, res) => {
   try {
@@ -13,9 +11,9 @@ export const getUploaderRequests = async (req, res) => {
       return res.status(403).json({ message: "Admin only" });
     }
 
-    // NOTE: changed to show all users who requested uploader, regardless of role.
-    const requests = await User.find({ requestedUploader: true })
-      .select("username email role requestedUploader createdAt");
+    // select only safe fields (no password)
+    const requests = await User.find({ requestedUploader: true, role: "user" })
+      .select("username email requestedUploader createdAt");
 
     return res.json(requests);
   } catch (err) {
@@ -35,27 +33,24 @@ export const approveUploader = async (req, res) => {
     }
 
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid user id" });
-    }
-
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: "User not found" });
-
-    // if already uploader, just clear requestedUploader and return
-    if (user.role === "uploader") {
-      if (user.requestedUploader) {
-        user.requestedUploader = false;
-        await user.save();
-      }
-      return res.json({ message: "User already uploader", user });
-    }
 
     user.role = "uploader";
     user.requestedUploader = false;
     await user.save();
 
-    return res.json({ message: "User promoted to uploader", user });
+    // return safe user (no password)
+    const safeUser = {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      requestedUploader: user.requestedUploader,
+      updatedAt: user.updatedAt,
+    };
+
+    return res.json({ message: "User promoted to uploader", user: safeUser });
   } catch (err) {
     console.error("approveUploader:", err);
     return res.status(500).json({ message: "Server error" });
