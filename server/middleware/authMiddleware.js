@@ -59,5 +59,5 @@ export const protect = async (req, res, next) => {
   }
 };
 
-// also export as default for files that import default
+// also export default for files that import default
 export default protect;

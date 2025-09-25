@@ -1,4 +1,4 @@
-// server/models/Video.js
+// server/models/videoModel.js
 import mongoose from "mongoose";
 
 const videoSchema = new mongoose.Schema(

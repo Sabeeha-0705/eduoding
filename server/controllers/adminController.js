@@ -10,8 +10,10 @@ export const getUploaderRequests = async (req, res) => {
     if (!req.user || req.user.role !== "admin") {
       return res.status(403).json({ message: "Admin only" });
     }
-    const requests = await User.find({ requestedUploader: true, role: "user" })
-      .select("username email requestedUploader createdAt");
+    const requests = await User.find({
+      requestedUploader: true,
+      role: "user",
+    }).select("username email requestedUploader createdAt");
     return res.json(requests);
   } catch (err) {
     console.error("getUploaderRequests:", err);
@@ -60,7 +62,10 @@ export const listPendingVideos = async (req, res) => {
       return res.status(403).json({ message: "Admin only" });
     }
 
-    const pending = await Video.find({ status: "pending" }).populate("uploaderId", "username email");
+    const pending = await Video.find({ status: "pending" }).populate(
+      "uploaderId",
+      "username email"
+    );
     return res.json({ videos: pending });
   } catch (err) {
     console.error("listPendingVideos:", err);

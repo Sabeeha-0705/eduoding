@@ -1,6 +1,6 @@
 // client/src/pages/AdminVideos.jsx
 import React, { useEffect, useState } from "react";
-import api from "../api"; // axios instance
+import api from "../api"; // axios instance (default export)
 
 export default function AdminVideos() {
   const [videos, setVideos] = useState([]);
@@ -8,21 +8,24 @@ export default function AdminVideos() {
   const [approving, setApproving] = useState(new Set());
 
   useEffect(() => {
+    let mounted = true;
     const fetchPending = async () => {
       setLoading(true);
       try {
         const res = await api.get("/admin/videos/pending");
         const payload = res.data?.videos || [];
-        setVideos(payload);
+        if (mounted) setVideos(payload);
       } catch (err) {
         console.error("Failed to fetch pending videos", err);
         alert("Failed to load videos. Check console.");
+        if (mounted) setVideos([]);
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     fetchPending();
+    return () => { mounted = false; };
   }, []);
 
   const changeStatus = async (id, newStatus) => {
