@@ -1,4 +1,4 @@
-// routes/authRoutes.js
+// server/routes/authRoutes.js
 import { Router } from "express";
 import {
   registerUser,
@@ -8,7 +8,9 @@ import {
   forgotPassword,
   resetPassword,
 } from "../controllers/authController.js";
-import  protect  from "../middleware/authMiddleware.js";
+
+// import default protect (works) — named import also works because middleware exports named too
+import protect from "../middleware/authMiddleware.js";
 
 const router = Router();
 

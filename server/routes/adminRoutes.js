@@ -1,29 +1,14 @@
-// routes/authRoutes.js  (or server/routes/authRoutes.js depending your tree)
-import { Router } from "express";
-import {
-  registerUser,
-  loginUser,
-  verifyOTP,
-  googleLogin,
-  forgotPassword,
-  resetPassword,
-} from "../controllers/authController.js";
-// use named import (protect) — middleware now exports named & default
-import { protect } from "../middleware/authMiddleware.js";
+// server/routes/adminRoutes.js
+import express from "express";
+import protect from "../middleware/authMiddleware.js"; // default import works
+import { getUploaderRequests, approveUploader } from "../controllers/adminController.js";
 
-const router = Router();
+const router = express.Router();
 
-// 🔹 Auth Routes
-router.post("/register", registerUser);
-router.post("/verify-otp", verifyOTP);
-router.post("/login", loginUser);
-router.post("/google", googleLogin);
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetPassword);
+// GET /api/admin/uploader-requests
+router.get("/uploader-requests", protect, getUploaderRequests);
 
-// 🔹 Protected Profile Route
-router.get("/profile", protect, (req, res) => {
-  res.json({ user: req.user });
-});
+// PUT /api/admin/approve-uploader/:id
+router.put("/approve-uploader/:id", protect, approveUploader);
 
 export default router;
