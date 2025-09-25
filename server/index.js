@@ -63,6 +63,51 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // Simple logging to help debugging deploys
 console.log("Mounts registered: /api/auth, /api/lessons, /api/notes, /api/progress, /api/videos, /api/admin");
 
+// replace your current /api/debug/list-routes handler with this in server/index.js
+app.get("/api/debug/list-routes", (req, res) => {
+  try {
+    const routes = [];
+
+    function extract(stack, prefix = "") {
+      stack.forEach((layer) => {
+        // route layer
+        if (layer.route && layer.route.path) {
+          const methods = Object.keys(layer.route.methods || {})
+            .map((m) => m.toUpperCase())
+            .join(",");
+          // show full path with prefix
+          routes.push(`${methods} ${prefix}${layer.route.path}`);
+        } else if (layer.name === "router" && layer.handle && layer.handle.stack) {
+          // this is a mounted router - try to obtain path prefix
+          let mountPath = "";
+          if (layer.regexp && layer.regexp.source) {
+            // best-effort extraction of mount path from regexp
+            const re = layer.regexp
+              .toString()
+              .replace("/^", "")
+              .replace("\\/?(?=\\/|$)/i", "")
+              .replace("/i", "");
+            mountPath = ""; // keep empty if can't parse cleanly
+          }
+          // recurse into nested stack; prefix can't be reliably obtained for all router setups,
+          // but we show both prefix (if any) and the child route path
+          extract(layer.handle.stack, prefix);
+        }
+      });
+    }
+
+    if (app && app._router && app._router.stack) {
+      extract(app._router.stack, "");
+    }
+    res.json({ routes });
+  } catch (err) {
+    console.error("list-routes error:", err);
+    res.status(500).json({ message: "Server error listing routes" });
+  }
+});
+
+
+
 // Generic error handler (so errors show clearly in Render logs)
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err && err.stack ? err.stack : err);
