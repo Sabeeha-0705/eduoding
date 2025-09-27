@@ -1,6 +1,9 @@
 // server/models/authModel.js
 import mongoose from "mongoose";
 
+const passwordRegex =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
 const userSchema = new mongoose.Schema(
   {
     username: {
@@ -18,17 +21,22 @@ const userSchema = new mongoose.Schema(
       match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"],
     },
 
+    // password is optional (for google accounts). Validate only when present.
     password: {
       type: String,
-      minlength: [8, "Password must be at least 8 characters long"],
+      // do not set required: true because google users have null password
+      minlength: [
+        8,
+        "Password must be at least 8 characters long (when provided)",
+      ],
       validate: {
         validator: function (v) {
-          // at least 1 lowercase, 1 uppercase, 1 number, 1 special char
-          return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
-            v
-          );
+          // if v is null/undefined/empty -> skip validation (allow)
+          if (v === null || v === undefined || v === "") return true;
+          // otherwise check regex
+          return passwordRegex.test(v);
         },
-        message: () =>
+        message:
           "Password must include 1 uppercase, 1 lowercase, 1 number, and 1 special character",
       },
     },
@@ -45,7 +53,7 @@ const userSchema = new mongoose.Schema(
     // role for permissions
     role: { type: String, enum: ["user", "uploader", "admin"], default: "user" },
 
-    // 🚨 NEW field: did user request uploader?
+    // did user request uploader?
     requestedUploader: { type: Boolean, default: false },
   },
   { timestamps: true }
