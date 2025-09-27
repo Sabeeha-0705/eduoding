@@ -62,8 +62,8 @@ app.use("/api/admin", adminRoutes);
 
 
 verifyTransporter().catch((err) => {
-  // Log but don't crash the whole process — Render will still show error in logs.
-  console.error("Email transporter verification failed at startup:", err && err.message ? err.message : err);
+  // log but allow server to continue; optionally fail fast in prod
+  console.error("verifyTransporter error (startup):", err && err.message ? err.message : err);
 });
 
 
