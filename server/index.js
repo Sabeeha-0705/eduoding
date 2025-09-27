@@ -12,6 +12,7 @@ import noteRoutes from "./routes/noteRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
 import videoRoutes from "./routes/videoRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import { verifyTransporter } from "./server/utils/sendEmail.js";
 
 dotenv.config();
 connectDB();
@@ -56,6 +57,10 @@ app.use("/api/notes", noteRoutes);
 app.use("/api/progress", progressRoutes);
 app.use("/api/videos", videoRoutes);
 app.use("/api/admin", adminRoutes);
+
+
+verifyTransporter().catch(console.error);
+
 
 // Static uploads (Render's disk is ephemeral; consider S3/Cloudinary for production)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));

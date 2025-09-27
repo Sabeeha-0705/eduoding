@@ -3,44 +3,48 @@ import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 dotenv.config();
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: false, // true for 465
-  auth: {
-    user: process.env.SMTP_USER || process.env.EMAIL_USER,
-    pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
-  },
-});
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: false, // use TLS STARTTLS
+    auth: {
+      user: process.env.SMTP_USER || process.env.EMAIL_USER,
+      pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
+    },
+    tls: {
+      rejectUnauthorized: false,
+    },
+  });
+};
 
-// general helper (default)
+export const transporter = createTransporter();
+
+export const verifyTransporter = async () => {
+  try {
+    await transporter.verify();
+    console.log("✅ Mail transporter verified");
+  } catch (err) {
+    console.error("❌ Mail transporter verification failed:", err.message || err);
+  }
+};
+
 const sendEmail = async ({ to, subject, text, html }) => {
-  if (!transporter) throw new Error("Mailer transporter not configured");
-  await transporter.sendMail({
+  if (!to) throw new Error("Missing `to` in sendEmail");
+  const mail = {
     from: `"Eduoding" <${process.env.SMTP_USER || process.env.EMAIL_USER}>`,
     to,
     subject,
     text,
     html,
-  });
+  };
+  const info = await transporter.sendMail(mail);
+  return info;
 };
 
-// named helper for OTP (used by authController)
 export const sendOTP = async (email, otp, subject = "Your OTP Code - Eduoding") => {
-  try {
-    await sendEmail({
-      to: email,
-      subject,
-      html: `<div style="font-family: Arial; line-height:1.4;">
-               <h3>Your OTP code</h3>
-               <p><strong>${otp}</strong></p>
-               <p>This code expires in 5 minutes.</p>
-             </div>`,
-    });
-  } catch (err) {
-    // rethrow so caller can catch if needed, but include message
-    throw new Error("sendOTP failed: " + (err && err.message ? err.message : err));
-  }
+  const html = `<h2>Your OTP is <b>${otp}</b></h2><p>Valid for 5 minutes.</p>`;
+  return sendEmail({ to: email, subject, html, text: `Your OTP is ${otp}` });
 };
 
 export default sendEmail;
