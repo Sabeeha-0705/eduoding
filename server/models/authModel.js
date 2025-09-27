@@ -1,9 +1,6 @@
 // server/models/authModel.js
 import mongoose from "mongoose";
 
-const passwordRegex =
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-
 const userSchema = new mongoose.Schema(
   {
     username: {
@@ -21,24 +18,13 @@ const userSchema = new mongoose.Schema(
       match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"],
     },
 
-    // password is optional (for google accounts). Validate only when present.
+    // Keep minlength so DB enforces some length.
+    // We removed the complex regex validator because we hash passwords
+    // before saving (hashed string won't match the regex). Instead,
+    // validate password strength in controller before hashing.
     password: {
       type: String,
-      // do not set required: true because google users have null password
-      minlength: [
-        8,
-        "Password must be at least 8 characters long (when provided)",
-      ],
-      validate: {
-        validator: function (v) {
-          // if v is null/undefined/empty -> skip validation (allow)
-          if (v === null || v === undefined || v === "") return true;
-          // otherwise check regex
-          return passwordRegex.test(v);
-        },
-        message:
-          "Password must include 1 uppercase, 1 lowercase, 1 number, and 1 special character",
-      },
+      minlength: [8, "Password must be at least 8 characters long"],
     },
 
     // Google / OAuth

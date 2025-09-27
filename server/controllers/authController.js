@@ -12,19 +12,34 @@ const generateToken = (user) => {
     expiresIn: "1h",
   });
 };
-
+// password strength regex (frontend should use same)
+const PW_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
 // -------------------------------
 // Signup with OTP + uploader request
 export const registerUser = async (req, res) => {
   try {
     const { username, email, password, requestedUploader } = req.body;
 
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: "username, email and password required" });
+    }
+
+    // validate password BEFORE hashing (so we check user input, not hashed string)
+    if (!PW_REGEX.test(password)) {
+      return res.status(400).json({
+        message:
+          "Password must include 1 uppercase, 1 lowercase, 1 number, and 1 special character",
+      });
+    }
+
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ message: "User already exists" });
 
+    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = Date.now() + 5 * 60 * 1000;
+    const otpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
 
+    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -43,32 +58,32 @@ export const registerUser = async (req, res) => {
 
     await user.save();
 
-    let mailSent = true;
+    // Send OTP to user — catch errors so signup still succeeds even if mail fails
     try {
       await sendOTP(email, otp);
     } catch (mailErr) {
-      mailSent = false;
-      console.error("Warning: OTP email failed:", mailErr.message || mailErr);
+      console.error(
+        "Warning: OTP email failed to send:",
+        mailErr && mailErr.message ? mailErr.message : mailErr
+      );
+      // still continue; frontend will show verify flow
     }
 
+    // Notify admin if requested uploader
     if (user.requestedUploader) {
       console.log(`📩 ${email} requested uploader access`);
       notifyAdminsAboutUploaderRequest(user).catch((e) =>
-        console.error("notifyAdmins error:", e.message || e)
+        console.error("notifyAdmins error:", e && e.message ? e.message : e)
       );
     }
 
-    const debugOtp = process.env.NODE_ENV !== "production" ? otp : undefined;
-    res.json({
-      message: "User created. OTP sent (if mail configured). Verify your email.",
-      mailSent,
-      ...(debugOtp ? { otp: debugOtp } : {}),
-    });
+    res.json({ message: "OTP sent to email (if configured). Please verify." });
   } catch (err) {
-    console.error("registerUser error:", err.message || err);
+    console.error("registerUser error:", err && err.message ? err.message : err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
+
 
 // -------------------------------
 // OTP Verification

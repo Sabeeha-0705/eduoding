@@ -12,7 +12,8 @@ import noteRoutes from "./routes/noteRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
 import videoRoutes from "./routes/videoRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
-import sendEmail from "./utils/sendEmail.js";
+import sendEmail, { verifyTransporter } from "./utils/sendEmail.js";
+
 
 
 dotenv.config();
@@ -60,7 +61,10 @@ app.use("/api/videos", videoRoutes);
 app.use("/api/admin", adminRoutes);
 
 
-verifyTransporter().catch(console.error);
+verifyTransporter().catch((err) => {
+  // Log but don't crash the whole process — Render will still show error in logs.
+  console.error("Email transporter verification failed at startup:", err && err.message ? err.message : err);
+});
 
 
 // Static uploads (Render's disk is ephemeral; consider S3/Cloudinary for production)

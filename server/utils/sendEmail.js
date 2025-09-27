@@ -1,50 +1,48 @@
 // server/utils/sendEmail.js
 import nodemailer from "nodemailer";
-import dotenv from "dotenv";
-dotenv.config();
 
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: false, // use TLS STARTTLS
-    auth: {
-      user: process.env.SMTP_USER || process.env.EMAIL_USER,
-      pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-  });
-};
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
+  secure: false, // 587 -> false
+  auth: {
+    user: process.env.SMTP_USER || process.env.EMAIL_USER,
+    pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
+  },
+});
 
-export const transporter = createTransporter();
-
-export const verifyTransporter = async () => {
+// verify transporter helper (so deploy fails loudly if creds wrong)
+export async function verifyTransporter() {
   try {
+    // nodemailer.verify returns a promise
     await transporter.verify();
-    console.log("✅ Mail transporter verified");
+    console.log("📤 Email transporter verified");
   } catch (err) {
-    console.error("❌ Mail transporter verification failed:", err.message || err);
+    console.error("❌ Email transporter verification failed:", err && err.message ? err.message : err);
+    // rethrow so caller can handle (index.js can catch and log)
+    throw err;
   }
-};
+}
 
-const sendEmail = async ({ to, subject, text, html }) => {
-  if (!to) throw new Error("Missing `to` in sendEmail");
-  const mail = {
+// general send helper
+export async function sendEmail({ to, subject, text, html }) {
+  if (!to) throw new Error("Missing 'to' when sending email");
+  await transporter.sendMail({
     from: `"Eduoding" <${process.env.SMTP_USER || process.env.EMAIL_USER}>`,
     to,
     subject,
     text,
     html,
-  };
-  const info = await transporter.sendMail(mail);
-  return info;
-};
+  });
+}
 
-export const sendOTP = async (email, otp, subject = "Your OTP Code - Eduoding") => {
-  const html = `<h2>Your OTP is <b>${otp}</b></h2><p>Valid for 5 minutes.</p>`;
-  return sendEmail({ to: email, subject, html, text: `Your OTP is ${otp}` });
-};
+// OTP helper
+export async function sendOTP(email, otp, subject = "Your OTP Code - Eduoding") {
+  await sendEmail({
+    to: email,
+    subject,
+    html: `<h2>Your OTP is <b>${otp}</b></h2><p>It will expire in 5 minutes.</p>`,
+  });
+}
 
 export default sendEmail;
