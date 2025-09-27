@@ -12,7 +12,8 @@ import noteRoutes from "./routes/noteRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
 import videoRoutes from "./routes/videoRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
-import { verifyTransporter } from "./server/utils/sendEmail.js";
+import sendEmail from "./utils/sendEmail.js";
+
 
 dotenv.config();
 connectDB();
