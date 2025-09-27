@@ -2,31 +2,38 @@
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: process.env.SMTP_SECURE === "true" || false, // true for 465
   auth: {
-    user: process.env.EMAIL_USER, // 👉 your gmail
-    pass: process.env.EMAIL_PASS  // 👉 app password
-  }
+    user: process.env.SMTP_USER || process.env.EMAIL_USER,
+    pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
+  },
 });
 
 // general helper
-const sendEmail = async ({ to, subject, text, html }) => {
-  await transporter.sendMail({
-    from: `"Eduoding" <${process.env.EMAIL_USER}>`,
-    to,
-    subject,
-    text,
-    html,
-  });
+const sendEmail = async ({ to, subject, text, html, from }) => {
+  const mailFrom = from || process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
+  try {
+    const info = await transporter.sendMail({
+      from: mailFrom,
+      to,
+      subject,
+      text,
+      html,
+    });
+    console.log("📩 Email sent:", subject, "->", to);
+    return info;
+  } catch (err) {
+    console.error("❌ sendEmail error:", err && err.message ? err.message : err);
+    throw err;
+  }
 };
 
-// old OTP helper (still can use)
-export const sendOTP = async (email, otp) => {
-  await sendEmail({
-    to: email,
-    subject: "Your OTP Code",
-    html: `<h2>Your OTP is: ${otp}</h2><p>Valid for 5 minutes only.</p>`,
-  });
+// OTP helper
+export const sendOTP = async (email, otp, subject = "Your OTP Code - Eduoding") => {
+  const html = `<h2>Your OTP is: <b>${otp}</b></h2><p>Valid for 5 minutes.</p>`;
+  return sendEmail({ to: email, subject, html });
 };
 
 export default sendEmail;
