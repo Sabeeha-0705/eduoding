@@ -116,19 +116,20 @@ export const registerUser = async (req, res) => {
 };
 
 // -------------------------------
-// OTP Verification
+// OTP Verification - FIXED
 export const verifyOTP = async (req, res) => {
   try {
-    // when reading email from request
     const email = (req.body.email || "").toLowerCase().trim();
-    const otp = req.body.otp?.toString?.();
-
-    if (!email || !otp) return res.status(400).json({ message: "email and otp required" });
+    const otp = (req.body.otp || "").toString().trim();   // <-- important: read otp
+    if (!email || !otp) {
+      return res.status(400).json({ message: "email and otp required" });
+    }
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    if (!user.otp || user.otp.toString() !== otp.toString() || user.otpExpires < Date.now()) {
+    // compare strings and check expiry
+    if (!user.otp || user.otp.toString() !== otp || (user.otpExpires && user.otpExpires < Date.now())) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
@@ -140,7 +141,7 @@ export const verifyOTP = async (req, res) => {
     const token = generateToken(user);
     res.json({ message: "Email verified successfully!", token, user });
   } catch (err) {
-    console.error("verifyOTP error:", err.message || err);
+    console.error("verifyOTP error:", err && err.message ? err.message : err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
