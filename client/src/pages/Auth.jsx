@@ -42,11 +42,16 @@ function AuthPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const data = Object.fromEntries(formData);
+    const rawData = Object.fromEntries(formData);
 
     try {
       if (isLogin) {
-        const res = await api.post("/auth/login", data);
+        // login payload
+        const payload = {
+          ...rawData,
+          email: rawData.email.toLowerCase().trim(),
+        };
+        const res = await api.post("/auth/login", payload);
         if (res?.data?.token) {
           if (remember) localStorage.setItem("authToken", res.data.token);
           else sessionStorage.setItem("authToken", res.data.token);
@@ -56,12 +61,21 @@ function AuthPage() {
           setMsg("Login failed: no token returned.");
         }
       } else {
-        // include requestedUploader flag
-        const payload = { ...data, requestedUploader: !!requestedUploader };
+        // signup payload
+        const payload = {
+          ...rawData,
+          email: rawData.email.toLowerCase().trim(),
+          requestedUploader: !!requestedUploader,
+        };
         const res = await api.post("/auth/register", payload);
         setMsg(res.data.message || "OTP sent to email!");
         setOtpStep(true);
-        setEmail(data.email);
+        setEmail(payload.email);
+
+        // 💡 Dev fallback: server can send { otp } if email send failed
+        if (res.data.otp) {
+          alert("⚠️ Dev OTP (since email failed): " + res.data.otp);
+        }
       }
     } catch (err) {
       setMsg(err.response?.data?.message || err.message || "Error");
@@ -72,7 +86,9 @@ function AuthPage() {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
     try {
-      const res = await api.post("/auth/forgot-password", { email: data.email });
+      const res = await api.post("/auth/forgot-password", {
+        email: data.email.toLowerCase().trim(),
+      });
       setMsg(res.data.message || "Reset OTP sent to email!");
       setForgotMode(false);
     } catch (err) {
@@ -84,7 +100,10 @@ function AuthPage() {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
     try {
-      const res = await api.post("/auth/verify-otp", { email, otp: data.otp });
+      const res = await api.post("/auth/verify-otp", {
+        email,
+        otp: data.otp,
+      });
       setMsg(res.data.message);
       setOtpStep(false);
       setIsLogin(true);
@@ -128,28 +147,54 @@ function AuthPage() {
         <div className="auth-card">
           <img src="/logo.png" alt="Logo" className="logo" />
           <h2>
-            {forgotMode ? "Forgot Password" : isLogin ? "Login" : otpStep ? "Verify OTP" : "Sign Up"}
+            {forgotMode
+              ? "Forgot Password"
+              : isLogin
+              ? "Login"
+              : otpStep
+              ? "Verify OTP"
+              : "Sign Up"}
           </h2>
 
           {forgotMode ? (
             <form onSubmit={handleForgot}>
               <input type="email" name="email" placeholder="Enter your email" required />
-              <button type="submit" className="btn-primary">Send Reset Link</button>
-              <button type="button" className="switch-btn" onClick={() => setForgotMode(false)}>Back to Login</button>
+              <button type="submit" className="btn-primary">
+                Send Reset Link
+              </button>
+              <button
+                type="button"
+                className="switch-btn"
+                onClick={() => setForgotMode(false)}
+              >
+                Back to Login
+              </button>
             </form>
           ) : otpStep ? (
             <form onSubmit={handleOtpVerify}>
               <input type="text" name="otp" placeholder="Enter OTP" required />
-              <button type="submit" className="btn-primary">Verify OTP</button>
+              <button type="submit" className="btn-primary">
+                Verify OTP
+              </button>
             </form>
           ) : (
             <>
-              <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setMsg("Google login failed")} useOneTap={false} />
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setMsg("Google login failed")}
+                useOneTap={false}
+              />
 
-              <div className="divider"><hr /><span>OR</span><hr /></div>
+              <div className="divider">
+                <hr />
+                <span>OR</span>
+                <hr />
+              </div>
 
               <form onSubmit={handleSubmit}>
-                {!isLogin && <input type="text" name="username" placeholder="Username" required />}
+                {!isLogin && (
+                  <input type="text" name="username" placeholder="Username" required />
+                )}
                 <input type="email" name="email" placeholder="Email" required />
 
                 <div style={{ position: "relative" }}>
@@ -160,7 +205,18 @@ function AuthPage() {
                     required
                     style={{ width: "100%", paddingRight: "35px" }}
                   />
-                  <span onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", fontSize: "14px", color: "#555" }}>
+                  <span
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "10px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      color: "#555",
+                    }}
+                  >
                     {showPassword ? "🙈" : "👁️"}
                   </span>
                 </div>
@@ -174,46 +230,97 @@ function AuthPage() {
                       required
                       style={{ width: "100%", paddingRight: "35px" }}
                     />
-                    <span onClick={() => setShowConfirmPassword(!showConfirmPassword)} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", fontSize: "14px", color: "#555" }}>
+                    <span
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                      style={{
+                        position: "absolute",
+                        right: "10px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                        color: "#555",
+                      }}
+                    >
                       {showConfirmPassword ? "🙈" : "👁️"}
                     </span>
                   </div>
                 )}
 
-                {/* ROLE REQUEST (only on signup). This does NOT assign uploader directly. */}
                 {!isLogin && (
                   <div style={{ textAlign: "left", marginTop: 8 }}>
-                    <label style={{ fontSize: 13, color: "#333", display: "block", marginBottom: 6 }}>
+                    <label
+                      style={{
+                        fontSize: 13,
+                        color: "#333",
+                        display: "block",
+                        marginBottom: 6,
+                      }}
+                    >
                       Request special role
                     </label>
                     <select
                       value={requestedUploader ? "uploader" : "user"}
-                      onChange={(e) => setRequestedUploader(e.target.value === "uploader")}
+                      onChange={(e) =>
+                        setRequestedUploader(e.target.value === "uploader")
+                      }
                       style={{ width: "100%", padding: 9, borderRadius: 6 }}
                     >
                       <option value="user">User</option>
-                      <option value="uploader">Uploader (request approval)</option>
+                      <option value="uploader">
+                        Uploader (request approval)
+                      </option>
                     </select>
-                    <small style={{ color: "#b02", display: "block", marginTop: 6 }}>
-                      ⚠️ You’ll remain a User until Admin approves. Uploader requests will notify admins.
+                    <small
+                      style={{
+                        color: "#b02",
+                        display: "block",
+                        marginTop: 6,
+                      }}
+                    >
+                      ⚠️ You’ll remain a User until Admin approves. Uploader
+                      requests will notify admins.
                     </small>
                   </div>
                 )}
 
                 {isLogin && (
                   <label className="remember-me">
-                    <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                    <input
+                      type="checkbox"
+                      checked={remember}
+                      onChange={(e) => setRemember(e.target.checked)}
+                    />
                     Remember Me
                   </label>
                 )}
 
-                <button type="submit" className="btn-primary">{isLogin ? "Login" : "Sign Up"}</button>
+                <button type="submit" className="btn-primary">
+                  {isLogin ? "Login" : "Sign Up"}
+                </button>
               </form>
 
-              {isLogin && <p className="forgot-password" onClick={() => setForgotMode(true)}>Forgot Password?</p>}
+              {isLogin && (
+                <p
+                  className="forgot-password"
+                  onClick={() => setForgotMode(true)}
+                >
+                  Forgot Password?
+                </p>
+              )}
 
-              <button className="switch-btn" onClick={() => { setIsLogin(!isLogin); setMsg(""); }}>
-                {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Login"}
+              <button
+                className="switch-btn"
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setMsg("");
+                }}
+              >
+                {isLogin
+                  ? "Don't have an account? Sign Up"
+                  : "Already have an account? Login"}
               </button>
             </>
           )}

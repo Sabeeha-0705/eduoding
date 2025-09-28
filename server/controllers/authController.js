@@ -15,16 +15,16 @@ const generateToken = (user) => {
 // password strength regex (frontend should use same)
 const PW_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
 // -------------------------------
-// Signup with OTP + uploader request
+// inside authController.js - replace registerUser implementation with this
 export const registerUser = async (req, res) => {
   try {
-    const { username, email, password, requestedUploader } = req.body;
+    const { username, email: rawEmail, password, requestedUploader } = req.body;
+    const email = (rawEmail || "").toLowerCase().trim();
 
     if (!username || !email || !password) {
       return res.status(400).json({ message: "username, email and password required" });
     }
 
-    // validate password BEFORE hashing (so we check user input, not hashed string)
     if (!PW_REGEX.test(password)) {
       return res.status(400).json({
         message:
@@ -32,18 +32,43 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    let user = await User.findOne({ email });
-    if (user) return res.status(400).json({ message: "User already exists" });
+    // check existing
+    let existing = await User.findOne({ email });
+    if (existing) {
+      // if existing but not verified - allow resend OTP instead of blocking
+      if (!existing.isVerified) {
+        // generate new otp & update
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpires = Date.now() + 5 * 60 * 1000;
+        existing.otp = otp;
+        existing.otpExpires = otpExpires;
+        await existing.save();
 
-    // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
+        // try send OTP
+        const sendResult = await sendOTP(email, otp);
+        // respond telling frontend OTP resent; include OTP in response only if email send failed (dev)
+        if (!sendResult.success) {
+          return res.json({
+            message: "OTP resend (email failed). Use this OTP for verification (dev).",
+            otp,
+          });
+        } else {
+          return res.json({ message: "OTP resent to email. Please verify." });
+        }
+      }
 
-    // Hash password
+      // if already verified, reject signup as duplicate
+      return res.status(409).json({ message: "User already exists" });
+    }
+
+    // create new user
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    user = new User({
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = Date.now() + 5 * 60 * 1000;
+
+    const user = new User({
       username,
       email,
       password: hashedPassword,
@@ -52,32 +77,25 @@ export const registerUser = async (req, res) => {
       isVerified: false,
       provider: "local",
       role: "user",
-      requestedUploader:
-        requestedUploader === true || requestedUploader === "true",
+      requestedUploader: requestedUploader === true || requestedUploader === "true",
     });
 
     await user.save();
 
-    // Send OTP to user — catch errors so signup still succeeds even if mail fails
-    try {
-      await sendOTP(email, otp);
-    } catch (mailErr) {
-      console.error(
-        "Warning: OTP email failed to send:",
-        mailErr && mailErr.message ? mailErr.message : mailErr
-      );
-      // still continue; frontend will show verify flow
+    // send OTP and check result
+    const sendResult = await sendOTP(email, otp);
+    if (!sendResult.success) {
+      console.warn("Warning: OTP email failed to send:", sendResult.error && sendResult.error.message ? sendResult.error.message : sendResult.error);
+      // for development, return OTP in response so frontend can show it (ONLY when email disabled)
+      return res.json({ message: "OTP send failed (email). Use the OTP from response (dev).", otp });
     }
 
-    // Notify admin if requested uploader
+    // optionally notify admins
     if (user.requestedUploader) {
-      console.log(`📩 ${email} requested uploader access`);
-      notifyAdminsAboutUploaderRequest(user).catch((e) =>
-        console.error("notifyAdmins error:", e && e.message ? e.message : e)
-      );
+      notifyAdminsAboutUploaderRequest(user).catch((e) => console.error("notifyAdmins error:", e && e.message ? e.message : e));
     }
 
-    res.json({ message: "OTP sent to email (if configured). Please verify." });
+    res.json({ message: "OTP sent to email. Please verify." });
   } catch (err) {
     console.error("registerUser error:", err && err.message ? err.message : err);
     res.status(500).json({ message: err.message || "Server error" });
@@ -85,12 +103,15 @@ export const registerUser = async (req, res) => {
 };
 
 
+
 // -------------------------------
 // OTP Verification
 export const verifyOTP = async (req, res) => {
   try {
-    const { email, otp } = req.body;
-    const user = await User.findOne({ email });
+    // when reading email from request
+const email = (req.body.email || "").toLowerCase().trim();
+const user = await User.findOne({ email });
+
     if (!user) return res.status(400).json({ message: "User not found" });
 
     if (!user.otp || user.otp.toString() !== otp.toString() || user.otpExpires < Date.now()) {
