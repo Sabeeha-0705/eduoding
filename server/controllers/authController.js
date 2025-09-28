@@ -1,3 +1,4 @@
+// server/controllers/authController.js
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/authModel.js";
 import jwt from "jsonwebtoken";
@@ -14,8 +15,21 @@ const generateToken = (user) => {
 };
 // password strength regex (frontend should use same)
 const PW_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
+
+// helper: send OTP in background (fire-and-forget)
+function sendOtpInBackground(email, otp, subject) {
+  // don't await — just fire-and-log
+  sendOTP(email, otp, subject)
+    .then((r) => {
+      console.log(`✅ OTP email sent to ${email}`, r && r.info ? r.info : r);
+    })
+    .catch((err) => {
+      console.error(`❌ OTP email failed to ${email}:`, err && err.message ? err.message : err);
+    });
+}
+
 // -------------------------------
-// inside authController.js - replace registerUser implementation with this
+// inside authController.js - registerUser (modified to avoid awaiting sendOTP)
 export const registerUser = async (req, res) => {
   try {
     const { username, email: rawEmail, password, requestedUploader } = req.body;
@@ -44,17 +58,14 @@ export const registerUser = async (req, res) => {
         existing.otpExpires = otpExpires;
         await existing.save();
 
-        // try send OTP
-        const sendResult = await sendOTP(email, otp);
-        // respond telling frontend OTP resent; include OTP in response only if email send failed (dev)
-        if (!sendResult.success) {
-          return res.json({
-            message: "OTP resend (email failed). Use this OTP for verification (dev).",
-            otp,
-          });
-        } else {
-          return res.json({ message: "OTP resent to email. Please verify." });
+        // fire-and-forget send
+        sendOtpInBackground(email, otp);
+
+        // If in dev and you want the OTP in response, enable env SHOW_OTP_IN_RESPONSE="true"
+        if (process.env.SHOW_OTP_IN_RESPONSE === "true") {
+          return res.json({ message: "OTP resent (dev).", otp });
         }
+        return res.json({ message: "OTP resent. Please verify." });
       }
 
       // if already verified, reject signup as duplicate
@@ -82,36 +93,39 @@ export const registerUser = async (req, res) => {
 
     await user.save();
 
-    // send OTP and check result
-    const sendResult = await sendOTP(email, otp);
-    if (!sendResult.success) {
-      console.warn("Warning: OTP email failed to send:", sendResult.error && sendResult.error.message ? sendResult.error.message : sendResult.error);
-      // for development, return OTP in response so frontend can show it (ONLY when email disabled)
-      return res.json({ message: "OTP send failed (email). Use the OTP from response (dev).", otp });
-    }
+    // send OTP in background (do not block response)
+    sendOtpInBackground(email, otp);
 
-    // optionally notify admins
+    // optionally notify admins (fire-and-forget)
     if (user.requestedUploader) {
-      notifyAdminsAboutUploaderRequest(user).catch((e) => console.error("notifyAdmins error:", e && e.message ? e.message : e));
+      notifyAdminsAboutUploaderRequest(user).catch((e) =>
+        console.error("notifyAdmins error:", e && e.message ? e.message : e)
+      );
     }
 
-    res.json({ message: "OTP sent to email. Please verify." });
+    // For dev, optionally include OTP in response
+    if (process.env.SHOW_OTP_IN_RESPONSE === "true") {
+      return res.status(201).json({ message: "User created. OTP will be sent.", otp });
+    }
+
+    res.status(201).json({ message: "User created. OTP will be sent to your email." });
   } catch (err) {
     console.error("registerUser error:", err && err.message ? err.message : err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
-
-
 // -------------------------------
 // OTP Verification
 export const verifyOTP = async (req, res) => {
   try {
     // when reading email from request
-const email = (req.body.email || "").toLowerCase().trim();
-const user = await User.findOne({ email });
+    const email = (req.body.email || "").toLowerCase().trim();
+    const otp = req.body.otp?.toString?.();
 
+    if (!email || !otp) return res.status(400).json({ message: "email and otp required" });
+
+    const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
     if (!user.otp || user.otp.toString() !== otp.toString() || user.otpExpires < Date.now()) {
@@ -156,7 +170,8 @@ export const loginUser = async (req, res) => {
 // Forgot Password
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email: rawEmail } = req.body;
+    const email = (rawEmail || "").toLowerCase().trim();
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
@@ -165,14 +180,15 @@ export const forgotPassword = async (req, res) => {
     user.otpExpires = Date.now() + 5 * 60 * 1000;
     await user.save();
 
-    try {
-      await sendOTP(email, resetOtp, "Password Reset OTP");
-    } catch (mailErr) {
-      console.error("forgotPassword mail error:", mailErr.message || mailErr);
-      return res.status(500).json({ message: "Failed to send reset OTP" });
+    // send reset OTP in background (avoid blocking)
+    sendOtpInBackground(email, resetOtp, "Password Reset OTP");
+
+    // dev option to return OTP in response
+    if (process.env.SHOW_OTP_IN_RESPONSE === "true") {
+      return res.json({ message: "Reset OTP generated (dev).", otp: resetOtp });
     }
 
-    res.json({ message: "Reset OTP sent to your email" });
+    res.json({ message: "Reset OTP sent to your email (if delivery succeeds)." });
   } catch (err) {
     console.error("forgotPassword error:", err.message || err);
     res.status(500).json({ message: err.message || "Server error" });
@@ -183,7 +199,8 @@ export const forgotPassword = async (req, res) => {
 // Reset Password
 export const resetPassword = async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const { email: rawEmail, otp, newPassword } = req.body;
+    const email = (rawEmail || "").toLowerCase().trim();
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User not found" });
     if (!user.otp || user.otp !== otp || user.otpExpires < Date.now()) {
