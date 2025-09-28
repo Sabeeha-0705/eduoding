@@ -6,3 +6,5 @@ node_modules/
 
 # Ignore local cloudinary util if it has secrets
 utils/cloudinary.js
+# Ignore zip archives
+*.zip
