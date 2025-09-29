@@ -130,10 +130,23 @@ export default async function sendEmail({ to, subject, text, html, from }) {
         subject: subject || "(no subject)",
         text: text || undefined,
         html: html || undefined,
+        // ensure sandbox mode explicitly disabled (common deploy mistake)
+        mail_settings: {
+          sandbox_mode: { enable: false }
+        }
       };
+      // log message object (safe for debugging; do not log keys in production)
+      console.log("📨 Sending via SendGrid API:", { to: msg.to, from: msg.from, subject: msg.subject });
+
       const res = await sgMail.send(msg);
       const status = Array.isArray(res) ? res[0]?.statusCode : res?.statusCode;
       console.log("📩 SendGrid send result:", status);
+      // log response body headers for post-accept debugging
+      if (Array.isArray(res) && res[0]) {
+        console.log("📩 SendGrid response headers:", res[0].headers || res[0]);
+      } else {
+        console.log("📩 SendGrid response:", res);
+      }
       return { success: true, provider: "sendgrid", info: res };
     } catch (err) {
       // Log full response body if available (very important for debugging)
