@@ -2,13 +2,19 @@
 import nodemailer from "nodemailer";
 import sgMail from "@sendgrid/mail";
 
-const SENDGRID_KEY = process.env.SENDGRID_API_KEY || "";
-const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || "no-reply@eduoding.app";
+const SENDGRID_KEY = (process.env.SENDGRID_API_KEY || "").trim();
+let EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER || "no-reply@eduoding.app";
 
+// strip outer quotes if present (common deploy mistake)
+if (EMAIL_FROM && ((EMAIL_FROM.startsWith('"') && EMAIL_FROM.endsWith('"')) || (EMAIL_FROM.startsWith("'") && EMAIL_FROM.endsWith("'")))) {
+  EMAIL_FROM = EMAIL_FROM.slice(1, -1);
+}
+
+// init sendgrid if key present
 if (SENDGRID_KEY) {
   try {
     sgMail.setApiKey(SENDGRID_KEY);
-    console.info("ℹ️ SendGrid configured");
+    console.info("ℹ️ SendGrid configured (API)");
   } catch (e) {
     console.warn("⚠️ SendGrid init failed:", e && e.message ? e.message : e);
   }
@@ -23,25 +29,44 @@ const SMTP_SECURE = process.env.SMTP_SECURE === "true";
 
 let nodemailerTransporter = null;
 
-// create/verify a transporter (returns transporter or null)
+// create/verify a transporter (returns transporter info)
 export async function verifyTransporter() {
-  // prefer SendGrid as API (no nodemailer necessary) -> just return true if key present
+  // 1) If SendGrid API key present - signal it's available
   if (SENDGRID_KEY) {
-    console.info("SendGrid API key present: true");
-    return { type: "sendgrid" };
+    console.info("SendGrid API key present: true (API preferred)");
+    // Also attempt to create a nodemailer transporter using SendGrid SMTP as fallback
+    try {
+      const t = nodemailer.createTransport({
+        host: "smtp.sendgrid.net",
+        port: 587,
+        secure: false,
+        auth: { user: "apikey", pass: SENDGRID_KEY },
+        tls: { rejectUnauthorized: false },
+      });
+      await t.verify();
+      nodemailerTransporter = t;
+      console.info("✅ Nodemailer SendGrid SMTP verified as fallback");
+      return { type: "sendgrid-smtp", transporter: nodemailerTransporter };
+    } catch (err) {
+      console.warn("⚠️ SendGrid SMTP verify failed:", err && err.message ? err.message : err);
+      // continue to other attempts
+    }
+    // Return that API exists (don't fail startup just because SMTP failed)
+    return { type: "sendgrid-api" };
   }
 
-  // if SMTP creds present -> create transporter
+  // 2) If explicit SMTP credentials provided (e.g., Gmail app password)
   if (SMTP_USER && SMTP_PASS) {
     try {
-      nodemailerTransporter = nodemailer.createTransport({
+      const t = nodemailer.createTransport({
         host: SMTP_HOST,
         port: SMTP_PORT,
         secure: SMTP_SECURE,
         auth: { user: SMTP_USER, pass: SMTP_PASS },
         tls: { rejectUnauthorized: false },
       });
-      await nodemailerTransporter.verify();
+      await t.verify();
+      nodemailerTransporter = t;
       console.info("✅ SMTP transporter verified (env credentials)");
       return { type: "smtp", transporter: nodemailerTransporter };
     } catch (err) {
@@ -51,16 +76,17 @@ export async function verifyTransporter() {
     }
   }
 
-  // fallback: Ethereal (dev only)
+  // 3) Ethereal fallback (dev only)
   try {
     const testAccount = await nodemailer.createTestAccount();
-    nodemailerTransporter = nodemailer.createTransport({
+    const t = nodemailer.createTransport({
       host: "smtp.ethereal.email",
       port: 587,
       secure: false,
       auth: { user: testAccount.user, pass: testAccount.pass },
     });
-    await nodemailerTransporter.verify();
+    await t.verify();
+    nodemailerTransporter = t;
     console.info("✅ Using Ethereal test account for emails (dev only).");
     return { type: "ethereal", transporter: nodemailerTransporter };
   } catch (err) {
@@ -83,16 +109,19 @@ export async function verifyTransporter() {
 async function ensureNodemailer() {
   if (nodemailerTransporter) return nodemailerTransporter;
   const result = await verifyTransporter();
-  if (result.transporter) {
+  if (result && result.transporter) {
     nodemailerTransporter = result.transporter;
+    return nodemailerTransporter;
   }
+  // if SendGrid API only, nodemailerTransporter may still be null -> return null to indicate
   return nodemailerTransporter;
 }
 
 // primary send email function
 export default async function sendEmail({ to, subject, text, html, from }) {
   const fromAddr = from || EMAIL_FROM;
-  // Prefer SendGrid if key present
+
+  // Prefer SendGrid API if key present
   if (SENDGRID_KEY) {
     try {
       const msg = {
@@ -102,19 +131,21 @@ export default async function sendEmail({ to, subject, text, html, from }) {
         text: text || undefined,
         html: html || undefined,
       };
-      // sgMail.send returns an array of responses for multiple recipients
       const res = await sgMail.send(msg);
-      // res can be an array: check safely
       const status = Array.isArray(res) ? res[0]?.statusCode : res?.statusCode;
       console.log("📩 SendGrid send result:", status);
       return { success: true, provider: "sendgrid", info: res };
     } catch (err) {
+      // Log full response body if available (very important for debugging)
       console.error("❌ SendGrid send error:", err && err.message ? err.message : err);
-      // fall back to nodemailer automatically
+      if (err && err.response && err.response.body) {
+        console.error("❌ SendGrid response body:", JSON.stringify(err.response.body, null, 2));
+      }
+      // continue to nodemailer fallback automatically
     }
   }
 
-  // nodemailer fallback
+  // nodemailer fallback (SendGrid SMTP or other SMTP or ethereal)
   try {
     const t = await ensureNodemailer();
     if (!t) throw new Error("No mail transporter available");
@@ -131,8 +162,13 @@ export default async function sendEmail({ to, subject, text, html, from }) {
 
     return { success: true, provider: "nodemailer", info };
   } catch (err) {
-    console.error("❌ sendEmail error:", err && err.message ? err.message : err);
-    return { success: false, error: err };
+    // For nodemailer errors (connection timeout, auth failure), print details
+    console.error("❌ sendEmail error:", err && (err.message || err.code) ? (err.message || err.code) : err);
+    // If err has response or stack provide that too
+    if (err && err.response) {
+      console.error("❌ Transporter response:", JSON.stringify(err.response, null, 2));
+    }
+    return { success: false, error: err && (err.message || err) ? (err.message || err) : err };
   }
 }
 
