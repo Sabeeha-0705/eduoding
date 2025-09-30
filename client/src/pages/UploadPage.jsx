@@ -1,4 +1,4 @@
-// UploadPage.jsx
+//client/src/pages UploadPage.jsx
 import { useState } from "react";
 import { uploadVideoFile, addYoutubeVideo, getMyVideos } from "../api/videos";
 import "./UploadPage.css";

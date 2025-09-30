@@ -14,16 +14,15 @@ import { requireUploader } from "../middleware/roleMiddleware.js";
 const router = express.Router();
 
 // Upload file (uploader only)
-router.post("/upload", protect, upload.single("video"), uploadVideoFile);
+router.post("/upload", protect, requireUploader, upload.single("video"), uploadVideoFile);
 
-
-// Add YouTube video
+// Add YouTube video (uploader only)
 router.post("/youtube", protect, requireUploader, addYoutubeVideo);
 
 // List my uploads
 router.get("/mine", protect, requireUploader, getMyVideos);
 
-// Get video by id (public; frontend can check status)
+// Get video by id (public)
 router.get("/:id", getVideoById);
 
 // Update (uploader or admin)

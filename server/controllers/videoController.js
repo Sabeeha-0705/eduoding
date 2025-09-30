@@ -1,17 +1,16 @@
 // server/controllers/videoController.js
 import Video from "../models/videoModel.js";
-import User from "../models/authModel.js"; // added to fetch uploader email/username
+import User from "../models/authModel.js";
 import { notifyAdminsAboutUpload } from "../utils/notify.js";
-import sendEmail from "../utils/sendEmail.js"; // new helper
+import sendEmail from "../utils/sendEmail.js";
 import { v2 as cloudinary } from "cloudinary";
 import streamifier from "streamifier";
-//import mongoose from "mongoose";
 
 // Cloudinary Config
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "",
+  api_key: process.env.CLOUDINARY_API_KEY || "",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "",
 });
 
 // -------------------------------
@@ -38,10 +37,15 @@ export const uploadVideoFile = async (req, res) => {
       thumbnailUrl: result.thumbnail_url || null,
       duration: result.duration || null,
       status: "pending",
+      courseId: req.body.courseId || undefined,
     });
 
     // 🔔 notify admins
-    await notifyAdminsAboutUpload(video, req.user);
+    try {
+      await notifyAdminsAboutUpload(video, req.user);
+    } catch (e) {
+      console.warn("notifyAdminsAboutUpload failed:", e && e.message ? e.message : e);
+    }
 
     return res.json({ message: "Upload successful", video });
   } catch (err) {
@@ -54,7 +58,7 @@ export const uploadVideoFile = async (req, res) => {
 // 🔹 Add YouTube Video
 export const addYoutubeVideo = async (req, res) => {
   try {
-    const { youtubeUrl, title, description } = req.body;
+    const { youtubeUrl, title, description, courseId } = req.body;
     if (!youtubeUrl)
       return res.status(400).json({ message: "YouTube URL required" });
 
@@ -65,10 +69,15 @@ export const addYoutubeVideo = async (req, res) => {
       sourceType: "youtube",
       youtubeUrl,
       status: "pending",
+      courseId: courseId || undefined,
     });
 
     // 🔔 notify admins
-    await notifyAdminsAboutUpload(video, req.user);
+    try {
+      await notifyAdminsAboutUpload(video, req.user);
+    } catch (e) {
+      console.warn("notifyAdminsAboutUpload failed:", e && e.message ? e.message : e);
+    }
 
     return res.json({ message: "YouTube video saved", video });
   } catch (err) {
@@ -124,40 +133,36 @@ export const updateVideo = async (req, res) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    // save previous status to detect "published" transition
+    // save previous status to detect "approved" transition
     const prevStatus = video.status;
 
-    const allowed = ["title", "description", "status", "thumbnailUrl"];
+    const allowed = ["title", "description", "status", "thumbnailUrl", "courseId", "youtubeUrl", "fileUrl"];
     allowed.forEach((k) => {
       if (req.body[k] !== undefined) video[k] = req.body[k];
     });
 
+    // accept "published" or "approved" - normalize to "approved"
+    if (req.body.status === "published") video.status = "approved";
+
     await video.save();
 
-    // If admin changed status to published (and it wasn't published before) -> notify uploader
+    // If admin changed status to approved -> notify uploader
     try {
-      if (prevStatus !== "published" && video.status === "published") {
+      if (prevStatus !== "approved" && video.status === "approved") {
         const uploader = await User.findById(video.uploaderId).select(
           "email username"
         );
         if (uploader && uploader.email) {
           const frontendUrl = process.env.FRONTEND_URL || "";
-          const subject = `Your video "${video.title}" is published`;
-          const text = `${uploader.username || "User"}, your video "${
-            video.title
-          }" has been published.`;
+          const subject = `Your video "${video.title}" is approved`;
+          const text = `${uploader.username || "User"}, your video "${video.title}" has been approved.`;
           const html = `
             <p>Hi ${uploader.username || ""},</p>
-            <p>Your video "<strong>${
-              video.title
-            }</strong>" has been <strong>published</strong>.</p>
-            <p>View it: <a href="${frontendUrl}/video/${video._id}">${
-            frontendUrl ? "Open video" : "Visit dashboard"
-          }</a></p>
-            <p>— Eduoding team</p>
+            <p>Your video "<strong>${video.title}</strong>" has been <strong>approved</strong>.</p>
+            ${frontendUrl ? `<p><a href="${frontendUrl}/uploader/dashboard">Open uploader dashboard</a></p>` : ""}
           `;
           await sendEmail({ to: uploader.email, subject, text, html });
-          console.log("✅ Notified uploader about publish:", uploader.email);
+          console.log("✅ Notified uploader about approval:", uploader.email);
         }
       }
     } catch (notifyErr) {
@@ -165,7 +170,6 @@ export const updateVideo = async (req, res) => {
         "Failed to notify uploader:",
         notifyErr && notifyErr.message
       );
-      // don't fail the main request if email fails
     }
 
     return res.json({ message: "Updated", video });
