@@ -1,4 +1,3 @@
-// client/src/pages/AdminVideos.jsx
 import React, { useEffect, useState } from "react";
 import api from "../api"; // axios instance (default export)
 
@@ -6,54 +5,41 @@ export default function AdminVideos() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(new Set());
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     let mounted = true;
     const fetchPending = async () => {
       setLoading(true);
-      setError(null);
       try {
         const res = await api.get("/admin/videos/pending");
         const payload = res.data?.videos || [];
         if (mounted) setVideos(payload);
       } catch (err) {
         console.error("Failed to fetch pending videos", err);
-        if (mounted) {
-          setError(
-            err?.response?.data?.message ||
-              err?.message ||
-              "Failed to load pending videos"
-          );
-          setVideos([]);
-        }
+        alert("Failed to load videos. Check console.");
+        if (mounted) setVideos([]);
       } finally {
         if (mounted) setLoading(false);
       }
     };
 
     fetchPending();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   const changeStatus = async (id, newStatus) => {
     if (approving.has(id)) return;
-    setApproving((s) => new Set(s).add(id));
+    setApproving(s => new Set(s).add(id));
     try {
       await api.put(`/admin/videos/${id}/status`, { status: newStatus });
-      setVideos((v) => v.filter((x) => x._id !== id));
-      // optionally show toast/alert
+      // Remove from list after change
+      setVideos(v => v.filter(x => x._id !== id));
+      alert("✅ Video updated");
     } catch (err) {
       console.error("Change status failed", err);
-      alert(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Failed to update video status"
-      );
+      alert("Failed to update. See console.");
     } finally {
-      setApproving((s) => {
+      setApproving(s => {
         const copy = new Set(s);
         copy.delete(id);
         return copy;
@@ -62,70 +48,39 @@ export default function AdminVideos() {
   };
 
   if (loading) return <div className="p-4">Loading…</div>;
-  if (error) return <div className="p-4 text-red-600">Error: {error}</div>;
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
+    <div className="p-4">
       <h2 className="text-xl font-bold mb-4">Pending Videos</h2>
-
       {videos.length === 0 ? (
         <p>No pending videos 🎉</p>
       ) : (
         <ul className="space-y-4">
-          {videos.map((video) => {
+          {videos.map(video => {
             const isBusy = approving.has(video._id);
+            const uploaderName = (video.uploaderId && (video.uploaderId.username || video.uploaderId.email)) || "Uploader";
             return (
-              <li
-                key={video._id}
-                className="p-4 border rounded flex flex-col md:flex-row justify-between gap-4"
-              >
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">{video.title}</h3>
+              <li key={video._id} className="p-4 border rounded flex justify-between">
+                <div>
+                  <h3 className="font-semibold">{video.title}</h3>
+                  <p className="text-sm text-gray-600">By: {uploaderName}</p>
                   <p className="text-sm text-gray-600">Status: {video.status}</p>
-                  {video.uploaderId && (
-                    <p className="text-sm text-gray-600">
-                      Uploaded by: {video.uploaderId.username || video.uploaderId.email}
-                    </p>
-                  )}
-                  {video.description && (
-                    <p className="text-sm text-gray-700 mt-2">{video.description}</p>
-                  )}
-                  {/* small preview if youtube or thumbnail */}
-                  <div className="mt-3">
-                    {video.sourceType === "youtube" && video.youtubeUrl ? (
-                      <a
-                        href={video.youtubeUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-600 underline text-sm"
-                      >
-                        Open YouTube
-                      </a>
-                    ) : video.thumbnailUrl ? (
-                      <img
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        style={{ maxWidth: 220, borderRadius: 8 }}
-                      />
-                    ) : null}
-                  </div>
+                  {video.description && <p className="text-sm text-gray-600 mt-2">{video.description}</p>}
                 </div>
-
-                <div className="flex items-center gap-2">
+                <div className="flex gap-2">
                   <button
-                    className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-60"
+                    className="px-4 py-2 bg-green-600 text-white rounded"
                     disabled={isBusy}
-                    onClick={() => changeStatus(video._id, "published")}
+                    onClick={() => changeStatus(video._id, "approved")}
                   >
                     {isBusy ? "Working…" : "Approve"}
                   </button>
-
                   <button
-                    className="px-4 py-2 bg-red-500 text-white rounded disabled:opacity-60"
+                    className="px-4 py-2 bg-red-500 text-white rounded"
                     disabled={isBusy}
                     onClick={() => {
                       if (!window.confirm("Reject this video?")) return;
-                      changeStatus(video._id, "rejected");
+                      changeStatus(video._1d, "rejected");
                     }}
                   >
                     Reject

@@ -1,4 +1,3 @@
-// server/controllers/videoController.js
 import Video from "../models/videoModel.js";
 import User from "../models/authModel.js";
 import { notifyAdminsAboutUpload } from "../utils/notify.js";

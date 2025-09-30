@@ -1,4 +1,3 @@
-// src/pages/CoursePage.jsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import API from "../api";
@@ -8,12 +7,9 @@ export default function CoursePage() {
   const { id } = useParams(); // courseId from URL (string like "1")
   const navigate = useNavigate();
 
-  const [lessons, setLessons] = useState([]);
+  const [videos, setVideos] = useState([]); // renamed from lessons -> videos
   const [course, setCourse] = useState(null);
   const [progress, setProgress] = useState(0);
-
-  // Use env so it works in dev & Render
-  const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   const allCourses = [
     { id: "1", title: "Full Stack Web Development (MERN)", desc: "Learn MongoDB, Express, React, Node.js with real projects." },
@@ -35,11 +31,12 @@ export default function CoursePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // lessons only for this course
-        const res = await API.get(`/lessons?courseId=${id}`);
-        setLessons(res.data || []);
+        // ---- NEW: fetch approved videos for this course
+        // backend route: GET /api/courses/:id/videos
+        const res = await API.get(`/courses/${id}/videos`);
+        setVideos(res.data || []);
 
-        // course details
+        // course details (static for now)
         const selected = allCourses.find((c) => c.id === id);
         setCourse(selected || null);
 
@@ -89,29 +86,28 @@ export default function CoursePage() {
 
       <div className="lessons">
         <h3>Lessons</h3>
-        {lessons.length === 0 ? (
+        {videos.length === 0 ? (
           <p>No lessons available yet.</p>
         ) : (
           <ul>
-            {lessons.map((lesson, idx) => (
-              <li key={lesson._id}>
+            {videos.map((v, idx) => (
+              <li key={v._id}>
                 <div className="lesson-row">
-                  <span>🎬 {idx + 1}. {lesson.title}</span>
+                  <span>🎬 {idx + 1}. {v.title}</span>
 
-                  {/* Open dedicated player page */}
-                  <Link className="open-btn" to={`/course/${id}/lesson/${lesson._id}`}>
+                  {/* Open dedicated player page — reuse lesson route pattern */}
+                  <Link className="open-btn" to={`/course/${id}/lesson/${v._id}`}>
                     Open Lesson ▶
                   </Link>
                 </div>
 
-                {/* Optional mini preview (comment out if you don’t want embeds here) */}
                 <div className="lesson-preview">
-                  {lesson.type === "youtube" ? (
+                  {v.sourceType === "youtube" ? (
                     <iframe
                       width="100%"
                       height="250"
-                      src={toEmbed(lesson.videoUrl)}
-                      title={lesson.title}
+                      src={toEmbed(v.youtubeUrl || v.fileUrl || "")}
+                      title={v.title}
                       frameBorder="0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
@@ -119,11 +115,7 @@ export default function CoursePage() {
                   ) : (
                     <video width="100%" height="250" controls>
                       <source
-                        src={
-                          lesson.videoUrl.startsWith("/uploads/")
-                            ? `${API_BASE}${lesson.videoUrl}`
-                            : lesson.videoUrl
-                        }
+                        src={v.fileUrl && v.fileUrl.startsWith("http") ? v.fileUrl : `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${v.fileUrl}`}
                         type="video/mp4"
                       />
                       Your browser does not support the video tag.

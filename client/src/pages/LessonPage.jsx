@@ -1,4 +1,3 @@
-// src/pages/LessonPage.jsx
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import API from "../api";
