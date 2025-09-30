@@ -1,6 +1,6 @@
 // server/routes/noteRoutes.js
 import express from "express";
-import Note from "../models/Note.js";
+import Note from "../models/noteModel.js";
 import protect from "../middleware/authMiddleware.js"; // default import (protect)
 
 const router = express.Router();

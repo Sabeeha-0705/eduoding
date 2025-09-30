@@ -1,5 +1,5 @@
 import express from "express";
-import Progress from "../models/Progress.js";
+import Progress from "../models/progressModel.js";
 import authMiddleware from "../middleware/authMiddleware.js";
 
 const router = express.Router();
