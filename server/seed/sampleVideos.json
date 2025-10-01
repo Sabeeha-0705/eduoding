@@ -1,0 +1,147 @@
+[
+  {
+    "courseId": "1",
+    "title": "MERN Stack Tutorial with Deployment – Beginner's Course",
+    "youtubeUrl": "https://www.youtube.com/watch?v=O3BUHwfHf84",
+    "description": "FreeCodeCamp’s MERN tutorial covering full stack + deployment"
+  },
+  {
+    "courseId": "1",
+    "title": "MERN Stack Full Tutorial & Project | Complete All-in-One Course",
+    "youtubeUrl": "https://www.youtube.com/watch?v=CvCiNeLnZ00",
+    "description": "Dave Gray’s full MERN project course"
+  },
+  {
+    "courseId": "1",
+    "title": "MERN Stack + Redux Crash Course",
+    "youtubeUrl": "https://www.youtube.com/watch?v=QN5v9tmtKJA",
+    "description": "Traversy Media’s crash course on MERN + Redux"
+  },
+  {
+    "courseId": "1",
+    "title": "Build a MERN App with Authentication",
+    "youtubeUrl": "https://www.youtube.com/watch?v=7CqJlxBYj-M",
+    "description": "The Net Ninja’s MERN app with login/auth flow"
+  },
+  {
+    "courseId": "1",
+    "title": "MERN Stack Front to Back – Complete Project",
+    "youtubeUrl": "https://www.youtube.com/watch?v=4lKANZ0KG8E",
+    "description": "Brad Traversy’s MERN full-stack project tutorial"
+  },
+  {
+    "courseId": "2",
+    "title": "Data Science Full Course – 10 Hours | Machine Learning & AI",
+    "youtubeUrl": "https://www.youtube.com/watch?v=ua-CiDNNj30",
+    "description": "freeCodeCamp’s all-inclusive DS + ML course"
+  },
+  {
+    "courseId": "2",
+    "title": "Python for Data Science – Crash Course",
+    "youtubeUrl": "https://www.youtube.com/watch?v=LHBE6Q9XlzI",
+    "description": "freeCodeCamp’s Python DS tutorial"
+  },
+  {
+    "courseId": "2",
+    "title": "Machine Learning Tutorial for Beginners",
+    "youtubeUrl": "https://www.youtube.com/watch?v=Gv9_4yMHFhI",
+    "description": "Simplilearn’s ML tutorial"
+  },
+  {
+    "courseId": "2",
+    "title": "Pandas Full Course – Data Analysis with Python",
+    "youtubeUrl": "https://www.youtube.com/watch?v=vmEHCJofslg",
+    "description": "Pandas tutorial with real datasets"
+  },
+  {
+    "courseId": "2",
+    "title": "Deep Learning Crash Course – Neural Networks",
+    "youtubeUrl": "https://www.youtube.com/watch?v=aircAruvnKk",
+    "description": "3Blue1Brown’s NN visual explanation"
+  },
+  {
+    "courseId": "3",
+    "title": "Docker Tutorial for Beginners – Full Course",
+    "youtubeUrl": "https://www.youtube.com/watch?v=3c-iBn73dDE",
+    "description": "TechWorld with Nana’s Docker full course"
+  },
+  {
+    "courseId": "3",
+    "title": "Kubernetes Full Course – Beginners to Advanced",
+    "youtubeUrl": "https://www.youtube.com/watch?v=X48VuDVv0do",
+    "description": "freeCodeCamp’s Kubernetes tutorial"
+  },
+  {
+    "courseId": "3",
+    "title": "AWS Certified Cloud Practitioner Full Course",
+    "youtubeUrl": "https://www.youtube.com/watch?v=Ia-UEYYR44s",
+    "description": "Free AWS CP preparation"
+  },
+  {
+    "courseId": "3",
+    "title": "CI/CD with GitHub Actions – DevOps Tutorial",
+    "youtubeUrl": "https://www.youtube.com/watch?v=Ftd_1FIAFPU",
+    "description": "GitHub Actions demonstration"
+  },
+  {
+    "courseId": "3",
+    "title": "Terraform Full Course – IaC Tutorial",
+    "youtubeUrl": "https://www.youtube.com/watch?v=7xngnjfIlK4",
+    "description": "Terraform infrastructure as code tutorial"
+  },
+  {
+    "courseId": "4",
+    "title": "Ethical Hacking Full Course – 2025",
+    "youtubeUrl": "https://www.youtube.com/watch?v=Q8bhEoAG8DY",
+    "description": "freeCodeCamp’s hacking course"
+  },
+  {
+    "courseId": "4",
+    "title": "Web Penetration Testing Tutorial",
+    "youtubeUrl": "https://www.youtube.com/watch?v=ZfrJ2YhOD_A",
+    "description": "The Cyber Mentor’s web pentest tutorial"
+  },
+  {
+    "courseId": "4",
+    "title": "OWASP Top 10 Explained",
+    "youtubeUrl": "https://www.youtube.com/watch?v=sl2Lmh9fCEQ",
+    "description": "SecurityFWD/Traversy explanation"
+  },
+  {
+    "courseId": "4",
+    "title": "Network Security Basics",
+    "youtubeUrl": "https://www.youtube.com/watch?v=ZPH0pXlnlOY",
+    "description": "Network security lecture / overview"
+  },
+  {
+    "courseId": "4",
+    "title": "Linux Security & Hardening Tutorial",
+    "youtubeUrl": "https://www.youtube.com/watch?v=R8VyLqJCFpc",
+    "description": "Linux vs hacking protection"
+  },
+  {
+    "courseId": "5",
+    "title": "Figma Tutorial for Beginners",
+    "youtubeUrl": "https://www.youtube.com/watch?v=jwCmIBJ8Jtc",
+    "description": "FreeCodeCamp’s Figma intro"
+  },
+  {
+    "courseId": "5",
+    "title": "UI/UX Design Fundamentals",
+    "youtubeUrl": "https://www.youtube.com/watch?v=4E2RLXwo-IQ",
+    "description": "Flux Academy design fundamentals"
+  },
+  {
+    "courseId": "5",
+    "title": "Wireframing & Prototyping in Figma",
+    "youtubeUrl": "https://www.youtube.com/watch?v=9aLDl-1qnie",
+    "description": "Tutorial: Figma wireframe to prototype"
+  },
+  {
+    "courseId": "5",
+    "title": "Design Systems Crash Course",
+    "youtubeUrl": "https://www.youtube.com/watch?v=TgdrEkI7wLw",
+    "description": "Brad Frost / design systems tutorial"
+  }
+]
+     

@@ -16,35 +16,52 @@ export default function UploadVideo() {
   const [courseId, setCourseId] = useState(""); // selected course
   const navigate = useNavigate();
 
-  // Optional: load static or backend course list
+  // Optional: load courses from backend; fallback to static set
   useEffect(() => {
     const load = async () => {
       try {
         const res = await getCourses();
-        setCourses(res.data || []);
-        if ((res.data || []).length > 0) setCourseId((res.data || [])[0].id || (res.data || [])[0]._id);
+        const data = res?.data || [];
+        if (data.length) {
+          // normalize: each course should have id/_id and title/name
+          setCourses(data);
+          setCourseId(data[0].id ?? data[0]._id ?? "");
+        } else {
+          throw new Error("No courses returned");
+        }
       } catch (err) {
         // Fallback to static list if API not available
-        setCourses([
+        const staticCourses = [
           { id: "1", title: "Full Stack Web Development (MERN)" },
           { id: "2", title: "Data Science & AI" },
           { id: "3", title: "Cloud & DevOps" },
           { id: "4", title: "Cybersecurity & Ethical Hacking" },
-          { id: "5", title: "UI/UX Design" }
-        ]);
+          { id: "5", title: "UI/UX Design" },
+        ];
+        setCourses(staticCourses);
         setCourseId("1");
       }
     };
     load();
   }, []);
 
-  const handleFile = (e) => setFile(e.target.files?.[0] || null);
+  const handleFile = (e) => {
+    setFile(e.target.files?.[0] || null);
+    setMsg("");
+  };
+
+  // helper: basic youtube url validation (not exhaustive)
+  const isYoutube = (url) => {
+    if (!url) return false;
+    return /youtube\.com|youtu\.be/.test(url);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMsg("");
     try {
       if (!courseId) return setMsg("Please choose a course.");
+
       if (mode === "upload") {
         if (!file) return setMsg("Choose a video file first.");
         const fd = new FormData();
@@ -53,18 +70,22 @@ export default function UploadVideo() {
         fd.append("description", desc);
         fd.append("courseId", courseId);
 
+        // uploadVideoFile should accept (formData, onProgress?)
         const res = await uploadVideoFile(fd, setProgress);
         setMsg(res.data?.message || "Uploaded");
-        navigate("/uploader/dashboard");
+        // small delay to let user see message, then navigate
+        setTimeout(() => navigate("/uploader/dashboard"), 700);
       } else {
         if (!youtubeUrl) return setMsg("Paste YouTube URL");
+        if (!isYoutube(youtubeUrl)) return setMsg("Please paste a valid YouTube URL.");
         const payload = { youtubeUrl, title, description: desc, courseId };
         const res = await addYoutubeVideo(payload);
         setMsg(res.data?.message || "Saved");
-        navigate("/uploader/dashboard");
+        setTimeout(() => navigate("/uploader/dashboard"), 700);
       }
     } catch (err) {
       setMsg(err.response?.data?.message || err.message || "Upload failed");
+      console.error("UploadVideo.handleSubmit error:", err);
     }
   };
 
@@ -74,17 +95,37 @@ export default function UploadVideo() {
 
       <div style={{ marginBottom: 12 }}>
         <label style={{ marginRight: 12 }}>
-          <input type="radio" checked={mode === "upload"} onChange={() => setMode("upload")} /> Upload file
+          <input
+            type="radio"
+            checked={mode === "upload"}
+            onChange={() => {
+              setMode("upload");
+              setMsg("");
+            }}
+          />{" "}
+          Upload file
         </label>
         <label>
-          <input type="radio" checked={mode === "youtube"} onChange={() => setMode("youtube")} /> YouTube URL
+          <input
+            type="radio"
+            checked={mode === "youtube"}
+            onChange={() => {
+              setMode("youtube");
+              setMsg("");
+            }}
+          />{" "}
+          YouTube URL
         </label>
       </div>
 
       <form onSubmit={handleSubmit} style={{ marginTop: 12, maxWidth: 700 }}>
         <div style={{ marginBottom: 8 }}>
           <label style={{ display: "block", marginBottom: 4 }}>Course</label>
-          <select value={courseId} onChange={(e) => setCourseId(e.target.value)} required>
+          <select
+            value={courseId}
+            onChange={(e) => setCourseId(e.target.value)}
+            required
+          >
             <option value="">-- Select course --</option>
             {courses.map((c) => (
               <option key={c.id ?? c._id} value={c.id ?? c._id}>
@@ -95,11 +136,22 @@ export default function UploadVideo() {
         </div>
 
         <div style={{ marginBottom: 8 }}>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" required style={{ width: "100%" }} />
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title"
+            required
+            style={{ width: "100%" }}
+          />
         </div>
 
         <div style={{ marginBottom: 8 }}>
-          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Description" style={{ width: "100%" }} />
+          <textarea
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Description"
+            style={{ width: "100%" }}
+          />
         </div>
 
         {mode === "upload" ? (
@@ -114,7 +166,16 @@ export default function UploadVideo() {
           </>
         ) : (
           <div style={{ marginBottom: 8 }}>
-            <input value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://youtube.com/..." style={{ width: "100%" }} />
+            <input
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+              placeholder="https://youtube.com/..."
+              style={{ width: "100%" }}
+              required
+            />
+            <small style={{ color: "#666" }}>
+              Paste full YouTube link (watch?v= or youtu.be). We'll keep it and admin will approve.
+            </small>
           </div>
         )}
 
@@ -123,7 +184,7 @@ export default function UploadVideo() {
         </button>
       </form>
 
-      {msg && <p style={{ color: "red", marginTop: 12 }}>{msg}</p>}
+      {msg && <p style={{ color: "crimson", marginTop: 12 }}>{msg}</p>}
     </div>
   );
 }
