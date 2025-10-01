@@ -1,3 +1,4 @@
+// server/controllers/lessonController.js
 import Lesson from "../models/lessonModel.js";
 
 // ✅ Add a lesson (YouTube link OR upload)
@@ -6,9 +7,7 @@ export const addLesson = async (req, res) => {
     const { title, type, videoUrl, courseId } = req.body;
 
     if (!title || !type || !courseId) {
-      return res
-        .status(400)
-        .json({ message: "Title, type, and courseId are required" });
+      return res.status(400).json({ message: "Title, type, and courseId are required" });
     }
 
     let finalVideoUrl = "";
@@ -32,9 +31,10 @@ export const addLesson = async (req, res) => {
       uploadedBy: req.user?._id, // optional
     });
 
-    res.json({ message: "Lesson added successfully", lesson });
+    return res.json({ message: "Lesson added successfully", lesson });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("addLesson error:", err);
+    return res.status(500).json({ message: err.message || "Failed to add lesson" });
   }
 };
 
@@ -46,14 +46,11 @@ export const getLessons = async (req, res) => {
       filter.courseId = req.query.courseId;
     }
 
-    const lessons = await Lesson.find(filter).populate(
-      "uploadedBy",
-      "username email"
-    );
-
-    res.json(lessons);
+    const lessons = await Lesson.find(filter).populate("uploadedBy", "username email");
+    return res.json(lessons);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("getLessons error:", err);
+    return res.status(500).json({ message: err.message || "Failed to fetch lessons" });
   }
 };
 
@@ -62,9 +59,9 @@ export const getLessonById = async (req, res) => {
   try {
     const lesson = await Lesson.findById(req.params.id);
     if (!lesson) return res.status(404).json({ message: "Lesson not found" });
-
-    res.json(lesson);
+    return res.json(lesson);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("getLessonById error:", err);
+    return res.status(500).json({ message: err.message || "Failed to fetch lesson" });
   }
 };

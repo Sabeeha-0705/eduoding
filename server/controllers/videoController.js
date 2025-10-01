@@ -1,3 +1,4 @@
+// server/controllers/videoController.js
 import Video from "../models/videoModel.js";
 import User from "../models/authModel.js";
 import { notifyAdminsAboutUpload } from "../utils/notify.js";
@@ -39,7 +40,7 @@ export const uploadVideoFile = async (req, res) => {
       courseId: req.body.courseId || undefined,
     });
 
-    // 🔔 notify admins
+    // 🔔 notify admins (best-effort)
     try {
       await notifyAdminsAboutUpload(video, req.user);
     } catch (e) {
@@ -57,9 +58,8 @@ export const uploadVideoFile = async (req, res) => {
 // 🔹 Add YouTube Video
 export const addYoutubeVideo = async (req, res) => {
   try {
-    const { youtubeUrl, title, description, courseId } = req.body;
-    if (!youtubeUrl)
-      return res.status(400).json({ message: "YouTube URL required" });
+    const { youtubeUrl, title, description } = req.body;
+    if (!youtubeUrl) return res.status(400).json({ message: "YouTube URL required" });
 
     const video = await Video.create({
       title: title || "YouTube Video",
@@ -68,7 +68,7 @@ export const addYoutubeVideo = async (req, res) => {
       sourceType: "youtube",
       youtubeUrl,
       status: "pending",
-      courseId: courseId || undefined,
+      courseId: req.body.courseId || undefined,
     });
 
     // 🔔 notify admins
@@ -81,9 +81,7 @@ export const addYoutubeVideo = async (req, res) => {
     return res.json({ message: "YouTube video saved", video });
   } catch (err) {
     console.error("addYoutubeVideo error:", err);
-    return res
-      .status(500)
-      .json({ message: err.message || "Failed to save YouTube video" });
+    return res.status(500).json({ message: err.message || "Failed to save YouTube video" });
   }
 };
 
@@ -91,15 +89,11 @@ export const addYoutubeVideo = async (req, res) => {
 // 🔹 Get My Videos
 export const getMyVideos = async (req, res) => {
   try {
-    const videos = await Video.find({ uploaderId: req.user._id }).sort({
-      createdAt: -1,
-    });
+    const videos = await Video.find({ uploaderId: req.user._id }).sort({ createdAt: -1 });
     return res.json(videos);
   } catch (err) {
     console.error("getMyVideos error:", err);
-    return res
-      .status(500)
-      .json({ message: err.message || "Failed to fetch uploads" });
+    return res.status(500).json({ message: err.message || "Failed to fetch uploads" });
   }
 };
 
@@ -112,9 +106,7 @@ export const getVideoById = async (req, res) => {
     return res.json(video);
   } catch (err) {
     console.error("getVideoById error:", err);
-    return res
-      .status(500)
-      .json({ message: err.message || "Failed to fetch video" });
+    return res.status(500).json({ message: err.message || "Failed to fetch video" });
   }
 };
 
@@ -125,10 +117,7 @@ export const updateVideo = async (req, res) => {
     const video = await Video.findById(req.params.id);
     if (!video) return res.status(404).json({ message: "Video not found" });
 
-    if (
-      String(video.uploaderId) !== String(req.user._id) &&
-      req.user.role !== "admin"
-    ) {
+    if (String(video.uploaderId) !== String(req.user._id) && req.user.role !== "admin") {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -148,9 +137,7 @@ export const updateVideo = async (req, res) => {
     // If admin changed status to approved -> notify uploader
     try {
       if (prevStatus !== "approved" && video.status === "approved") {
-        const uploader = await User.findById(video.uploaderId).select(
-          "email username"
-        );
+        const uploader = await User.findById(video.uploaderId).select("email username");
         if (uploader && uploader.email) {
           const frontendUrl = process.env.FRONTEND_URL || "";
           const subject = `Your video "${video.title}" is approved`;
@@ -165,10 +152,7 @@ export const updateVideo = async (req, res) => {
         }
       }
     } catch (notifyErr) {
-      console.warn(
-        "Failed to notify uploader:",
-        notifyErr && notifyErr.message
-      );
+      console.warn("Failed to notify uploader:", notifyErr && notifyErr.message);
     }
 
     return res.json({ message: "Updated", video });
