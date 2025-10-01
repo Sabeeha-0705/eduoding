@@ -10,16 +10,21 @@ export default function Dashboard() {
   const [notes, setNotes] = useState([]);
   const [progressData, setProgressData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true); // responsive sidebar toggle
   const navigate = useNavigate();
 
-  const getToken = () => localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+  const getToken = () =>
+    localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
       try {
         const token = getToken();
-        if (!token) { navigate("/", { replace: true }); return; }
+        if (!token) {
+          navigate("/", { replace: true });
+          return;
+        }
 
         const profileRes = await api.get("/auth/profile");
         setUser(profileRes.data.user);
@@ -28,9 +33,11 @@ export default function Dashboard() {
           const notesRes = await api.get("/notes");
           setNotes(notesRes.data || []);
         } catch (err) {
+          // fallback to localStorage notes if offline
           const localNotes = [];
           Object.keys(localStorage).forEach((k) => {
-            if (k.startsWith("note-")) localNotes.push({ _id: k, content: localStorage.getItem(k) });
+            if (k.startsWith("note-"))
+              localNotes.push({ _id: k, content: localStorage.getItem(k) });
           });
           setNotes(localNotes);
         }
@@ -50,6 +57,15 @@ export default function Dashboard() {
     };
 
     fetchAll();
+
+    // close sidebar on small screen resize
+    const onResize = () => {
+      if (window.innerWidth < 900) setSidebarOpen(false);
+      else setSidebarOpen(true);
+    };
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, [navigate]);
 
   const logout = () => {
@@ -74,30 +90,51 @@ export default function Dashboard() {
   };
 
   const getProgressForCourse = (courseId) => {
-    const p = progressData.find((x) => x.courseId === String(courseId));
-    return p ? p.completedPercent : 0;
+    const p = progressData.find((x) => String(x.courseId) === String(courseId));
+    return p ? Math.round(p.completedPercent) : 0;
   };
 
   const courses = [
-    { id: "1", title: "Full Stack Web Development (MERN)", desc: "Learn MongoDB, Express, React, Node.js with real projects." },
+    {
+      id: "1",
+      title: "Full Stack Web Development (MERN)",
+      desc: "Learn MongoDB, Express, React, Node.js with real projects."
+    },
     { id: "2", title: "Data Science & AI", desc: "Master Python, Machine Learning, and AI applications." },
     { id: "3", title: "Cloud & DevOps", desc: "Hands-on AWS, Docker, Kubernetes, CI/CD pipelines." },
     { id: "4", title: "Cybersecurity & Ethical Hacking", desc: "Protect systems, learn penetration testing & network security." },
-    { id: "5", title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes." },
+    { id: "5", title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes." }
   ];
 
   if (loading) return <div className="dashboard-container"><main className="main-content"><p>Loading...</p></main></div>;
 
   return (
     <div className="dashboard-container">
-      <aside className="sidebar">
+      {/* mobile header */}
+      <header className="mobile-header">
+        <button
+          aria-label="Toggle navigation"
+          className="hamburger"
+          onClick={() => setSidebarOpen((s) => !s)}
+        >
+          ☰
+        </button>
+        <div className="mobile-title">Eduoding</div>
+        <div className="mobile-actions">
+          <button className="tiny-btn" onClick={() => navigate("/settings")}>⚙</button>
+        </div>
+      </header>
+
+      <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`} aria-hidden={!sidebarOpen}>
         <div className="logo">Eduoding</div>
 
         <nav>
           <ul>
             <li
               className={`sidebar-item ${activeTab === "courses" ? "active" : ""}`}
-              onClick={() => setActiveTab("courses")}
+              onClick={() => { setActiveTab("courses"); if (window.innerWidth < 900) setSidebarOpen(false); }}
+              role="button"
+              tabIndex={0}
             >
               <span className="item-icon">📘</span>
               <span className="item-text">Courses</span>
@@ -105,7 +142,9 @@ export default function Dashboard() {
 
             <li
               className={`sidebar-item ${activeTab === "notes" ? "active" : ""}`}
-              onClick={() => setActiveTab("notes")}
+              onClick={() => { setActiveTab("notes"); if (window.innerWidth < 900) setSidebarOpen(false); }}
+              role="button"
+              tabIndex={0}
             >
               <span className="item-icon">📝</span>
               <span className="item-text">Notes</span>
@@ -113,7 +152,9 @@ export default function Dashboard() {
 
             <li
               className={`sidebar-item ${activeTab === "progress" ? "active" : ""}`}
-              onClick={() => setActiveTab("progress")}
+              onClick={() => { setActiveTab("progress"); if (window.innerWidth < 900) setSidebarOpen(false); }}
+              role="button"
+              tabIndex={0}
             >
               <span className="item-icon">📊</span>
               <span className="item-text">Progress</span>
@@ -121,7 +162,9 @@ export default function Dashboard() {
 
             <li
               className={`sidebar-item ${activeTab === "settings" ? "active" : ""}`}
-              onClick={() => setActiveTab("settings")}
+              onClick={() => { setActiveTab("settings"); if (window.innerWidth < 900) setSidebarOpen(false); }}
+              role="button"
+              tabIndex={0}
             >
               <span className="item-icon">⚙</span>
               <span className="item-text">Settings</span>
@@ -138,11 +181,9 @@ export default function Dashboard() {
         )}
 
         {/* Admin quick link (visible only to admin) */}
-        {user.role === "admin" && (
-  <button onClick={() => navigate("/admin/requests")} className="btn-admin">
-    Admin Panel
-  </button>
-)}
+        {user?.role === "admin" && (
+          <button onClick={() => navigate("/admin/requests")} className="btn-admin">Admin Panel</button>
+        )}
 
         <div style={{ marginTop: "auto" }}>
           <div className="role-badge">Role: <strong>{user?.role || "user"}</strong></div>
@@ -150,14 +191,12 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className="main-content" onClick={() => { if (window.innerWidth < 900 && sidebarOpen) setSidebarOpen(false); }}>
         {user ? (
           <div className="page-inner">
             <div className="header-row">
-              <h2>Welcome, {user.username || user.email}</h2>
-              <div className="small-meta">
-                <span className="meta-role">{user.role}</span>
-              </div>
+              <h2>Welcome, {user?.username || user?.email}</h2>
+              <div className="small-meta"><span className="meta-role">{user?.role}</span></div>
             </div>
 
             {activeTab === "courses" && (
@@ -165,14 +204,22 @@ export default function Dashboard() {
                 <p>Select a course and start learning 🚀</p>
                 <div className="courses-grid">
                   {courses.map((course) => (
-                    <div key={course.id} className="course-card">
+                    <div key={course.id} className="course-card" aria-live="polite">
                       <h3>{course.title}</h3>
                       <p>{course.desc}</p>
-                      <div className="progress-bar">
-                        <div className="progress" style={{ width: `${getProgressForCourse(course.id)}%` }}></div>
+                      <div className="progress-bar" aria-label={`Progress for ${course.title}`}>
+                        <div
+                          className="progress"
+                          style={{ width: `${getProgressForCourse(course.id)}%` }}
+                        />
                       </div>
                       <p className="progress-text">{getProgressForCourse(course.id)}% Completed</p>
-                      <button className="join-btn" onClick={() => navigate(`/course/${course.id}`)}>Join Course</button>
+                      <button
+                        className="join-btn"
+                        onClick={() => navigate(`/course/${course.id}`)}
+                      >
+                        Join Course
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -187,7 +234,7 @@ export default function Dashboard() {
                     {notes.map((note) => (
                       <li key={note._id}>
                         <p>{note.content || note.text}</p>
-                        <small style={{ color: "#666" }}>{note._id}</small>
+                        <small style={{ color: "#666" }}>{note.createdAt ? new Date(note.createdAt).toLocaleString() : note._id}</small>
                         <div>
                           <button className="small-btn" onClick={() => handleDeleteNote(note._id)}>Delete</button>
                         </div>
@@ -214,7 +261,7 @@ export default function Dashboard() {
                 ) : (
                   <ul>
                     {progressData.map((p) => (
-                      <li key={p._id}>Course: {p.courseId} — {p.completedPercent}% completed</li>
+                      <li key={p._id}>Course: {p.courseId} — {Math.round(p.completedPercent)}% completed</li>
                     ))}
                   </ul>
                 )}
