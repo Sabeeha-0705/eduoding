@@ -1,3 +1,4 @@
+// server/models/progressModel.js
 import mongoose from "mongoose";
 
 const progressSchema = new mongoose.Schema(
@@ -8,9 +9,15 @@ const progressSchema = new mongoose.Schema(
       required: true,
     },
     courseId: {
-      type: String, // can be ObjectId if you later add a courses collection
+      type: String,
       required: true,
     },
+    completedLessons: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Video",
+      },
+    ],
     completedPercent: {
       type: Number,
       default: 0,

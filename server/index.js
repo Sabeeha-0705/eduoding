@@ -12,6 +12,7 @@ import progressRoutes from "./routes/progressRoutes.js";
 import videoRoutes from "./routes/videoRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
+import quizRoutes from "./routes/quizRoutes.js";
 import sendEmail, { verifyTransporter } from "./utils/sendEmail.js"; // ✅ keep
 
 dotenv.config();
@@ -61,6 +62,7 @@ app.use("/api/progress", progressRoutes);
 app.use("/api/videos", videoRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/courses", courseRoutes);
+app.use("/api/quiz", quizRoutes);
 
 // ✅ Verify transporter at startup
 verifyTransporter().catch((err) => {

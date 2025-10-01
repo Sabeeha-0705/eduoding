@@ -15,49 +15,20 @@ import UploaderDashboard from "./pages/UploaderDashboard";
 import AdminVideos from "./pages/AdminVideos";
 import AdminRequests from "./pages/AdminRequests";
 import AdminRoute from "./pages/AdminRoute";
+import QuizPage from "./pages/QuizPage";
+import CertificatePage from "./pages/CertificatePage";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public landing */}
+        {/* Public */}
         <Route path="/" element={<Landing />} />
-
-        {/* Auth pages (moved to /auth to keep landing clean) */}
         <Route path="/auth" element={<Auth />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/add-lesson" element={<AddLesson />} />
-        <Route path="/admin/requests" element={<AdminRequests />} />
-<Route path="/admin/videos" element={<AdminVideos />} />
-<Route
-  path="/admin/requests"
-  element={
-    <AdminRoute>
-      <AdminRequests />
-    </AdminRoute>
-  }
-/>
-<Route
-  path="/admin/videos"
-  element={
-    <AdminRoute>
-      <AdminVideos />
-    </AdminRoute>
-  }
-/>
 
-
-        {/* Protected */}
-        <Route
-          path="/notes"
-          element={
-            <ProtectedRoute>
-              <Notes />
-            </ProtectedRoute>
-          }
-        />
-
+        {/* Protected (logged-in users) */}
         <Route
           path="/dashboard"
           element={
@@ -66,8 +37,15 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        
 
+        <Route
+          path="/notes"
+          element={
+            <ProtectedRoute>
+              <Notes />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/course/:id"
@@ -86,8 +64,26 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        
 
+        {/* Quiz & Certificate (protected) */}
+        <Route
+          path="/course/:courseId/quiz"
+          element={
+            <ProtectedRoute>
+              <QuizPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/certificates"
+          element={
+            <ProtectedRoute>
+              <CertificatePage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Uploader area (protected) */}
         <Route
           path="/uploader/upload"
           element={
@@ -96,7 +92,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/uploader/dashboard"
           element={
@@ -106,7 +101,35 @@ export default function App() {
           }
         />
 
-        {/* fallback */}
+        {/* Admin area (AdminRoute wrapper) */}
+        <Route
+          path="/admin/requests"
+          element={
+            <AdminRoute>
+              <AdminRequests />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/videos"
+          element={
+            <AdminRoute>
+              <AdminVideos />
+            </AdminRoute>
+          }
+        />
+
+        {/* Add lesson page (if only uploader/admin allowed you can wrap with AdminRoute) */}
+        <Route
+          path="/add-lesson"
+          element={
+            <ProtectedRoute>
+              <AddLesson />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

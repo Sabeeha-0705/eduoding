@@ -1,0 +1,162 @@
+[
+  {
+    "courseId": "1",
+    "title": "MERN - Final Quiz",
+    "passPercent": 60,
+    "questions": [
+      {
+        "question": "Which database is used in MERN?",
+        "options": ["Postgres", "MongoDB", "MySQL", "SQLite"],
+        "correctIndex": 1
+      },
+      {
+        "question": "Which library handles views in MERN?",
+        "options": ["Angular", "Vue", "React", "Svelte"],
+        "correctIndex": 2
+      },
+      {
+        "question": "Which runs on the server in MERN?",
+        "options": ["Express", "React", "Redux", "Next.js"],
+        "correctIndex": 0
+      },
+      {
+        "question": "Which command installs packages with npm?",
+        "options": ["npm install", "npm init", "npm run", "npm start"],
+        "correctIndex": 0
+      },
+      {
+        "question": "What port is commonly used for local dev?",
+        "options": ["80", "27017", "3000", "22"],
+        "correctIndex": 2
+      }
+    ]
+  },
+  {
+    "courseId": "2",
+    "title": "Data Science & AI - Quiz",
+    "passPercent": 60,
+    "questions": [
+      {
+        "question": "Which language is most used for data science?",
+        "options": ["Java", "C#", "Python", "Go"],
+        "correctIndex": 2
+      },
+      {
+        "question": "What is supervised learning?",
+        "options": ["No labels", "With labels", "Clustering only", "PCA"],
+        "correctIndex": 1
+      },
+      {
+        "question": "Which library is for ML in Python?",
+        "options": ["scikit-learn", "React", "Express", "TensorBoard"],
+        "correctIndex": 0
+      },
+      {
+        "question": "Which is for deep learning?",
+        "options": ["TensorFlow", "Postgres", "Vue", "Redux"],
+        "correctIndex": 0
+      },
+      {
+        "question": "What does 'AI' stand for?",
+        "options": ["Auto Integration", "Artificial Intelligence", "Applied Internet", "Azure Integration"],
+        "correctIndex": 1
+      }
+    ]
+  },
+  {
+    "courseId": "3",
+    "title": "Cloud & DevOps - Quiz",
+    "passPercent": 60,
+    "questions": [
+      {
+        "question": "What is Docker used for?",
+        "options": ["Databases", "Containers", "Testing", "Editors"],
+        "correctIndex": 1
+      },
+      {
+        "question": "Kubernetes orchestrates what?",
+        "options": ["VMs", "Containers", "CSS", "React apps"],
+        "correctIndex": 1
+      },
+      {
+        "question": "CI means?",
+        "options": ["Continuous Integration", "Code Index", "Continuous Inference", "Cloud Init"],
+        "correctIndex": 0
+      },
+      {
+        "question": "Which cloud provider offers S3?",
+        "options": ["Azure", "GCP", "AWS", "IBM Cloud"],
+        "correctIndex": 2
+      },
+      {
+        "question": "Terraform is used for?",
+        "options": ["Infrastructure as Code", "Database ORM", "Testing", "Monitoring"],
+        "correctIndex": 0
+      }
+    ]
+  },
+  {
+    "courseId": "4",
+    "title": "Cybersecurity - Quiz",
+    "passPercent": 60,
+    "questions": [
+      {
+        "question": "What is XSS?",
+        "options": ["Cross-site scripting", "Cross-server sync", "XML syntax", "XOR Security"],
+        "correctIndex": 0
+      },
+      {
+        "question": "What protects HTTP traffic?",
+        "options": ["TLS/SSL", "FTP", "SSH", "SMTP"],
+        "correctIndex": 0
+      },
+      {
+        "question": "Penetration testing is?",
+        "options": ["Breaking builds", "Security testing by simulating attack", "UI testing", "Load testing"],
+        "correctIndex": 1
+      },
+      {
+        "question": "What is a vulnerability?",
+        "options": ["A patch", "A security flaw", "Encryption method", "Dev tool"],
+        "correctIndex": 1
+      },
+      {
+        "question": "Which header helps CSP?",
+        "options": ["Content-Security-Policy", "X-Powered-By", "Server", "Set-Cookie"],
+        "correctIndex": 0
+      }
+    ]
+  },
+  {
+    "courseId": "5",
+    "title": "UI/UX - Quiz",
+    "passPercent": 60,
+    "questions": [
+      {
+        "question": "What is a wireframe?",
+        "options": ["Final UI", "Low-fidelity layout", "CSS file", "JS bundle"],
+        "correctIndex": 1
+      },
+      {
+        "question": "Figma is used for?",
+        "options": ["Database", "Design & prototyping", "Server config", "Compilers"],
+        "correctIndex": 1
+      },
+      {
+        "question": "Good UX focuses on?",
+        "options": ["Performance only", "User needs & flows", "Only colors", "Back-end logic"],
+        "correctIndex": 1
+      },
+      {
+        "question": "Accessibility acronym is?",
+        "options": ["ARIA", "SQL", "CSS", "HTML"],
+        "correctIndex": 0
+      },
+      {
+        "question": "Prototype purpose is?",
+        "options": ["Ship product", "Test UX", "Database backup", "Optimize CPU"],
+        "correctIndex": 1
+      }
+    ]
+  }
+]

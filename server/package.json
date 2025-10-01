@@ -4,17 +4,20 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "seed:videos": "node server/scripts/seedVideos.js"
-  },
+  "start": "node index.js",
+  "dev": "nodemon index.js",
+  "test": "echo \"Error: no test specified\" && exit 1",
+  "seed:videos": "node server/scripts/seedVideos.js",
+  "seed:quiz": "node server/scripts/seedQuiz.js"
+},
+
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
+    "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
@@ -29,6 +32,7 @@
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.5",
+    "pdfkit": "^0.17.2",
     "streamifier": "^0.1.1",
     "yup": "^1.6.1"
   },

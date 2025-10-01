@@ -1,12 +1,12 @@
+// client/src/pages/Notes.jsx
 import React, { useState, useEffect } from "react";
-import { api } from "../api"; // ✅ named import (consistent with api.js)
+import { api } from "../api";
 
 export default function Notes() {
   const [notes, setNotes] = useState([]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ Fetch notes on load
   useEffect(() => {
     fetchNotes();
   }, []);
@@ -20,30 +20,26 @@ export default function Notes() {
     }
   };
 
-  // ✅ Add new note
   const addNote = async () => {
     if (!content.trim()) return;
     setLoading(true);
     try {
       const res = await api.post("/notes", { content });
-      setNotes([res.data, ...notes]); // prepend new note
+      setNotes([res.data, ...notes]);
       setContent("");
     } catch (err) {
-      console.error("Add failed:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Failed to save note");
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Delete note
   const deleteNote = async (id) => {
     if (!window.confirm("Delete this note?")) return;
     try {
       await api.delete(`/notes/${id}`);
       setNotes(notes.filter((n) => n._id !== id));
-    } catch (err) {
-      console.error("Delete failed:", err.response?.data || err.message);
+    } catch {
       alert("Failed to delete note");
     }
   };
@@ -52,7 +48,6 @@ export default function Notes() {
     <div className="p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">📝 My Notes</h1>
 
-      {/* Input */}
       <div className="flex gap-2 mb-4">
         <textarea
           className="border rounded p-2 flex-1"
@@ -70,16 +65,12 @@ export default function Notes() {
         </button>
       </div>
 
-      {/* Notes List */}
       {notes.length === 0 ? (
         <p className="text-gray-500">No notes saved yet.</p>
       ) : (
         <ul className="space-y-3">
           {notes.map((note) => (
-            <li
-              key={note._id}
-              className="border rounded p-3 flex justify-between items-center"
-            >
+            <li key={note._id} className="border rounded p-3 flex justify-between items-center">
               <div>
                 <p>{note.content}</p>
                 {note.createdAt && (
