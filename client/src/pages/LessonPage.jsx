@@ -1,29 +1,31 @@
+// src/pages/LessonPage.jsx
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import API from "../api";
 import "./LessonPage.css";
 
 export default function LessonPage() {
-  const { courseId, lessonId } = useParams(); // routes like /course/:courseId/lesson/:lessonId
+  const { courseId, lessonId } = useParams(); // lessonId will be video _id
   const navigate = useNavigate();
 
-  const [lessons, setLessons] = useState([]);
+  const [videos, setVideos] = useState([]); // renamed from lessons => videos
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
   // notes
   const [note, setNote] = useState("");
 
-  // fetch lessons for this course
+  // fetch videos for this course (uses same route as CoursePage)
   useEffect(() => {
     const run = async () => {
       try {
         setLoading(true);
         setErr("");
-        const res = await API.get(`/lessons?courseId=${courseId}`);
-        setLessons(res.data || []);
+        // GET /api/courses/:id/videos  (server/routes/courseRoutes.js)
+        const res = await API.get(`/courses/${courseId}/videos`);
+        setVideos(res.data || []);
       } catch (e) {
-        setErr(e?.response?.data?.message || e.message);
+        setErr(e?.response?.data?.message || e.message || "Failed to load videos");
       } finally {
         setLoading(false);
       }
@@ -31,33 +33,35 @@ export default function LessonPage() {
     run();
   }, [courseId]);
 
-  // pick current lesson (by ID from URL; else first)
-  const currentLesson = useMemo(() => {
-    if (!lessons?.length) return null;
+  // pick current "lesson" (video) by ID from URL; else first
+  const currentVideo = useMemo(() => {
+    if (!videos?.length) return null;
     if (lessonId) {
-      return lessons.find((l) => String(l._id) === String(lessonId)) || lessons[0];
+      return videos.find((v) => String(v._id) === String(lessonId)) || videos[0];
     }
-    return lessons[0];
-  }, [lessons, lessonId]);
+    return videos[0];
+  }, [videos, lessonId]);
 
-  // load & save notes per course+lesson
+  // load & save notes per course+video
   useEffect(() => {
-    if (!currentLesson) return;
-    const key = `note-${courseId}-${currentLesson._id}`;
+    if (!currentVideo) {
+      setNote("");
+      return;
+    }
+    const key = `note-${courseId}-${currentVideo._id}`;
     const saved = localStorage.getItem(key);
     setNote(saved || "");
-  }, [courseId, currentLesson?._id]);
+  }, [courseId, currentVideo?._id]);
 
   const saveNote = () => {
-    if (!currentLesson) return;
-    const key = `note-${courseId}-${currentLesson._id}`;
+    if (!currentVideo) return;
+    const key = `note-${courseId}-${currentVideo._id}`;
     localStorage.setItem(key, note);
     alert("✅ Note saved!");
   };
 
-  // helpers
+  // helpers — convert YouTube url to embed URL
   const toEmbed = (url) => {
-    // handles watch?v=, youtu.be, or already embed links
     if (!url) return "";
     if (url.includes("/embed/")) return url;
     if (url.includes("watch?v=")) return url.replace("watch?v=", "embed/");
@@ -66,20 +70,20 @@ export default function LessonPage() {
   };
 
   const goPrev = () => {
-    if (!currentLesson) return;
-    const idx = lessons.findIndex((l) => String(l._id) === String(currentLesson._id));
-    if (idx > 0) navigate(`/course/${courseId}/lesson/${lessons[idx - 1]._id}`);
+    if (!currentVideo) return;
+    const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
+    if (idx > 0) navigate(`/course/${courseId}/lesson/${videos[idx - 1]._id}`);
   };
 
   const goNext = () => {
-    if (!currentLesson) return;
-    const idx = lessons.findIndex((l) => String(l._id) === String(currentLesson._id));
-    if (idx < lessons.length - 1) navigate(`/course/${courseId}/lesson/${lessons[idx + 1]._id}`);
+    if (!currentVideo) return;
+    const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
+    if (idx < videos.length - 1) navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
   };
 
   if (loading) return <div className="lesson-page"><p>Loading lessons…</p></div>;
   if (err) return <div className="lesson-page"><p style={{ color: "crimson" }}>{err}</p></div>;
-  if (!lessons.length) {
+  if (!videos.length) {
     return (
       <div className="lesson-page">
         <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>
@@ -101,14 +105,14 @@ export default function LessonPage() {
         <aside className="lesson-list">
           <h3>Lessons</h3>
           <ul>
-            {lessons.map((l, i) => {
-              const active = String(l._id) === String(currentLesson._id);
+            {videos.map((v, i) => {
+              const active = String(v._id) === String(currentVideo._id);
               return (
-                <li key={l._id} className={active ? "active" : ""}>
-                  <Link to={`/course/${courseId}/lesson/${l._id}`}>
-                    <span>#{i + 1}</span> {l.title}
+                <li key={v._id} className={active ? "active" : ""}>
+                  <Link to={`/course/${courseId}/lesson/${v._id}`}>
+                    <span>#{i + 1}</span> {v.title}
                   </Link>
-                  <small className="type-badge">{l.type}</small>
+                  <small className="type-badge">{v.sourceType || (v.youtubeUrl ? "youtube" : "upload")}</small>
                 </li>
               );
             })}
@@ -117,13 +121,13 @@ export default function LessonPage() {
 
         {/* Main viewer */}
         <main className="lesson-main">
-          <h1>{currentLesson.title}</h1>
+          <h1>{currentVideo.title}</h1>
 
           <div className="video-container">
-            {currentLesson.type === "youtube" ? (
+            { (currentVideo.sourceType === "youtube" || currentVideo.youtubeUrl) ? (
               <iframe
-                src={toEmbed(currentLesson.videoUrl)}
-                title={currentLesson.title}
+                src={toEmbed(currentVideo.youtubeUrl || currentVideo.fileUrl || "")}
+                title={currentVideo.title}
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -132,9 +136,9 @@ export default function LessonPage() {
               <video controls>
                 <source
                   src={
-                    currentLesson.videoUrl.startsWith("/uploads/")
-                      ? `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${currentLesson.videoUrl}`
-                      : currentLesson.videoUrl
+                    (currentVideo.fileUrl || "").startsWith("http")
+                      ? currentVideo.fileUrl
+                      : `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${currentVideo.fileUrl}`
                   }
                   type="video/mp4"
                 />
@@ -145,12 +149,12 @@ export default function LessonPage() {
 
           {/* Prev/Next */}
           <div className="pager">
-            <button onClick={goPrev} disabled={lessons[0]._id === currentLesson._id}>
+            <button onClick={goPrev} disabled={videos[0]._id === currentVideo._id}>
               ◀ Prev
             </button>
             <button
               onClick={goNext}
-              disabled={lessons[lessons.length - 1]._id === currentLesson._id}
+              disabled={videos[videos.length - 1]._id === currentVideo._id}
             >
               Next ▶
             </button>
