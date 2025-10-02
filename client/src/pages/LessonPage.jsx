@@ -1,4 +1,3 @@
-// client/src/pages/LessonPage.jsx
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import API from "../api";
@@ -13,8 +12,10 @@ export default function LessonPage() {
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [hasQuiz, setHasQuiz] = useState(null);
+  const [completedIds, setCompletedIds] = useState([]);
 
-  const getToken = () => localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+  const getToken = () =>
+    localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
   useEffect(() => {
     const run = async () => {
@@ -23,6 +24,10 @@ export default function LessonPage() {
         setErr("");
         const res = await API.get(`/courses/${courseId}/videos`);
         setVideos(res.data || []);
+
+        // fetch progress
+        const p = await API.get(`/progress/${courseId}`);
+        setCompletedIds(p.data.completedLessonIds || []);
       } catch (e) {
         setErr(e?.response?.data?.message || e.message || "Failed to load videos");
       } finally {
@@ -77,9 +82,24 @@ export default function LessonPage() {
     if (!url) return "";
     if (url.includes("/embed/")) return url;
     if (url.includes("watch?v=")) return url.replace("watch?v=", "embed/");
-    if (url.includes("youtu.be/")) return url.replace("youtu.be/", "www.youtube.com/embed/");
+    if (url.includes("youtu.be/"))
+      return url.replace("youtu.be/", "www.youtube.com/embed/");
     return url;
   };
+
+  const toggleCompleted = async (lessonId, completed) => {
+    try {
+      const res = await API.post(`/progress/${courseId}/lesson`, {
+        lessonId,
+        completed,
+      });
+      setCompletedIds(res.data.completedLessonIds || []);
+    } catch (e) {
+      console.error("toggle complete failed", e);
+    }
+  };
+
+  const markComplete = (lessonId) => toggleCompleted(lessonId, true);
 
   const goPrev = () => {
     if (!currentVideo) return;
@@ -92,12 +112,24 @@ export default function LessonPage() {
     if (idx < videos.length - 1) navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
   };
 
-  if (loading) return <div className="lesson-page"><p>Loading lessons…</p></div>;
-  if (err) return <div className="lesson-page"><p style={{ color: "crimson" }}>{err}</p></div>;
+  if (loading)
+    return (
+      <div className="lesson-page">
+        <p>Loading lessons…</p>
+      </div>
+    );
+  if (err)
+    return (
+      <div className="lesson-page">
+        <p style={{ color: "crimson" }}>{err}</p>
+      </div>
+    );
   if (!videos.length) {
     return (
       <div className="lesson-page">
-        <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>⬅ Back to Course</button>
+        <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>
+          ⬅ Back to Course
+        </button>
         <h1>No lessons available yet.</h1>
       </div>
     );
@@ -105,7 +137,9 @@ export default function LessonPage() {
 
   return (
     <div className="lesson-page">
-      <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>⬅ Back to Course</button>
+      <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>
+        ⬅ Back to Course
+      </button>
 
       <div className="lesson-layout">
         <aside className="lesson-list">
@@ -113,12 +147,23 @@ export default function LessonPage() {
           <ul>
             {videos.map((v, i) => {
               const active = String(v._id) === String(currentVideo._id);
+              const checked = completedIds.some((id) => String(id) === String(v._id));
               return (
                 <li key={v._id} className={active ? "active" : ""}>
-                  <Link to={`/course/${courseId}/lesson/${v._id}`}>
-                    <span>#{i + 1}</span> {v.title}
-                  </Link>
-                  <small className="type-badge">{v.sourceType || (v.youtubeUrl ? "youtube" : "upload")}</small>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => toggleCompleted(v._id, e.target.checked)}
+                      title="Mark complete"
+                    />
+                    <Link to={`/course/${courseId}/lesson/${v._id}`}>
+                      <span>#{i + 1}</span> {v.title}
+                    </Link>
+                  </label>
+                  <small className="type-badge">
+                    {v.sourceType || (v.youtubeUrl ? "youtube" : "upload")}
+                  </small>
                 </li>
               );
             })}
@@ -129,18 +174,23 @@ export default function LessonPage() {
           <h1>{currentVideo.title}</h1>
 
           <div className="video-container">
-            {(currentVideo.sourceType === "youtube" || currentVideo.youtubeUrl) ? (
+            {currentVideo.sourceType === "youtube" || currentVideo.youtubeUrl ? (
               <iframe
-                src={toEmbed(currentVideo.youtubeUrl || currentVideo.fileUrl || "")}
+                id="ytplayer"
+                src={`${toEmbed(currentVideo.youtubeUrl || currentVideo.fileUrl || "")}?enablejsapi=1`}
                 title={currentVideo.title}
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               />
             ) : (
-              <video controls>
+              <video controls onEnded={() => markComplete(currentVideo._id)}>
                 <source
-                  src={(currentVideo.fileUrl || "").startsWith("http") ? currentVideo.fileUrl : `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${currentVideo.fileUrl}`}
+                  src={
+                    (currentVideo.fileUrl || "").startsWith("http")
+                      ? currentVideo.fileUrl
+                      : `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${currentVideo.fileUrl}`
+                  }
                   type="video/mp4"
                 />
                 Your browser does not support the video tag.
@@ -149,15 +199,28 @@ export default function LessonPage() {
           </div>
 
           <div className="pager">
-            <button onClick={goPrev} disabled={String(videos[0]._id) === String(currentVideo._id)}>◀ Prev</button>
-            <button onClick={goNext} disabled={String(videos[videos.length - 1]._id) === String(currentVideo._id)}>Next ▶</button>
+            <button onClick={goPrev} disabled={String(videos[0]._id) === String(currentVideo._id)}>
+              ◀ Prev
+            </button>
+            <button
+              onClick={goNext}
+              disabled={String(videos[videos.length - 1]._id) === String(currentVideo._id)}
+            >
+              Next ▶
+            </button>
           </div>
 
           <div className="notes-section">
             <h3>Your Notes</h3>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Write your notes here…" />
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Write your notes here…"
+            />
             <div className="notes-actions">
-              <button onClick={saveNote} className="save-note-btn">Save Note</button>
+              <button onClick={saveNote} className="save-note-btn">
+                Save Note
+              </button>
 
               <div className="quiz-actions">
                 {hasQuiz === null ? (
@@ -178,10 +241,18 @@ export default function LessonPage() {
                     Take Quiz
                   </button>
                 ) : (
-                  <button disabled className="take-quiz-btn disabled" title="No quiz for this course">Quiz unavailable</button>
+                  <button
+                    disabled
+                    className="take-quiz-btn disabled"
+                    title="No quiz for this course"
+                  >
+                    Quiz unavailable
+                  </button>
                 )}
 
-                <button className="view-cert-btn" onClick={() => navigate("/certificates")}>My Certificates</button>
+                <button className="view-cert-btn" onClick={() => navigate("/certificates")}>
+                  My Certificates
+                </button>
               </div>
             </div>
           </div>

@@ -4,12 +4,12 @@ import API from "../api";
 import "./CoursePage.css";
 
 export default function CoursePage() {
-  const { id } = useParams(); // courseId from URL (string like "1")
+  const { id: courseId } = useParams();
   const navigate = useNavigate();
 
-  const [videos, setVideos] = useState([]); // renamed from lessons -> videos
+  const [videos, setVideos] = useState([]);
   const [course, setCourse] = useState(null);
-  const [progress, setProgress] = useState(0);
+  const [completedIds, setCompletedIds] = useState([]);
 
   const allCourses = [
     { id: "1", title: "Full Stack Web Development (MERN)", desc: "Learn MongoDB, Express, React, Node.js with real projects." },
@@ -19,7 +19,6 @@ export default function CoursePage() {
     { id: "5", title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes." },
   ];
 
-  // convert any YouTube link to /embed/
   const toEmbed = (url) => {
     if (!url) return "";
     if (url.includes("/embed/")) return url;
@@ -31,37 +30,24 @@ export default function CoursePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // ---- NEW: fetch approved videos for this course
-        // backend route: GET /api/courses/:id/videos
-        const res = await API.get(`/courses/${id}/videos`);
+        const res = await API.get(`/courses/${courseId}/videos`);
         setVideos(res.data || []);
 
-        // course details (static for now)
-        const selected = allCourses.find((c) => c.id === id);
+        const selected = allCourses.find((c) => c.id === courseId);
         setCourse(selected || null);
 
-        // progress for this course
-        const progRes = await API.get("/progress");
-        const userProgress = progRes.data.find((p) => p.courseId === id);
-        setProgress(Number(userProgress?.completedPercent || 0));
+        const p = await API.get(`/progress/${courseId}`);
+        setCompletedIds(p.data.completedLessonIds || []);
       } catch (err) {
         console.error("Error fetching data:", err);
       }
     };
     fetchData();
-  }, [id]);
-
-  const handleProgressChange = async (e) => {
-    const newValue = Number(e.target.value);
-    setProgress(newValue);
-    try {
-      await API.post("/progress", { courseId: id, completedPercent: newValue });
-    } catch (err) {
-      console.error("Error updating progress:", err);
-    }
-  };
+  }, [courseId]);
 
   if (!course) return <h2>Course not found!</h2>;
+
+  const percent = videos.length ? Math.round((completedIds.length / videos.length) * 100) : 0;
 
   return (
     <div className="course-page">
@@ -72,16 +58,11 @@ export default function CoursePage() {
       <h1>{course.title}</h1>
       <p>{course.desc}</p>
 
-      {/* Progress Control */}
       <div className="progress-control">
-        <label>Progress: {progress}%</label>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={progress}
-          onChange={handleProgressChange}
-        />
+        <label>Progress: {percent}%</label>
+        <div className="progress-bar">
+          <div style={{ width: `${percent}%` }} />
+        </div>
       </div>
 
       <div className="lessons">
@@ -94,13 +75,10 @@ export default function CoursePage() {
               <li key={v._id}>
                 <div className="lesson-row">
                   <span>🎬 {idx + 1}. {v.title}</span>
-
-                  {/* Open dedicated player page — reuse lesson route pattern */}
-                  <Link className="open-btn" to={`/course/${id}/lesson/${v._id}`}>
+                  <Link className="open-btn" to={`/course/${courseId}/lesson/${v._id}`}>
                     Open Lesson ▶
                   </Link>
                 </div>
-
                 <div className="lesson-preview">
                   {v.sourceType === "youtube" ? (
                     <iframe
@@ -115,7 +93,11 @@ export default function CoursePage() {
                   ) : (
                     <video width="100%" height="250" controls>
                       <source
-                        src={v.fileUrl && v.fileUrl.startsWith("http") ? v.fileUrl : `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${v.fileUrl}`}
+                        src={
+                          v.fileUrl && v.fileUrl.startsWith("http")
+                            ? v.fileUrl
+                            : `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${v.fileUrl}`
+                        }
                         type="video/mp4"
                       />
                       Your browser does not support the video tag.

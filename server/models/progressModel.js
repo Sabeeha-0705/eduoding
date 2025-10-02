@@ -3,27 +3,9 @@ import mongoose from "mongoose";
 
 const progressSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    courseId: {
-      type: String,
-      required: true,
-    },
-    completedLessons: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Video",
-      },
-    ],
-    completedPercent: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 100,
-    },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Course", required: true },
+    completedLessonIds: [{ type: mongoose.Schema.Types.ObjectId }],
   },
   { timestamps: true }
 );
