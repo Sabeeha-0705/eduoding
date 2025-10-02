@@ -41,7 +41,9 @@ const userSchema = new mongoose.Schema(
 
     // did user request uploader?
     requestedUploader: { type: Boolean, default: false },
+      avatarUrl: { type: String }, 
   },
+  
   { timestamps: true }
 );
 

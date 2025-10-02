@@ -1,31 +1,50 @@
 // server/routes/userRoutes.js
 import express from "express";
 import protect from "../middleware/authMiddleware.js";
-import User from "../models/authModel.js"; // your user model name (adjust import)
+import User from "../models/authModel.js";
+import cloudinary from "../utils/cloudinary.js";
+import multer from "multer";
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
-// get current user (optional)
+// 🔹 GET current user
 router.get("/me", protect, async (req, res) => {
-  const user = await User.findById(req.user.id).select("-password");
-  res.json(user);
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-// update profile: body { username, name }
-router.put("/profile", protect, async (req, res) => {
+// 🔹 Upload avatar
+router.post("/avatar", protect, upload.single("avatar"), async (req, res) => {
   try {
-    const { username, name } = req.body;
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (username) user.username = username;
-    if (name) user.name = name;
-    await user.save();
-    const safe = user.toObject();
-    delete safe.password;
-    res.json({ message: "Profile updated", user: safe });
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    // upload to cloudinary
+    const uploadRes = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "avatars" },
+        (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        }
+      );
+      stream.end(req.file.buffer);
+    });
+
+    // update user doc
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { avatarUrl: uploadRes.secure_url },
+      { new: true }
+    ).select("-password");
+
+    res.json({ message: "Avatar updated", user });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: err.message });
   }
 });
 
