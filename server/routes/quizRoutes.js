@@ -68,9 +68,10 @@ router.post("/:courseId/submit", protect, async (req, res) => {
 
       doc.fontSize(24).text("Eduoding Certificate", { align: "center" });
       doc.moveDown();
-      doc.fontSize(18).text(`This certifies that ${req.user.name}`, {
-        align: "center",
-      });
+      doc.fontSize(18).text(`This certifies that ${req.user.username || req.user.email}`, {
+  align: "center",
+});
+
       doc.text(`has successfully completed Course ${quiz.title}`, {
         align: "center",
       });

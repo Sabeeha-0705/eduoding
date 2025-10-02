@@ -39,6 +39,8 @@ export default function QuizPage() {
   };
 
   if (!quiz) return <p>Loading quiz...</p>;
+  if (!quiz) return <p>No quiz available for this course.</p>;
+
 
   return (
     <div className="p-6 max-w-3xl mx-auto">

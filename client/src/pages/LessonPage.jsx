@@ -15,6 +15,9 @@ export default function LessonPage() {
   // notes
   const [note, setNote] = useState("");
 
+  // NEW: quiz availability
+  const [hasQuiz, setHasQuiz] = useState(null); // null = checking, false = no, true = yes
+
   // fetch videos for this course (uses same route as CoursePage)
   useEffect(() => {
     const run = async () => {
@@ -31,6 +34,25 @@ export default function LessonPage() {
       }
     };
     run();
+  }, [courseId]);
+
+  // NEW: check if quiz exists for this course
+  useEffect(() => {
+    let mounted = true;
+    const checkQuiz = async () => {
+      setHasQuiz(null);
+      try {
+        await API.get(`/quiz/${courseId}`); // protected route — API wrapper should send token
+        if (!mounted) return;
+        setHasQuiz(true);
+      } catch (e) {
+        if (!mounted) return;
+        // if 404 or error -> no quiz
+        setHasQuiz(false);
+      }
+    };
+    checkQuiz();
+    return () => (mounted = false);
   }, [courseId]);
 
   // pick current "lesson" (video) by ID from URL; else first
@@ -78,7 +100,10 @@ export default function LessonPage() {
   const goNext = () => {
     if (!currentVideo) return;
     const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
-    if (idx < videos.length - 1) navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
+    if (idx < videos.length - 1) {
+      // <-- FIXED: ensure template expression closes with } before backtick
+      navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
+    }
   };
 
   if (loading) return <div className="lesson-page"><p>Loading lessons…</p></div>;
@@ -124,7 +149,7 @@ export default function LessonPage() {
           <h1>{currentVideo.title}</h1>
 
           <div className="video-container">
-            { (currentVideo.sourceType === "youtube" || currentVideo.youtubeUrl) ? (
+            {(currentVideo.sourceType === "youtube" || currentVideo.youtubeUrl) ? (
               <iframe
                 src={toEmbed(currentVideo.youtubeUrl || currentVideo.fileUrl || "")}
                 title={currentVideo.title}
@@ -168,9 +193,38 @@ export default function LessonPage() {
               onChange={(e) => setNote(e.target.value)}
               placeholder="Write your notes here…"
             />
-            <button onClick={saveNote} className="save-note-btn">
-              Save Note
-            </button>
+            <div className="notes-actions">
+              <button onClick={saveNote} className="save-note-btn">Save Note</button>
+
+              {/* NEW: Quiz & Certificates buttons */}
+              <div className="quiz-actions">
+                {hasQuiz === null ? (
+                  <span className="quiz-checking">Checking quiz…</span>
+                ) : hasQuiz === true ? (
+                  <button
+                    className="take-quiz-btn"
+                    onClick={() => navigate(`/quiz/${courseId}`)}
+                  >
+                    Take Quiz
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    className="take-quiz-btn disabled"
+                    title="No quiz for this course"
+                  >
+                    Quiz unavailable
+                  </button>
+                )}
+
+                <button
+                  className="view-cert-btn"
+                  onClick={() => navigate("/certificates")}
+                >
+                  My Certificates
+                </button>
+              </div>
+            </div>
           </div>
         </main>
       </div>

@@ -72,6 +72,53 @@
   border-radius: 8px;
   cursor: pointer;
 }
+
+/* add near bottom of LessonPage.css or in global CSS */
+
+.notes-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.save-note-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: linear-gradient(90deg,#4b61e6,#1ea0ff);
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.quiz-actions { display: flex; gap: 8px; align-items:center; }
+
+.take-quiz-btn, .view-cert-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.take-quiz-btn {
+  background: linear-gradient(90deg,#ff7a7a,#ff4d4d);
+  color: white;
+}
+
+.take-quiz-btn.disabled {
+  background: #e6e6e6;
+  color: #777;
+  cursor: not-allowed;
+}
+
+.view-cert-btn {
+  background: linear-gradient(90deg,#6c63ff,#4cafef);
+  color: #fff;
+}
+.quiz-checking { color: #6b7280; font-size: 0.95rem; }
+
 @media (max-width: 900px) {
   .lesson-layout { grid-template-columns: 1fr; }
 }
