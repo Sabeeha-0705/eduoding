@@ -1,4 +1,4 @@
-// server/index.js (or app.js) — full file (replace your current file with this)
+// server/index.js (or app.js) — full file
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -29,23 +29,20 @@ const allowedOrigins = new Set([
   "https://eduoding-frontend.onrender.com",
 ]);
 
-// CORS middleware with logging for debugging
+// CORS middleware (explicit headers so preflight passes)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (!origin) {
-    // server-to-server or same-origin requests
     res.setHeader("Access-Control-Allow-Origin", "*");
   } else if (allowedOrigins.has(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
   } else {
-    // not allowed origin: still continue but log (you may choose to block instead)
     console.warn(`CORS: blocked origin -> ${origin}`);
-    // Optionally: return res.status(403).json({ message: "CORS blocked" });
-    res.setHeader("Access-Control-Allow-Origin", "null"); // explicit deny
+    // Deny by setting null OR you can choose to allow for debug
+    res.setHeader("Access-Control-Allow-Origin", "null");
   }
 
-  // Common CORS headers
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader(
     "Access-Control-Allow-Headers",
@@ -55,10 +52,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Also let express handle OPTIONS quickly
-app.options("*", (req, res) => {
-  res.sendStatus(200);
-});
+// quick reply to preflight
+app.options("*", (req, res) => res.sendStatus(200));
 
 // static helpers
 const __filename = fileURLToPath(import.meta.url);
@@ -116,7 +111,7 @@ app.get("/api/debug/list-routes", (req, res) => {
 app.get("/api/debug/test-email", async (req, res) => {
   try {
     const result = await sendEmail({
-      to: process.env.ADMIN_EMAILS || "sabeehafathimap@gmail.com",
+      to: process.env.ADMIN_EMAILS || "your-admin@example.com",
       subject: "Eduoding test email",
       text: "✅ This is a test email from Eduoding backend",
     });

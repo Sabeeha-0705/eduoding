@@ -9,6 +9,7 @@ export default function QuizPage() {
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState([]);
   const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchQuiz = async () => {
@@ -18,6 +19,9 @@ export default function QuizPage() {
         setAnswers(new Array(res.data.questions.length).fill(null));
       } catch (err) {
         console.error("Quiz load failed:", err.response?.data || err.message);
+        setQuiz(null);
+      } finally {
+        setLoading(false);
       }
     };
     fetchQuiz();
@@ -35,12 +39,12 @@ export default function QuizPage() {
       setResult(res.data);
     } catch (err) {
       console.error("Submit failed:", err.response?.data || err.message);
+      alert(err.response?.data?.message || err.message || "Submit failed");
     }
   };
 
-  if (!quiz) return <p>Loading quiz...</p>;
+  if (loading) return <p>Loading quiz...</p>;
   if (!quiz) return <p>No quiz available for this course.</p>;
-
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -51,22 +55,18 @@ export default function QuizPage() {
           {result.message === "Passed" ? (
             <div>
               <p className="text-green-600">✅ You passed!</p>
-              <a
-                href={result.certificate.pdfUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-600 underline"
-              >
-                Download Certificate
-              </a>
+              {result.certificate && result.certificate.pdfUrl ? (
+                <a href={result.certificate.pdfUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                  Download Certificate
+                </a>
+              ) : (
+                <p>Certificate generated — it may take a moment to appear in My Certificates.</p>
+              )}
             </div>
           ) : (
             <p className="text-red-600">❌ You failed. Try again!</p>
           )}
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="mt-4 bg-gray-600 text-white px-4 py-2 rounded"
-          >
+          <button onClick={() => navigate("/dashboard")} className="mt-4 bg-gray-600 text-white px-4 py-2 rounded">
             Back to Dashboard
           </button>
         </div>
@@ -79,12 +79,7 @@ export default function QuizPage() {
                 {q.options.map((opt, j) => (
                   <li key={j}>
                     <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name={`q-${i}`}
-                        checked={answers[i] === j}
-                        onChange={() => handleSelect(i, j)}
-                      />
+                      <input type="radio" name={`q-${i}`} checked={answers[i] === j} onChange={() => handleSelect(i, j)} />
                       {opt}
                     </label>
                   </li>
@@ -92,12 +87,7 @@ export default function QuizPage() {
               </ul>
             </div>
           ))}
-          <button
-            onClick={handleSubmit}
-            className="bg-blue-600 text-white px-4 py-2 rounded"
-          >
-            Submit Quiz
-          </button>
+          <button onClick={handleSubmit} className="bg-blue-600 text-white px-4 py-2 rounded">Submit Quiz</button>
         </>
       )}
     </div>

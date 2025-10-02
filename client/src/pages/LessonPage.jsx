@@ -1,27 +1,21 @@
-// src/pages/LessonPage.jsx
+// client/src/pages/LessonPage.jsx
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import API from "../api";
 import "./LessonPage.css";
 
 export default function LessonPage() {
-  const { courseId, lessonId } = useParams(); // lessonId will be video _id
+  const { courseId, lessonId } = useParams();
   const navigate = useNavigate();
 
-  const [videos, setVideos] = useState([]); 
+  const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-
-  // notes
   const [note, setNote] = useState("");
+  const [hasQuiz, setHasQuiz] = useState(null);
 
-  // quiz availability state
-  const [hasQuiz, setHasQuiz] = useState(null); // null = checking, true/false afterwards
-
-  // helper to read token
   const getToken = () => localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
-  // fetch videos for this course
   useEffect(() => {
     const run = async () => {
       try {
@@ -38,13 +32,12 @@ export default function LessonPage() {
     run();
   }, [courseId]);
 
-  // check if quiz exists on backend (calls /api/quiz/:courseId)
   useEffect(() => {
     let mounted = true;
     const checkQuiz = async () => {
       setHasQuiz(null);
       try {
-        await API.get(`/quiz/${courseId}`); // backend route
+        await API.get(`/quiz/${courseId}`);
         if (!mounted) return;
         setHasQuiz(true);
       } catch (e) {
@@ -56,7 +49,6 @@ export default function LessonPage() {
     return () => (mounted = false);
   }, [courseId]);
 
-  // pick current video
   const currentVideo = useMemo(() => {
     if (!videos?.length) return null;
     if (lessonId) {
@@ -65,15 +57,13 @@ export default function LessonPage() {
     return videos[0];
   }, [videos, lessonId]);
 
-  // load saved note per course+video
   useEffect(() => {
     if (!currentVideo) {
       setNote("");
       return;
     }
     const key = `note-${courseId}-${currentVideo._id}`;
-    const saved = localStorage.getItem(key);
-    setNote(saved || "");
+    setNote(localStorage.getItem(key) || "");
   }, [courseId, currentVideo?._id]);
 
   const saveNote = () => {
@@ -83,7 +73,6 @@ export default function LessonPage() {
     alert("✅ Note saved!");
   };
 
-  // convert youtube url -> embed
   const toEmbed = (url) => {
     if (!url) return "";
     if (url.includes("/embed/")) return url;
@@ -97,18 +86,14 @@ export default function LessonPage() {
     const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
     if (idx > 0) navigate(`/course/${courseId}/lesson/${videos[idx - 1]._id}`);
   };
-
   const goNext = () => {
     if (!currentVideo) return;
     const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
-    if (idx < videos.length - 1) {
-      navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
-    }
+    if (idx < videos.length - 1) navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
   };
 
   if (loading) return <div className="lesson-page"><p>Loading lessons…</p></div>;
   if (err) return <div className="lesson-page"><p style={{ color: "crimson" }}>{err}</p></div>;
-
   if (!videos.length) {
     return (
       <div className="lesson-page">
@@ -123,7 +108,6 @@ export default function LessonPage() {
       <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>⬅ Back to Course</button>
 
       <div className="lesson-layout">
-        {/* Sidebar lesson list */}
         <aside className="lesson-list">
           <h3>Lessons</h3>
           <ul>
@@ -141,7 +125,6 @@ export default function LessonPage() {
           </ul>
         </aside>
 
-        {/* Main viewer */}
         <main className="lesson-main">
           <h1>{currentVideo.title}</h1>
 
@@ -157,11 +140,7 @@ export default function LessonPage() {
             ) : (
               <video controls>
                 <source
-                  src={
-                    (currentVideo.fileUrl || "").startsWith("http")
-                      ? currentVideo.fileUrl
-                      : `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${currentVideo.fileUrl}`
-                  }
+                  src={(currentVideo.fileUrl || "").startsWith("http") ? currentVideo.fileUrl : `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${currentVideo.fileUrl}`}
                   type="video/mp4"
                 />
                 Your browser does not support the video tag.
@@ -169,13 +148,11 @@ export default function LessonPage() {
             )}
           </div>
 
-          {/* Prev/Next */}
           <div className="pager">
             <button onClick={goPrev} disabled={String(videos[0]._id) === String(currentVideo._id)}>◀ Prev</button>
             <button onClick={goNext} disabled={String(videos[videos.length - 1]._id) === String(currentVideo._id)}>Next ▶</button>
           </div>
 
-          {/* Notes + Quiz/Cert buttons */}
           <div className="notes-section">
             <h3>Your Notes</h3>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Write your notes here…" />
@@ -189,10 +166,8 @@ export default function LessonPage() {
                   <button
                     className="take-quiz-btn"
                     onClick={() => {
-                      // FRONTEND route for quiz page is /course/:courseId/quiz (see App.jsx)
                       const token = getToken();
                       if (!token) {
-                        // protected route wrapper will redirect, but nicer UX to prompt
                         alert("Please login to take the quiz.");
                         navigate("/auth");
                         return;
