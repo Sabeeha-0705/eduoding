@@ -1,6 +1,6 @@
 // server/routes/videoRoutes.js
 import express from "express";
-import { upload } from "../uploads/multerConfig.js";
+import { videoUpload } from "../uploads/multerConfig.js";
 import {
   uploadVideoFile,
   addYoutubeVideo,
@@ -14,7 +14,13 @@ import { requireUploader } from "../middleware/roleMiddleware.js";
 const router = express.Router();
 
 // Upload file (uploader only)
-router.post("/upload", protect, requireUploader, upload.single("video"), uploadVideoFile);
+router.post(
+  "/upload",
+  protect,
+  requireUploader,
+  videoUpload.single("video"),
+  uploadVideoFile
+);
 
 // Add YouTube video (uploader only)
 router.post("/youtube", protect, requireUploader, addYoutubeVideo);
