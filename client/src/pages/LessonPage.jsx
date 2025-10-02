@@ -8,23 +8,25 @@ export default function LessonPage() {
   const { courseId, lessonId } = useParams(); // lessonId will be video _id
   const navigate = useNavigate();
 
-  const [videos, setVideos] = useState([]); // renamed from lessons => videos
+  const [videos, setVideos] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
   // notes
   const [note, setNote] = useState("");
 
-  // NEW: quiz availability
-  const [hasQuiz, setHasQuiz] = useState(null); // null = checking, false = no, true = yes
+  // quiz availability state
+  const [hasQuiz, setHasQuiz] = useState(null); // null = checking, true/false afterwards
 
-  // fetch videos for this course (uses same route as CoursePage)
+  // helper to read token
+  const getToken = () => localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+
+  // fetch videos for this course
   useEffect(() => {
     const run = async () => {
       try {
         setLoading(true);
         setErr("");
-        // GET /api/courses/:id/videos  (server/routes/courseRoutes.js)
         const res = await API.get(`/courses/${courseId}/videos`);
         setVideos(res.data || []);
       } catch (e) {
@@ -36,18 +38,17 @@ export default function LessonPage() {
     run();
   }, [courseId]);
 
-  // NEW: check if quiz exists for this course
+  // check if quiz exists on backend (calls /api/quiz/:courseId)
   useEffect(() => {
     let mounted = true;
     const checkQuiz = async () => {
       setHasQuiz(null);
       try {
-        await API.get(`/quiz/${courseId}`); // protected route — API wrapper should send token
+        await API.get(`/quiz/${courseId}`); // backend route
         if (!mounted) return;
         setHasQuiz(true);
       } catch (e) {
         if (!mounted) return;
-        // if 404 or error -> no quiz
         setHasQuiz(false);
       }
     };
@@ -55,7 +56,7 @@ export default function LessonPage() {
     return () => (mounted = false);
   }, [courseId]);
 
-  // pick current "lesson" (video) by ID from URL; else first
+  // pick current video
   const currentVideo = useMemo(() => {
     if (!videos?.length) return null;
     if (lessonId) {
@@ -64,7 +65,7 @@ export default function LessonPage() {
     return videos[0];
   }, [videos, lessonId]);
 
-  // load & save notes per course+video
+  // load saved note per course+video
   useEffect(() => {
     if (!currentVideo) {
       setNote("");
@@ -82,7 +83,7 @@ export default function LessonPage() {
     alert("✅ Note saved!");
   };
 
-  // helpers — convert YouTube url to embed URL
+  // convert youtube url -> embed
   const toEmbed = (url) => {
     if (!url) return "";
     if (url.includes("/embed/")) return url;
@@ -101,19 +102,17 @@ export default function LessonPage() {
     if (!currentVideo) return;
     const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
     if (idx < videos.length - 1) {
-      // <-- FIXED: ensure template expression closes with } before backtick
       navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
     }
   };
 
   if (loading) return <div className="lesson-page"><p>Loading lessons…</p></div>;
   if (err) return <div className="lesson-page"><p style={{ color: "crimson" }}>{err}</p></div>;
+
   if (!videos.length) {
     return (
       <div className="lesson-page">
-        <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>
-          ⬅ Back to Course
-        </button>
+        <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>⬅ Back to Course</button>
         <h1>No lessons available yet.</h1>
       </div>
     );
@@ -121,9 +120,7 @@ export default function LessonPage() {
 
   return (
     <div className="lesson-page">
-      <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>
-        ⬅ Back to Course
-      </button>
+      <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>⬅ Back to Course</button>
 
       <div className="lesson-layout">
         {/* Sidebar lesson list */}
@@ -174,55 +171,42 @@ export default function LessonPage() {
 
           {/* Prev/Next */}
           <div className="pager">
-            <button onClick={goPrev} disabled={videos[0]._id === currentVideo._id}>
-              ◀ Prev
-            </button>
-            <button
-              onClick={goNext}
-              disabled={videos[videos.length - 1]._id === currentVideo._id}
-            >
-              Next ▶
-            </button>
+            <button onClick={goPrev} disabled={String(videos[0]._id) === String(currentVideo._id)}>◀ Prev</button>
+            <button onClick={goNext} disabled={String(videos[videos.length - 1]._id) === String(currentVideo._id)}>Next ▶</button>
           </div>
 
-          {/* Notes */}
+          {/* Notes + Quiz/Cert buttons */}
           <div className="notes-section">
             <h3>Your Notes</h3>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Write your notes here…"
-            />
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Write your notes here…" />
             <div className="notes-actions">
               <button onClick={saveNote} className="save-note-btn">Save Note</button>
 
-              {/* NEW: Quiz & Certificates buttons */}
               <div className="quiz-actions">
                 {hasQuiz === null ? (
                   <span className="quiz-checking">Checking quiz…</span>
-                ) : hasQuiz === true ? (
+                ) : hasQuiz ? (
                   <button
                     className="take-quiz-btn"
-                    onClick={() => navigate(`/quiz/${courseId}`)}
+                    onClick={() => {
+                      // FRONTEND route for quiz page is /course/:courseId/quiz (see App.jsx)
+                      const token = getToken();
+                      if (!token) {
+                        // protected route wrapper will redirect, but nicer UX to prompt
+                        alert("Please login to take the quiz.");
+                        navigate("/auth");
+                        return;
+                      }
+                      navigate(`/course/${courseId}/quiz`);
+                    }}
                   >
                     Take Quiz
                   </button>
                 ) : (
-                  <button
-                    disabled
-                    className="take-quiz-btn disabled"
-                    title="No quiz for this course"
-                  >
-                    Quiz unavailable
-                  </button>
+                  <button disabled className="take-quiz-btn disabled" title="No quiz for this course">Quiz unavailable</button>
                 )}
 
-                <button
-                  className="view-cert-btn"
-                  onClick={() => navigate("/certificates")}
-                >
-                  My Certificates
-                </button>
+                <button className="view-cert-btn" onClick={() => navigate("/certificates")}>My Certificates</button>
               </div>
             </div>
           </div>
