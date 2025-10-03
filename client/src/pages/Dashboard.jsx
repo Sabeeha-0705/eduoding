@@ -1,7 +1,7 @@
 // src/pages/Dashboard.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api";
+import API from "../api"; // use default API instance (consistent with other files)
 import "./Dashboard.css";
 
 export default function Dashboard() {
@@ -22,35 +22,59 @@ export default function Dashboard() {
       try {
         const token = getToken();
         if (!token) {
-          navigate("/", { replace: true });
+          navigate("/auth", { replace: true });
           return;
         }
 
-        const profileRes = await api.get("/auth/profile");
-        setUser(profileRes.data.user);
-
+        // PROFILE: try /users/me (server route used earlier)
+        let profileRes;
         try {
-          const notesRes = await api.get("/notes");
+          profileRes = await API.get("/users/me");
+        } catch (err) {
+          // fallback: maybe server exposes /auth/profile
+          try {
+            profileRes = await API.get("/auth/profile");
+          } catch (err2) {
+            throw err2 || err;
+          }
+        }
+
+        // server might return { user } or user object directly
+        const profileData = profileRes.data?.user || profileRes.data;
+        setUser(profileData);
+
+        // NOTES: try API, fallback to localStorage notes
+        try {
+          const notesRes = await API.get("/notes");
           setNotes(notesRes.data || []);
         } catch (err) {
-          // fallback to localStorage notes if offline
+          // fallback to localStorage notes if offline or endpoint missing
           const localNotes = [];
           Object.keys(localStorage).forEach((k) => {
-            if (k.startsWith("note-"))
-              localNotes.push({ _id: k, content: localStorage.getItem(k) });
+            if (k.startsWith("note-")) {
+              localNotes.push({
+                _id: k,
+                content: localStorage.getItem(k),
+                createdAt: null,
+              });
+            }
           });
           setNotes(localNotes);
         }
 
+        // PROGRESS: fetch progress entries for this user
         try {
-          const progRes = await api.get("/progress");
+          const progRes = await API.get("/progress");
           setProgressData(progRes.data || []);
         } catch (err) {
           setProgressData([]);
         }
       } catch (err) {
         console.error("Profile fetch failed", err);
-        navigate("/", { replace: true });
+        // if unauthorized or server error, send to login
+        localStorage.removeItem("authToken");
+        sessionStorage.removeItem("authToken");
+        navigate("/auth", { replace: true });
       } finally {
         setLoading(false);
       }
@@ -71,7 +95,7 @@ export default function Dashboard() {
   const logout = () => {
     localStorage.removeItem("authToken");
     sessionStorage.removeItem("authToken");
-    navigate("/", { replace: true });
+    navigate("/auth", { replace: true });
   };
 
   const handleDeleteNote = async (noteId) => {
@@ -81,7 +105,7 @@ export default function Dashboard() {
         setNotes((n) => n.filter((x) => x._id !== noteId));
         return;
       }
-      await api.delete(`/notes/${noteId}`);
+      await API.delete(`/notes/${noteId}`);
       setNotes((n) => n.filter((x) => x._id !== noteId));
     } catch (err) {
       console.error("Delete note failed:", err.message || err);
@@ -98,12 +122,12 @@ export default function Dashboard() {
     {
       id: "1",
       title: "Full Stack Web Development (MERN)",
-      desc: "Learn MongoDB, Express, React, Node.js with real projects."
+      desc: "Learn MongoDB, Express, React, Node.js with real projects.",
     },
     { id: "2", title: "Data Science & AI", desc: "Master Python, Machine Learning, and AI applications." },
     { id: "3", title: "Cloud & DevOps", desc: "Hands-on AWS, Docker, Kubernetes, CI/CD pipelines." },
     { id: "4", title: "Cybersecurity & Ethical Hacking", desc: "Protect systems, learn penetration testing & network security." },
-    { id: "5", title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes." }
+    { id: "5", title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes." },
   ];
 
   if (loading) return <div className="dashboard-container"><main className="main-content"><p>Loading...</p></main></div>;
@@ -162,7 +186,7 @@ export default function Dashboard() {
 
             <li
               className={`sidebar-item ${activeTab === "settings" ? "active" : ""}`}
-              onClick={() => { setActiveTab("settings"); if (window.innerWidth < 900) setSidebarOpen(false); }}
+              onClick={() => { setActiveTab("settings"); setSidebarOpen(false); navigate("/settings"); }}
               role="button"
               tabIndex={0}
             >
@@ -261,7 +285,7 @@ export default function Dashboard() {
                 ) : (
                   <ul>
                     {progressData.map((p) => (
-                      <li key={p._id}>Course: {p.courseId} — {Math.round(p.completedPercent)}% completed</li>
+                      <li key={p._id}>Course: {String(p.courseId)} — {Math.round(p.completedPercent)}% completed</li>
                     ))}
                   </ul>
                 )}
