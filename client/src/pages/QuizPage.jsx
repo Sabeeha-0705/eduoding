@@ -2,14 +2,20 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api";
+import "./QuizPage.css";
 
 export default function QuizPage() {
   const { courseId } = useParams();
   const navigate = useNavigate();
+
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState([]);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // coding challenge state
+  const [code, setCode] = useState("// write your code here");
+  const [codeSaved, setCodeSaved] = useState(false);
 
   useEffect(() => {
     const fetchQuiz = async () => {
@@ -43,43 +49,89 @@ export default function QuizPage() {
     }
   };
 
+  const handleCodeSave = async () => {
+    try {
+      await api.post(`/quiz/${courseId}/submit-code`, { code });
+      setCodeSaved(true);
+      setTimeout(() => setCodeSaved(false), 2000);
+    } catch (err) {
+      console.error("Code save failed:", err.response?.data || err.message);
+      alert("Failed to save code");
+    }
+  };
+
   if (loading) return <p>Loading quiz...</p>;
   if (!quiz) return <p>No quiz available for this course.</p>;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">{quiz.title}</h1>
+    <div className="quiz-root">
+      <h1 className="quiz-title">{quiz.title}</h1>
+
       {result ? (
-        <div>
-          <p className="text-xl">Score: {result.score}%</p>
+        <div className="quiz-result">
+          <p className="quiz-score">Score: {result.score}%</p>
           {result.message === "Passed" ? (
             <div>
-              <p className="text-green-600">✅ You passed!</p>
-              {result.certificate && result.certificate.pdfUrl ? (
-                <a href={result.certificate.pdfUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+              <p className="quiz-pass">✅ You passed!</p>
+              {result.certificate?.pdfUrl ? (
+                <a
+                  href={result.certificate.pdfUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="quiz-cert"
+                >
                   Download Certificate
                 </a>
               ) : (
-                <p>Certificate generated — it may take a moment to appear in My Certificates.</p>
+                <p>Certificate will appear soon in My Certificates.</p>
               )}
             </div>
           ) : (
-            <p className="text-red-600">❌ You failed. Try again!</p>
+            <p className="quiz-fail">❌ You failed. Try again!</p>
           )}
-          <button onClick={() => navigate("/dashboard")} className="mt-4 bg-gray-600 text-white px-4 py-2 rounded">
-            Back to Dashboard
+
+          <h3>Review Answers:</h3>
+          {quiz.questions.map((q, i) => (
+            <div key={i} className="quiz-card">
+              <p className="quiz-q">{i + 1}. {q.question}</p>
+              <ul>
+                {q.options.map((opt, j) => {
+                  const isCorrect = result.correctAnswers[i] === j;
+                  const isSelected = answers[i] === j;
+                  let className = "quiz-opt";
+                  if (isSelected && isCorrect) className += " correct";
+                  else if (isSelected && !isCorrect) className += " wrong";
+                  else if (isCorrect) className += " correct";
+                  return (
+                    <li key={j} className={className}>{opt}</li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="quiz-btn back"
+          >
+            ⬅ Back to Dashboard
           </button>
         </div>
       ) : (
         <>
           {quiz.questions.map((q, i) => (
-            <div key={i} className="mb-6">
-              <p className="font-medium">{i + 1}. {q.question}</p>
+            <div key={i} className="quiz-card">
+              <p className="quiz-q">{i + 1}. {q.question}</p>
               <ul>
                 {q.options.map((opt, j) => (
                   <li key={j}>
-                    <label className="flex items-center gap-2">
-                      <input type="radio" name={`q-${i}`} checked={answers[i] === j} onChange={() => handleSelect(i, j)} />
+                    <label className="quiz-opt">
+                      <input
+                        type="radio"
+                        name={`q-${i}`}
+                        checked={answers[i] === j}
+                        onChange={() => handleSelect(i, j)}
+                      />
                       {opt}
                     </label>
                   </li>
@@ -87,7 +139,24 @@ export default function QuizPage() {
               </ul>
             </div>
           ))}
-          <button onClick={handleSubmit} className="bg-blue-600 text-white px-4 py-2 rounded">Submit Quiz</button>
+
+          <button onClick={handleSubmit} className="quiz-btn submit">
+            Submit Quiz
+          </button>
+
+          {/* coding challenge area */}
+          <div className="quiz-code">
+            <h3>💻 Coding Challenge</h3>
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              rows={10}
+            />
+            <button onClick={handleCodeSave} className="quiz-btn code">
+              Save Code
+            </button>
+            {codeSaved && <p className="saved-msg">✅ Code saved!</p>}
+          </div>
         </>
       )}
     </div>

@@ -15,6 +15,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 import quizRoutes from "./routes/quizRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import codeRoutes from "./routes/codeRoutes.js";
 import sendEmail, { verifyTransporter } from "./utils/sendEmail.js";
 
 dotenv.config();
@@ -76,6 +77,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/quiz", quizRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/code", codeRoutes);
 // Verify transporter at startup
 verifyTransporter().catch((err) => {
   console.error("verifyTransporter error (startup):", err?.message || err);
