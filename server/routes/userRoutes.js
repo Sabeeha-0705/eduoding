@@ -7,65 +7,107 @@ import User from "../models/authModel.js";
 
 const router = express.Router();
 
-// get current user
+// helper: remove sensitive fields
+function safeUser(userDoc) {
+  if (!userDoc) return null;
+  const obj = userDoc.toObject ? userDoc.toObject() : { ...userDoc };
+  delete obj.password;
+  return obj;
+}
+
+/**
+ * GET /api/users/me
+ * return current user's profile (without password)
+ */
 router.get("/me", protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.json(user);
+    return res.json(safeUser(user));
   } catch (err) {
-    res.status(500).json({ message: "Failed to fetch profile" });
+    console.error("GET /users/me error:", err);
+    return res.status(500).json({ message: "Failed to fetch profile", error: err.message });
   }
 });
 
-// update profile
+/**
+ * PUT /api/users/profile
+ * body: { username, name }
+ * updates small profile fields
+ */
 router.put("/profile", protect, async (req, res) => {
   try {
-    const { username, name } = req.body;
+    const { username, name } = req.body || {};
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (username) user.username = username;
-    if (name) user.name = name;
-    await user.save();
+    // basic validation & trim
+    if (typeof username === "string") {
+      const u = username.trim();
+      if (u.length < 3) return res.status(400).json({ message: "Username must be at least 3 characters." });
+      user.username = u;
+    }
+    if (typeof name === "string") {
+      user.name = name.trim();
+    }
 
-    res.json({ user });
+    await user.save();
+    return res.json({ user: safeUser(user) });
   } catch (err) {
-    res.status(500).json({ message: "Update failed", error: err.message });
+    console.error("PUT /users/profile error:", err);
+    return res.status(500).json({ message: "Update failed", error: err.message });
   }
 });
 
-// upload avatar
+/**
+ * POST /api/users/avatar
+ * form-data: avatar (file)
+ * uploads to Cloudinary and saves avatarUrl on user
+ */
 router.post("/avatar", protect, imageUpload.single("avatar"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    // multer should put file on req.file (memory buffer)
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
 
-    // upload to cloudinary (buffer stream)
+    // optional: check mime-type header (multer fileFilter should normally do this)
+    if (!req.file.mimetype?.startsWith("image/")) {
+      return res.status(400).json({ message: "Uploaded file is not an image" });
+    }
+
+    // upload to Cloudinary via upload_stream using buffer
     const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
+      const stream = cloudinary.uploader.upload_stream(
         {
           folder: "eduoding_avatars",
           resource_type: "image",
-          transformation: [{ width: 200, height: 200, crop: "fill" }],
+          transformation: [{ width: 400, height: 400, crop: "fill", gravity: "face" }],
         },
         (err, uploadResult) => {
-          if (err) reject(err);
-          else resolve(uploadResult);
+          if (err) return reject(err);
+          resolve(uploadResult);
         }
-      ).end(req.file.buffer);
+      );
+      stream.end(req.file.buffer);
     });
 
-    // save in DB
+    if (!result || !result.secure_url) {
+      console.error("Cloudinary returned no secure_url:", result);
+      return res.status(500).json({ message: "Image upload failed" });
+    }
+
+    // persist to DB
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     user.avatarUrl = result.secure_url;
     await user.save();
 
-    res.json({ user, avatarUrl: user.avatarUrl });
+    return res.json({ avatarUrl: user.avatarUrl, user: safeUser(user) });
   } catch (err) {
-    console.error("Avatar upload error:", err);
-    res.status(500).json({ message: "Upload failed", error: err.message });
+    console.error("POST /users/avatar error:", err);
+    return res.status(500).json({ message: "Upload failed", error: err.message });
   }
 });
 
