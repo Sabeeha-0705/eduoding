@@ -1,4 +1,4 @@
-// src/App.jsx
+// client/src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Auth from "./pages/Auth";
 import Landing from "./pages/Landing";
@@ -22,6 +22,7 @@ import MySolutions from "./pages/MySolutions";
 import CodeEditor from "./pages/CodeEditor";
 import SubmissionView from "./pages/SubmissionView";
 import ErrorBoundary from "./components/ErrorBoundary";
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -41,7 +42,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/notes"
           element={
@@ -50,7 +50,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/course/:id"
           element={
@@ -59,7 +58,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/course/:courseId/lesson/:lessonId"
           element={
@@ -74,7 +72,9 @@ export default function App() {
           path="/course/:courseId/quiz"
           element={
             <ProtectedRoute>
-              <QuizPage />
+              <ErrorBoundary>
+                <QuizPage />
+              </ErrorBoundary>
             </ProtectedRoute>
           }
         />
@@ -123,7 +123,7 @@ export default function App() {
           }
         />
 
-        {/* Add lesson page (if only uploader/admin allowed you can wrap with AdminRoute) */}
+        {/* Add lesson / settings etc */}
         <Route
           path="/add-lesson"
           element={
@@ -132,23 +132,40 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-<Route
-  path="/settings"
-  element={
-    <ProtectedRoute>
-      <Settings />
-    </ProtectedRoute>
-  }
-/>
-<Routes>
-  {/* ...existing routes */}
-  <Route path="/code/editor/:courseId?/:lessonId?" element={<CodeEditor />} />
-  <Route path="/code/mine/all" element={<MySolutions />} />
-  <Route path="/code/:id" element={<SubmissionView />} /> {/* optional view page if you implement */}
-</Routes>
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          }
+        />
 
-<Route path="/course/:id/quiz" element={<ErrorBoundary><QuizPage /></ErrorBoundary>} />
-
+        {/* Code / submissions */}
+        <Route
+          path="/code/editor/:courseId?/:lessonId?"
+          element={
+            <ProtectedRoute>
+              <CodeEditor />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/code/mine/all"
+          element={
+            <ProtectedRoute>
+              <MySolutions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/code/:id"
+          element={
+            <ProtectedRoute>
+              <SubmissionView />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
