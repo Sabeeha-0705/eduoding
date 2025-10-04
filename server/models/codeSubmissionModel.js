@@ -1,206 +1,38 @@
-// client/src/pages/QuizPage.jsx
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { api } from "../api";
-import "./QuizPage.css";
+// server/models/codeSubmissionModel.js
+import mongoose from "mongoose";
 
-export default function QuizPage() {
-  const { courseId } = useParams();
-  const navigate = useNavigate();
+const codeSubmissionSchema = new mongoose.Schema(
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    courseId: { type: String, required: false }, // optional link to course
+    lessonId: { type: String, required: false }, // optional
+    title: { type: String, default: "Solution" },
 
-  const [quiz, setQuiz] = useState(null);
-  const [answers, setAnswers] = useState([]);
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(true);
+    // canonical code field used by server endpoints
+    source: { type: String },
 
-  // coding challenge state (single global code area for now)
-  const [code, setCode] = useState("// write your code here\nconsole.log('Hello Eduoding');");
-  const [codeSaved, setCodeSaved] = useState(false);
-  const [codeRunning, setCodeRunning] = useState(false);
-  const [runOutput, setRunOutput] = useState(null);
-  const [runError, setRunError] = useState(null);
+    // which question this submission is for (optional)
+    questionIndex: { type: Number, required: false },
 
-  useEffect(() => {
-    const fetchQuiz = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get(`/quiz/${courseId}`);
-        setQuiz(res.data);
-        setAnswers(new Array(res.data.questions.length).fill(null));
-      } catch (err) {
-        console.error("Quiz load failed:", err);
-        setQuiz(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchQuiz();
-  }, [courseId]);
+    // language info
+    languageId: { type: Number }, // judge0 language id (if known)
+    languageName: { type: String }, // friendly name used by frontend
+    stdin: { type: String, default: "" },
 
-  const handleSelect = (qIndex, optIndex) => {
-    const newAns = [...answers];
-    newAns[qIndex] = optIndex;
-    setAnswers(newAns);
-  };
+    // judge0 result
+    status: { type: String, enum: ["queued","running","done","error","saved"], default: "queued" },
+    rawResult: { type: Object }, // full response from judge0
+    stdout: { type: String },
+    stderr: { type: String },
+    compileOutput: { type: String },
+    time: { type: String },
+    memory: { type: String },
 
-  const handleSubmit = async () => {
-    try {
-      const res = await api.post(`/quiz/${courseId}/submit`, { answers });
-      setResult(res.data);
-      // if passed, server may return certificate object
-    } catch (err) {
-      console.error("Submit failed:", err);
-      alert(err.response?.data?.message || err.message || "Submit failed");
-    }
-  };
+    passed: { type: Boolean, default: false }, // if tests mark pass
+    score: { type: Number, default: 0 }, // optional score from auto-tests
+  },
+  { timestamps: true }
+);
 
-  // Save code (store on server — endpoint depends on your backend: /quiz/:courseId/submit-code)
-  const handleCodeSave = async () => {
-    try {
-      setCodeSaved(false);
-      await api.post(`/quiz/${courseId}/submit-code`, { code }); // implement server route or change to /code/save
-      setCodeSaved(true);
-      setTimeout(() => setCodeSaved(false), 2000);
-    } catch (err) {
-      console.error("Code save failed:", err);
-      alert("Failed to save code");
-    }
-  };
-
-  // Run code via Judge0 endpoint (server wraps Judge0). Uses /code/submit endpoint.
-  const handleCodeRun = async (language = "javascript") => {
-    try {
-      setRunOutput(null);
-      setRunError(null);
-      setCodeRunning(true);
-
-      const payload = {
-        source: code,
-        language: language, // string or numeric id — server will try to resolve
-        stdin: "", // optionally allow user input
-        title: `Quiz-${courseId}-run`,
-      };
-
-      const res = await api.post("/code/submit", payload);
-      const jr = res.data.judgeResult || res.data.judgeResult || res.data;
-      // judgeResult shape depends on Judge0 response — commonly has stdout, stderr, compile_output
-      const stdout = (jr && (jr.stdout || jr.stdout_text || jr.output)) || "";
-      const stderr = jr && (jr.stderr || jr.compile_output || jr.compile_output_text) || "";
-      setRunOutput(stdout);
-      setRunError(stderr);
-    } catch (err) {
-      console.error("Run failed:", err);
-      setRunError(err.response?.data?.message || err.message || "Run failed");
-    } finally {
-      setCodeRunning(false);
-    }
-  };
-
-  if (loading) return <div className="quiz-root"><p>Loading quiz...</p></div>;
-  if (!quiz) return <div className="quiz-root"><p>No quiz available for this course.</p></div>;
-
-  return (
-    <div className="quiz-root">
-      <h1 className="quiz-title">{quiz.title}</h1>
-
-      {result ? (
-        <div className="quiz-result">
-          <p className="quiz-score">Score: {result.score}%</p>
-          {result.message === "Passed" ? (
-            <div>
-              <p className="quiz-pass">✅ You passed!</p>
-              {result.certificate?.pdfUrl ? (
-                <a href={result.certificate.pdfUrl} target="_blank" rel="noreferrer" className="quiz-cert">Download Certificate</a>
-              ) : (
-                <p className="quiz-note">Certificate will appear in "My Certificates" soon.</p>
-              )}
-            </div>
-          ) : (
-            <p className="quiz-fail">❌ You failed. Try again!</p>
-          )}
-
-          <h3>Review Answers</h3>
-          {quiz.questions.map((q, i) => (
-            <div key={i} className="quiz-card">
-              <p className="quiz-q">{i + 1}. {q.question}</p>
-              <ul className="quiz-options">
-                {q.options.map((opt, j) => {
-                  const isCorrect = result.correctAnswers && result.correctAnswers[i] === j;
-                  const isSelected = answers[i] === j;
-                  let cls = "quiz-opt";
-                  if (isCorrect) cls += " correct";
-                  if (isSelected && !isCorrect) cls += " wrong";
-                  return <li key={j} className={cls}>{opt}{isSelected ? " (your answer)" : ""}</li>;
-                })}
-              </ul>
-            </div>
-          ))}
-
-          <div className="quiz-actions">
-            <button className="quiz-btn back" onClick={() => navigate("/dashboard")}>⬅ Back to Dashboard</button>
-          </div>
-        </div>
-      ) : (
-        <>
-          {quiz.questions.map((q, i) => (
-            <div key={i} className="quiz-card">
-              <p className="quiz-q">{i + 1}. {q.question}</p>
-
-              {/* If question has type: "code" render code editor for that question (optional) */}
-              {q.type === "code" ? (
-                <div className="quiz-code-question">
-                  <textarea className="quiz-code-editor" rows={8} value={code} onChange={(e) => setCode(e.target.value)} />
-                  <div className="code-actions">
-                    <button className="quiz-btn code" onClick={() => handleCodeRun(q.language || "javascript")} disabled={codeRunning}>
-                      {codeRunning ? "Running…" : "Run"}
-                    </button>
-                    <button className="quiz-btn" onClick={handleCodeSave}>Save</button>
-                    <div className="code-output">
-                      {runOutput && <pre className="stdout">Output:\n{runOutput}</pre>}
-                      {runError && <pre className="stderr">Error:\n{runError}</pre>}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <ul className="quiz-options">
-                  {q.options.map((opt, j) => (
-                    <li key={j}>
-                      <label className="quiz-opt choice">
-                        <input type="radio" name={`q-${i}`} checked={answers[i] === j} onChange={() => handleSelect(i, j)} />
-                        <span className="opt-text">{opt}</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
-
-          <div className="quiz-actions">
-            <button onClick={handleSubmit} className="quiz-btn submit">Submit Quiz</button>
-            <button onClick={() => navigate(-1)} className="quiz-btn back">Cancel</button>
-          </div>
-
-          {/* Additional global coding challenge area (optional) */}
-          {quiz.allowGlobalCode && (
-            <div className="quiz-code global">
-              <h3>💻 Global Coding Challenge</h3>
-              <textarea className="quiz-code-editor" rows={10} value={code} onChange={(e) => setCode(e.target.value)} />
-              <div className="code-actions">
-                <button className="quiz-btn code" onClick={() => handleCodeRun("javascript")} disabled={codeRunning}>
-                  {codeRunning ? "Running…" : "Run Code"}
-                </button>
-                <button className="quiz-btn" onClick={handleCodeSave}>Save Code</button>
-                {codeSaved && <span className="saved-msg">Saved ✓</span>}
-              </div>
-              <div className="code-output">
-                {runOutput && <pre className="stdout">Output:\n{runOutput}</pre>}
-                {runError && <pre className="stderr">Error:\n{runError}</pre>}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
+const CodeSubmission = mongoose.model("CodeSubmission", codeSubmissionSchema);
+export default CodeSubmission;
