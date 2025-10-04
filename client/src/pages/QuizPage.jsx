@@ -1,7 +1,7 @@
 // client/src/pages/QuizPage.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import API from "../api"; // default exported axios instance
+import API from "../api"; // default axios instance
 import "./QuizPage.css";
 
 export default function QuizPage() {
@@ -12,8 +12,9 @@ export default function QuizPage() {
   const [answers, setAnswers] = useState([]);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
-  // coding challenge state (single global code area for now)
+  // coding challenge state
   const [code, setCode] = useState("// write your code here\nconsole.log('Hello Eduoding');");
   const [codeSaved, setCodeSaved] = useState(false);
   const [codeRunning, setCodeRunning] = useState(false);
@@ -24,18 +25,26 @@ export default function QuizPage() {
     const fetchQuiz = async () => {
       try {
         setLoading(true);
+        setLoadError(null);
         const res = await API.get(`/quiz/${courseId}`);
-        setQuiz(res.data);
-        setAnswers(new Array((res.data.questions || []).length).fill(null));
+        // log for debugging
+        console.info("Quiz loaded:", res.data);
+        const qobj = res.data || null;
+        setQuiz(qobj);
+        setAnswers(new Array(Array.isArray(qobj?.questions) ? qobj.questions.length : 0).fill(null));
       } catch (err) {
         console.error("Quiz load failed:", err);
         setQuiz(null);
+        setLoadError(err);
       } finally {
         setLoading(false);
       }
     };
     fetchQuiz();
   }, [courseId]);
+
+  // safe questions accessor
+  const questions = Array.isArray(quiz?.questions) ? quiz.questions : [];
 
   const handleSelect = (qIndex, optIndex) => {
     const newAns = [...answers];
@@ -46,15 +55,14 @@ export default function QuizPage() {
   const handleSubmit = async () => {
     try {
       const res = await API.post(`/quiz/${courseId}/submit`, { answers });
+      console.info("Submit result:", res.data);
       setResult(res.data);
-      // server may return certificate object if passed
     } catch (err) {
       console.error("Submit failed:", err);
       alert(err.response?.data?.message || err.message || "Submit failed");
     }
   };
 
-  // Save code (store on server — server route: /quiz/:courseId/submit-code)
   const handleCodeSave = async () => {
     try {
       setCodeSaved(false);
@@ -67,25 +75,18 @@ export default function QuizPage() {
     }
   };
 
-  // Run code via server /code/submit which wraps Judge0
   const handleCodeRun = async (language = "javascript") => {
     try {
       setRunOutput(null);
       setRunError(null);
       setCodeRunning(true);
 
-      const payload = {
-        source: code,
-        language: language, // server will resolve string -> id where possible
-        stdin: "",
-        title: `Quiz-${courseId}-run`,
-      };
-
+      const payload = { source: code, language, stdin: "", title: `Quiz-${courseId}-run` };
       const res = await API.post("/code/submit", payload);
-      const judge = res.data.judgeResult || res.data.judgeResult || res.data.judge || res.data;
-      // Judge0 may use fields: stdout, stderr, compile_output
-      const stdout = (judge && (judge.stdout || judge.stdout_text || judge.output)) || "";
-      const stderr = judge && (judge.stderr || judge.compile_output || judge.compile_output_text) || "";
+      const jr = res.data.judgeResult || res.data.judge || res.data;
+      console.info("Judge0 result:", jr);
+      const stdout = (jr && (jr.stdout || jr.stdout_text || jr.output)) || "";
+      const stderr = jr && (jr.stderr || jr.compile_output || jr.compile_output_text) || "";
       setRunOutput(stdout);
       setRunError(stderr);
     } catch (err) {
@@ -96,35 +97,33 @@ export default function QuizPage() {
     }
   };
 
+  // render guards
   if (loading) return <div className="quiz-root"><p>Loading quiz...</p></div>;
+  if (loadError) return <div className="quiz-root"><p>Error loading quiz. Check console / network tab.</p></div>;
   if (!quiz) return <div className="quiz-root"><p>No quiz available for this course.</p></div>;
 
   return (
     <div className="quiz-root">
-      <h1 className="quiz-title">{quiz.title}</h1>
+      <h1 className="quiz-title">{quiz.title || "Quiz"}</h1>
 
       {result ? (
         <div className="quiz-result">
           <p className="quiz-score">Score: {result.score}%</p>
           {result.message === "Passed" ? (
-            <div>
+            <>
               <p className="quiz-pass">✅ You passed!</p>
               {result.certificate?.pdfUrl ? (
                 <a href={result.certificate.pdfUrl} target="_blank" rel="noreferrer" className="quiz-cert">Download Certificate</a>
-              ) : (
-                <p className="quiz-note">Certificate will appear in "My Certificates" soon.</p>
-              )}
-            </div>
-          ) : (
-            <p className="quiz-fail">❌ You failed. Try again!</p>
-          )}
+              ) : <p className="quiz-note">Certificate will appear in "My Certificates".</p>}
+            </>
+          ) : <p className="quiz-fail">❌ You failed. Try again!</p>}
 
           <h3>Review Answers</h3>
-          {quiz.questions.map((q, i) => (
+          {questions.map((q, i) => (
             <div key={i} className="quiz-card">
               <p className="quiz-q">{i + 1}. {q.question}</p>
               <ul className="quiz-options">
-                {q.options.map((opt, j) => {
+                {(Array.isArray(q.options) ? q.options : []).map((opt, j) => {
                   const isCorrect = result.correctAnswers && result.correctAnswers[i] === j;
                   const isSelected = answers[i] === j;
                   let cls = "quiz-opt";
@@ -142,7 +141,7 @@ export default function QuizPage() {
         </div>
       ) : (
         <>
-          {quiz.questions.map((q, i) => (
+          {questions.map((q, i) => (
             <div key={i} className="quiz-card">
               <p className="quiz-q">{i + 1}. {q.question}</p>
 
@@ -162,7 +161,7 @@ export default function QuizPage() {
                 </div>
               ) : (
                 <ul className="quiz-options">
-                  {q.options.map((opt, j) => (
+                  {(Array.isArray(q.options) ? q.options : []).map((opt, j) => (
                     <li key={j}>
                       <label className="quiz-opt choice">
                         <input type="radio" name={`q-${i}`} checked={answers[i] === j} onChange={() => handleSelect(i, j)} />
