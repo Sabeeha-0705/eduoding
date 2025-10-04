@@ -21,6 +21,7 @@ import Settings from "./pages/Settings";
 import MySolutions from "./pages/MySolutions";
 import CodeEditor from "./pages/CodeEditor";
 import SubmissionView from "./pages/SubmissionView";
+import ErrorBoundary from "./components/ErrorBoundary";
 export default function App() {
   return (
     <BrowserRouter>
@@ -146,7 +147,7 @@ export default function App() {
   <Route path="/code/:id" element={<SubmissionView />} /> {/* optional view page if you implement */}
 </Routes>
 
-
+<Route path="/course/:id/quiz" element={<ErrorBoundary><QuizPage /></ErrorBoundary>} />
 
 
         {/* Fallback */}
