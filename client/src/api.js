@@ -3,7 +3,7 @@ import axios from "axios";
 
 /**
  * API client
- * - Uses Vite env var VITE_API_BASE if set (e.g. "https://.../api")
+ * - Uses Vite env var VITE_API_BASE if set
  * - Fallback to production Render URL
  * - Final fallback: localhost (dev)
  */
@@ -19,10 +19,10 @@ if (!BASE_URL) {
 
 const API = axios.create({
   baseURL: BASE_URL,
-  timeout: 20000, // 20s safer timeout
+  timeout: 20000,
 });
 
-// 🔑 Request interceptor → attach token automatically
+// Request interceptor → attach token automatically
 API.interceptors.request.use(
   (config) => {
     try {
@@ -40,7 +40,7 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ⚠️ Response interceptor → normalize errors + handle 401
+// Response interceptor → normalize errors + handle 401
 API.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -57,17 +57,17 @@ API.interceptors.response.use(
         sessionStorage.removeItem("authToken");
       } catch (e) {}
       if (typeof window !== "undefined" && !window.__forceLogout) {
-        window.__forceLogout = true; // prevent redirect loops
+        window.__forceLogout = true;
         window.location.replace("/auth");
       }
     }
 
     const out = new Error(msg);
     out.response = err.response;
-    out.data = data; // keep original backend error
+    out.data = data;
     return Promise.reject(out);
   }
 );
 
-export const api = API;
-export default API;
+export const api = API; // named export for `import { api } from "./api"`
+export default API;     // default export for `import API from "./api"`
