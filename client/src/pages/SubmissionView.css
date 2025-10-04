@@ -1,0 +1,35 @@
+/* SubmissionView.css - simple viewer for code submissions */
+.sub-view {
+  max-width: 900px;
+  margin: 24px auto;
+  padding: 18px;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+}
+
+.sub-meta { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
+.sub-meta b { color:#0f1724; }
+.sub-code {
+  background: #0f1724;
+  color: #e6eef8;
+  padding: 14px;
+  border-radius: 10px;
+  font-family: "Fira Code", monospace;
+  overflow-x: auto;
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+.sub-output {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.sub-output pre { padding: 12px; border-radius: 8px; overflow-x:auto; }
+
+.sub-output .stdout { background: #0f1724; color: #e6eef8; }
+.sub-output .stderr { background: #ffecec; color: #8b0000; }
+
+.sub-actions { margin-top: 12px; display:flex; gap:8px; }
+.btn { padding: 8px 12px; border-radius:8px; cursor: pointer; border: none; font-weight:600; }
+.btn.primary { background: linear-gradient(90deg,#4b61e6,#1ea0ff); color: #fff; }
+.btn.ghost { background: transparent; border: 1px solid #e6e8ee; color: #111; }

@@ -8,10 +8,11 @@ import PDFDocument from "pdfkit";
 import cloudinary from "../utils/cloudinary.js";
 import fs from "fs";
 import path from "path";
+import axios from "axios";
 
 const router = express.Router();
 
-/** helper: remove correctIndex before sending to client */
+/** Helper: remove correctIndex before sending to client */
 function safeQuizForClient(quizDoc) {
   if (!quizDoc) return null;
   const q = quizDoc.toObject ? quizDoc.toObject() : { ...quizDoc };
@@ -19,6 +20,38 @@ function safeQuizForClient(quizDoc) {
     q.questions = q.questions.map(({ correctIndex, ...rest }) => rest);
   }
   return q;
+}
+
+/** Judge0 config from env */
+const JUDGE0_BASE = process.env.JUDGE0_BASE || "https://judge0-ce.p.rapidapi.com";
+const JUDGE0_KEY = process.env.JUDGE0_KEY || "";
+const JUDGE0_HOST = process.env.JUDGE0_HOST || ""; // e.g. judge0-ce.p.rapidapi.com
+
+function judge0Headers() {
+  const headers = { "Content-Type": "application/json" };
+  if (JUDGE0_KEY) headers["X-RapidAPI-Key"] = JUDGE0_KEY;
+  if (JUDGE0_HOST) headers["X-RapidAPI-Host"] = JUDGE0_HOST;
+  return headers;
+}
+
+/**
+ * Execute code on Judge0 synchronously (wait=true)
+ * payload: { source_code, language_id, stdin? }
+ * returns result object or null on error.
+ */
+async function executeOnJudge0(payload) {
+  try {
+    // Ensure the URL is correct: many judge0 CE endpoints accept /submissions?wait=true
+    const url = `${JUDGE0_BASE.replace(/\/$/, "")}/submissions?wait=true&base64_encoded=false`;
+    const res = await axios.post(url, payload, {
+      headers: judge0Headers(),
+      timeout: 30000,
+    });
+    return res.data || null;
+  } catch (err) {
+    console.warn("Judge0 execute error:", err?.response?.data || err?.message || err);
+    return null;
+  }
 }
 
 /** GET quiz (no answers) */
@@ -35,7 +68,15 @@ router.get("/:courseId", protect, async (req, res) => {
 
 /**
  * POST /api/quiz/:courseId/submit
- * Grade MCQs server-side, generate certificate on pass
+ * Body: { answers: [index|null,...] }
+ *
+ * This version:
+ *  - grades MCQs
+ *  - for every question with type === 'code', attempts to grade using user's latest saved code for the course:
+ *     * if submission already contains a Judge0 result (rawResult/stdout) we use it
+ *     * otherwise we send the code to Judge0 (requires languageId on the question or the submission)
+ *  - returns:
+ *    { message: "Passed"|"Failed", score, correctAnswers, codeResults?: [...] , certificate?: {...} }
  */
 router.post("/:courseId/submit", protect, async (req, res) => {
   try {
@@ -47,31 +88,165 @@ router.post("/:courseId/submit", protect, async (req, res) => {
       return res.status(400).json({ message: "Quiz has no questions" });
     }
 
+    // Normalize submitted answers to length
     const qCount = quiz.questions.length;
     const submitted = Array.isArray(answers) ? answers.slice(0, qCount) : [];
     for (let i = submitted.length; i < qCount; i++) submitted[i] = null;
 
-    const correctAnswers = [];
+    // Prepare arrays for results
+    const correctAnswers = new Array(qCount).fill(null); // for MCQs will store number; for code remains null
     let correctCount = 0;
+
+    // First: grade MCQs and mark correctAnswers for MCQs
     for (let i = 0; i < qCount; i++) {
       const q = quiz.questions[i];
+      if (!q || q.type === "code") continue; // skip code questions here
       const correctIndex = typeof q.correctIndex === "number" ? q.correctIndex : null;
-      correctAnswers.push(correctIndex);
+      correctAnswers[i] = correctIndex;
       if (submitted[i] !== null && submitted[i] === correctIndex) correctCount++;
     }
 
+    // Next: handle code questions (auto-grade using saved submission or Judge0)
+    // We'll build codeResults array with details for each code question
+    const codeResults = []; // { index, passed: bool, expected, got, error? }
+    for (let i = 0; i < qCount; i++) {
+      const q = quiz.questions[i];
+      if (!q || q.type !== "code") continue;
+
+      const expectedRaw = String(q.expectedOutput || "").replace(/\r/g, "");
+      const expectedNormalized = expectedRaw.trim();
+
+      // try to find latest CodeSubmission by this user for this course
+      const latestSub = await CodeSubmission.findOne({
+        userId: req.user.id,
+        courseId: req.params.courseId,
+      }).sort({ createdAt: -1 });
+
+      let execResult = null;
+      let usedSubmission = null;
+
+      if (latestSub) {
+        usedSubmission = latestSub;
+        // if the submission already has a rawResult or stdout, use it
+        if (latestSub.rawResult) {
+          execResult = latestSub.rawResult;
+        } else if (latestSub.stdout || latestSub.stderr || latestSub.compileOutput) {
+          execResult = {
+            stdout: latestSub.stdout || "",
+            stderr: latestSub.stderr || "",
+            compile_output: latestSub.compileOutput || "",
+            time: latestSub.time || "",
+            memory: latestSub.memory || "",
+          };
+        }
+      }
+
+      // If we don't have a result yet, attempt to execute via Judge0
+      if (!execResult && usedSubmission) {
+        // Determine languageId preference: question.languageId -> submission.languageId -> submission.languageName guess
+        let languageId = q.languageId || usedSubmission.languageId || null;
+
+        // If languageId still null and submission has languageName, we could attempt to resolve but keep simple:
+        if (!languageId && usedSubmission.languageName) {
+          // If developer wants to resolve names to ids, add a languages cache/endpoint.
+          // For now we cannot safely run without numeric languageId.
+          languageId = null;
+        }
+
+        if (!languageId) {
+          codeResults.push({
+            index: i,
+            passed: false,
+            expected: expectedNormalized,
+            got: null,
+            error: "No numeric languageId available to execute submission",
+          });
+          // cannot grade this code question — leave as incorrect
+          continue;
+        }
+
+        // build payload
+        const payload = {
+          source_code: usedSubmission.source || usedSubmission.code || "",
+          language_id: Number(languageId),
+          stdin: usedSubmission.stdin || "",
+        };
+
+        // call Judge0
+        const jres = await executeOnJudge0(payload);
+        if (!jres) {
+          codeResults.push({
+            index: i,
+            passed: false,
+            expected: expectedNormalized,
+            got: null,
+            error: "Judge0 execution failed",
+          });
+          continue;
+        }
+        // Save result snapshot back to submission (non-blocking)
+        try {
+          usedSubmission.status = "done";
+          usedSubmission.rawResult = jres;
+          usedSubmission.stdout = jres.stdout || "";
+          usedSubmission.stderr = jres.stderr || "";
+          usedSubmission.compileOutput = jres.compile_output || "";
+          usedSubmission.time = jres.time || "";
+          usedSubmission.memory = jres.memory || "";
+          await usedSubmission.save();
+        } catch (e) {
+          // swallow save errors, but log
+          console.warn("Failed to save submission result:", e.message || e);
+        }
+        execResult = jres;
+      }
+
+      // if still no execResult, mark failed
+      if (!execResult) {
+        codeResults.push({
+          index: i,
+          passed: false,
+          expected: expectedNormalized,
+          got: null,
+          error: "No submission/result available",
+        });
+        continue;
+      }
+
+      // If compile output exists and non-empty, treat as failed (unless you want to parse)
+      const stdoutRaw = String(execResult.stdout || "").replace(/\r/g, "");
+      const stdoutNormalized = stdoutRaw.trim();
+
+      const passed = stdoutNormalized === expectedNormalized;
+
+      if (passed) correctCount++;
+
+      codeResults.push({
+        index: i,
+        passed,
+        expected: expectedNormalized,
+        got: stdoutNormalized,
+        time: execResult.time || null,
+        memory: execResult.memory || null,
+        compileOutput: execResult.compile_output || null,
+        stderr: execResult.stderr || null,
+      });
+    }
+
+    // compute percent across all questions (MCQ + code included equally)
     const percent = Math.round((correctCount / qCount) * 100);
 
-    // fail -> return score + correct answers
+    // If failed -> return details (score + answers + codeResults)
     if (percent < (quiz.passPercent || 60)) {
       return res.json({
         message: "Failed",
         score: percent,
         correctAnswers,
+        codeResults,
       });
     }
 
-    // Passed -> build PDF certificate and upload
+    // Passed -> generate certificate (pdf -> upload) similar to previous implementation
     const doc = new PDFDocument({ size: "A4", margin: 48 });
     const buffers = [];
     doc.on("data", (b) => buffers.push(b));
@@ -83,6 +258,7 @@ router.post("/:courseId/submit", protect, async (req, res) => {
       try {
         const pdfBuffer = Buffer.concat(buffers);
 
+        // upload as raw to Cloudinary
         const upload = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
             { resource_type: "raw", folder: "eduoding_certificates" },
@@ -103,6 +279,7 @@ router.post("/:courseId/submit", protect, async (req, res) => {
           message: "Passed",
           score: percent,
           correctAnswers,
+          codeResults,
           certificate: cert,
         });
       } catch (err) {
@@ -111,7 +288,7 @@ router.post("/:courseId/submit", protect, async (req, res) => {
       }
     });
 
-    // PDF content (professional layout — logo / signature optional)
+    // PDF layout
     const pageWidth = doc.page.width;
     const pageHeight = doc.page.height;
     doc.save();
@@ -179,7 +356,7 @@ router.post("/:courseId/submit", protect, async (req, res) => {
 /**
  * POST /api/quiz/:courseId/submit-code
  * Save a code submission (no execution here).
- * Body: { code: string, language?: string }
+ * Body: { code: string, language?: string|id }
  */
 router.post("/:courseId/submit-code", protect, async (req, res) => {
   try {
@@ -191,9 +368,11 @@ router.post("/:courseId/submit-code", protect, async (req, res) => {
     const submission = await CodeSubmission.create({
       userId: req.user.id,
       courseId: req.params.courseId,
-      code: code,
-      language: language || "javascript",
+      source: code, // use `source` to match codeRoutes expectation
+      languageName: typeof language === "string" ? language : null,
+      languageId: typeof language === "number" ? language : null,
       result: { status: "saved" },
+      status: "saved",
     });
 
     return res.json({ message: "Code saved", submission });

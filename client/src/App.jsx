@@ -19,7 +19,8 @@ import QuizPage from "./pages/QuizPage";
 import CertificatePage from "./pages/CertificatePage";
 import Settings from "./pages/Settings";
 import MySolutions from "./pages/MySolutions";
-
+import CodeEditor from "./pages/CodeEditor";
+import SubmissionView from "./pages/SubmissionView";
 export default function App() {
   return (
     <BrowserRouter>
@@ -138,13 +139,14 @@ export default function App() {
     </ProtectedRoute>
   }
 />
+<Routes>
+  {/* ...existing routes */}
+  <Route path="/code/editor/:courseId?/:lessonId?" element={<CodeEditor />} />
+  <Route path="/code/mine/all" element={<MySolutions />} />
+  <Route path="/code/:id" element={<SubmissionView />} /> {/* optional view page if you implement */}
+</Routes>
 
 
-<Route path="/course/:courseId/submissions" element={
-  <ProtectedRoute>
-    <MySolutions />
-  </ProtectedRoute>
-} />
 
 
         {/* Fallback */}
