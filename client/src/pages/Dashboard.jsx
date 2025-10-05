@@ -1,3 +1,4 @@
+// client/src/pages/Dashboard.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../api";
@@ -25,14 +26,14 @@ export default function Dashboard() {
           return;
         }
 
-        // 🔹 PROFILE
+        // PROFILE
         const profileRes = await API.get("/users/me").catch(() =>
           API.get("/auth/profile")
         );
         const profileData = profileRes.data?.user || profileRes.data;
         setUser(profileData);
 
-        // 🔹 NOTES
+        // NOTES (try server, fallback to localStorage)
         try {
           const notesRes = await API.get("/notes");
           setNotes(notesRes.data || []);
@@ -50,7 +51,7 @@ export default function Dashboard() {
           setNotes(localNotes);
         }
 
-        // 🔹 PROGRESS
+        // PROGRESS (list for user)
         const progRes = await API.get("/progress");
         setProgressData(progRes.data || []);
       } catch (err) {
@@ -144,7 +145,7 @@ export default function Dashboard() {
 
         <nav>
           <ul>
-            {["courses", "notes", "progress"].map((tab) => (
+            {["courses", "notes", "progress", "settings"].map((tab) => (
               <li
                 key={tab}
                 className={`sidebar-item ${activeTab === tab ? "active" : ""}`}
@@ -156,6 +157,7 @@ export default function Dashboard() {
                 {tab === "courses" && "📘 "}
                 {tab === "notes" && "📝 "}
                 {tab === "progress" && "📊 "}
+                {tab === "settings" && "⚙ "}
                 <span className="item-text">{tab}</span>
               </li>
             ))}
@@ -204,7 +206,7 @@ export default function Dashboard() {
                       <div key={course.id} className="course-card">
                         <h3>{course.title}</h3>
                         <p>{course.desc}</p>
-                        <div className="progress-bar">
+                        <div className="progress-bar" aria-label={`Progress for ${course.title}`}>
                           <div className="progress" style={{ width: `${progress}%` }} />
                         </div>
                         <p className="progress-text">{progress}% Completed</p>
@@ -259,21 +261,44 @@ export default function Dashboard() {
                 <h3>📊 Progress</h3>
                 {progressData.length === 0 ? (
                   <div className="empty-card">
-                    <p>No progress tracked yet.</p>
-                    <button onClick={() => setActiveTab("courses")}>
-                      Browse Courses
-                    </button>
+                    <p>No progress tracked yet. Join a course and complete lessons to see progress.</p>
+                    <button className="join-btn" onClick={() => setActiveTab("courses")}>Browse Courses</button>
                   </div>
                 ) : (
                   <ul>
                     {progressData.map((p) => (
                       <li key={p._id}>
-                        Course: {String(p.courseId)} —{" "}
-                        {Math.round(p.completedPercent)}% completed
+                        Course: {String(p.courseId)} — {Math.round(p.completedPercent)}% completed
                       </li>
                     ))}
                   </ul>
                 )}
+              </div>
+            )}
+
+            {activeTab === "settings" && (
+              <div>
+                <h3>⚙ Settings</h3>
+                <div className="settings-card">
+                  <p>Update profile info, change password, and notification preferences here.</p>
+
+                  <div style={{ marginTop: 12 }}>
+                    <button
+                      className="small-btn"
+                      onClick={() => navigate("/settings")}
+                    >
+                      Open Settings Page
+                    </button>
+                  </div>
+
+                  <hr style={{ margin: "16px 0" }} />
+
+                  <div>
+                    <h4>Account</h4>
+                    <p>Email: <strong>{user?.email}</strong></p>
+                    <p>Role: <strong>{user?.role || "user"}</strong></p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
