@@ -1,6 +1,7 @@
+// server/routes/progressRoutes.js
 import express from "express";
 import Progress from "../models/progressModel.js";
-import Lesson from "../models/lessonModel.js"; // 🔥 add this for total lessons count
+import Lesson from "../models/lessonModel.js"; // ✅ your lesson model
 import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -31,7 +32,7 @@ router.get("/:courseId", protect, async (req, res) => {
   }
 });
 
-// 🔹 POST overall percent update (optional, not critical)
+// 🔹 POST overall percent update (optional)
 router.post("/", protect, async (req, res) => {
   try {
     const { courseId, completedPercent } = req.body;
@@ -66,21 +67,35 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
       });
     }
 
+    // ✅ Update completed lessons
     const set = new Set(prog.completedLessonIds.map(String));
     if (completed) set.add(String(lessonId));
     else set.delete(String(lessonId));
 
     const updatedCompleted = Array.from(set);
 
-    // 🔥 Auto calculate percent using Lesson count from DB
-    const totalLessons = await Lesson.countDocuments({ courseId });
-    const completedPercent = totalLessons
-      ? Math.round((updatedCompleted.length / totalLessons) * 100)
-      : 0;
+    // ✅ Get total lessons count safely
+    let totalLessons = 0;
+    try {
+      totalLessons = await Lesson.countDocuments({ courseId });
+    } catch (err) {
+      console.warn("Lesson count fallback:", err.message);
+      totalLessons = Number(req.body.totalLessons) || 0;
+    }
+
+    // ✅ Calculate percentage
+    const completedPercent =
+      totalLessons > 0
+        ? Math.round((updatedCompleted.length / totalLessons) * 100)
+        : 0;
 
     prog.completedLessonIds = updatedCompleted;
     prog.completedPercent = completedPercent;
     await prog.save();
+
+    console.log(
+      `User ${req.user.id} course ${courseId}: ${updatedCompleted.length}/${totalLessons} lessons -> ${completedPercent}%`
+    );
 
     res.json({
       courseId,
