@@ -17,14 +17,37 @@ export default function Dashboard() {
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
-  // helper to normalize progress response
+  // Normalize progress list into a lookup map.
+  // Also create fallback keys: trailing digits, last path segment, and original key.
   const normalizeProgressList = (list) => {
     const arr = Array.isArray(list) ? list : [];
     const map = {};
     arr.forEach((p) => {
-      const key = String(p.courseId ?? p.course_id ?? "");
+      const rawKey = String(p.courseId ?? p.course_id ?? "");
       const percent = Number(p.completedPercent ?? p.completed_percent ?? 0) || 0;
-      map[key] = { ...p, completedPercent: percent };
+
+      // store under original key
+      map[rawKey] = { ...p, completedPercent: percent };
+
+      // if ends with digits (like courseId_1 or /1), store numeric fallback
+      const digitsMatch = rawKey.match(/(\d+)$/);
+      if (digitsMatch) {
+        const digits = digitsMatch[1];
+        map[digits] = { ...p, completedPercent: percent };
+      }
+
+      // if contains slash or colon, store last segment fallback
+      if (rawKey.includes("/") || rawKey.includes(":") || rawKey.includes("-")) {
+        const parts = rawKey.split(/[\/:-]+/).filter(Boolean);
+        if (parts.length) {
+          const last = parts[parts.length - 1];
+          if (last) map[last] = { ...p, completedPercent: percent };
+        }
+      }
+
+      // also store lowercase/trimmed versions to be safe
+      const lc = rawKey.toLowerCase().trim();
+      if (lc !== rawKey) map[lc] = { ...p, completedPercent: percent };
     });
     return map;
   };
@@ -116,10 +139,35 @@ export default function Dashboard() {
     }
   };
 
+  // Improved getProgressForCourse: tries multiple matching strategies.
   const getProgressForCourse = (courseId) => {
-    const key = String(courseId);
-    const p = progressMap[key];
-    return p ? Math.round(Number(p.completedPercent) || 0) : 0;
+    if (!progressMap || Object.keys(progressMap).length === 0) return 0;
+
+    const cid = String(courseId);
+    // 1) exact match
+    if (progressMap[cid]) return Math.round(Number(progressMap[cid].completedPercent) || 0);
+
+    // 2) direct numeric match (if courseId is "1","2", etc.)
+    const numeric = cid.match(/^\d+$/) ? cid : null;
+    if (numeric && progressMap[numeric]) return Math.round(Number(progressMap[numeric].completedPercent) || 0);
+
+    // 3) find key that endsWith the cid (handles long objectId ending with number or similar)
+    const keys = Object.keys(progressMap);
+    const ends = keys.find((k) => k.endsWith(cid));
+    if (ends) return Math.round(Number(progressMap[ends].completedPercent) || 0);
+
+    // 4) find key that includes cid anywhere
+    const includes = keys.find((k) => k.includes(cid));
+    if (includes) return Math.round(Number(progressMap[includes].completedPercent) || 0);
+
+    // 5) fallback: try numeric digits inside keys (first match)
+    const digitMatchKey = keys.find((k) => {
+      const m = k.match(/(\d+)$/);
+      return m && m[1] === cid;
+    });
+    if (digitMatchKey) return Math.round(Number(progressMap[digitMatchKey].completedPercent) || 0);
+
+    return 0;
   };
 
   const courses = [
@@ -203,20 +251,13 @@ export default function Dashboard() {
 
         {user?.role === "uploader" && (
           <div className="sidebar-quick">
-            <button onClick={() => navigate("/uploader/upload")}>
-              ➕ Upload Video
-            </button>
-            <button onClick={() => navigate("/uploader/dashboard")}>
-              📁 My Uploads
-            </button>
+            <button onClick={() => navigate("/uploader/upload")}>➕ Upload Video</button>
+            <button onClick={() => navigate("/uploader/dashboard")}>📁 My Uploads</button>
           </div>
         )}
 
         {user?.role === "admin" && (
-          <button
-            onClick={() => navigate("/admin/requests")}
-            className="btn-admin"
-          >
+          <button onClick={() => navigate("/admin/requests")} className="btn-admin">
             Admin Panel
           </button>
         )}
@@ -246,25 +287,12 @@ export default function Dashboard() {
                       <div key={course.id} className="course-card">
                         <h3>{course.title}</h3>
                         <p>{course.desc}</p>
-                        <div
-                          className="progress-bar"
-                          aria-label={`Progress for ${course.title}`}
-                        >
-                          <div
-                            className="progress"
-                            style={{ width: `${progress}%` }}
-                          />
+                        <div className="progress-bar" aria-label={`Progress for ${course.title}`}>
+                          <div className="progress" style={{ width: `${progress}%` }} />
                         </div>
-                        <p className="progress-text">
-                          {progress}% Completed
-                        </p>
-                        <button
-                          className="join-btn"
-                          onClick={() => navigate(`/course/${course.id}`)}
-                        >
-                          {progress === 100
-                            ? "Review Course"
-                            : "Continue"}
+                        <p className="progress-text">{progress}% Completed</p>
+                        <button className="join-btn" onClick={() => navigate(`/course/${course.id}`)}>
+                          {progress === 100 ? "Review Course" : "Continue"}
                         </button>
                       </div>
                     );
@@ -282,14 +310,9 @@ export default function Dashboard() {
                       <li key={note._id}>
                         <p>{note.content || note.text}</p>
                         <small>
-                          {note.createdAt
-                            ? new Date(note.createdAt).toLocaleString()
-                            : note._id}
+                          {note.createdAt ? new Date(note.createdAt).toLocaleString() : note._id}
                         </small>
-                        <button
-                          className="small-btn"
-                          onClick={() => handleDeleteNote(note._id)}
-                        >
+                        <button className="small-btn" onClick={() => handleDeleteNote(note._id)}>
                           Delete
                         </button>
                       </li>
@@ -298,9 +321,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="empty-card">
                     <p>No notes yet — take notes while watching lessons.</p>
-                    <button onClick={() => setActiveTab("courses")}>
-                      Go to Courses
-                    </button>
+                    <button onClick={() => setActiveTab("courses")}>Go to Courses</button>
                   </div>
                 )}
               </>
@@ -311,23 +332,14 @@ export default function Dashboard() {
                 <h3>📊 Progress</h3>
                 {progressData.length === 0 ? (
                   <div className="empty-card">
-                    <p>
-                      No progress tracked yet. Join a course and complete
-                      lessons to see progress.
-                    </p>
-                    <button
-                      className="join-btn"
-                      onClick={() => setActiveTab("courses")}
-                    >
-                      Browse Courses
-                    </button>
+                    <p>No progress tracked yet. Join a course and complete lessons to see progress.</p>
+                    <button className="join-btn" onClick={() => setActiveTab("courses")}>Browse Courses</button>
                   </div>
                 ) : (
                   <ul>
                     {progressData.map((p) => (
                       <li key={p._id}>
-                        Course: {String(p.courseId)} —{" "}
-                        {Math.round(Number(p.completedPercent) || 0)}% completed
+                        Course: {String(p.courseId)} — {Math.round(Number(p.completedPercent) || 0)}% completed
                       </li>
                     ))}
                   </ul>
@@ -339,16 +351,10 @@ export default function Dashboard() {
               <div>
                 <h3>⚙ Settings</h3>
                 <div className="settings-card">
-                  <p>
-                    Update profile info, change password, and notification
-                    preferences here.
-                  </p>
+                  <p>Update profile info, change password, and notification preferences here.</p>
 
                   <div style={{ marginTop: 12 }}>
-                    <button
-                      className="small-btn"
-                      onClick={() => navigate("/settings")}
-                    >
+                    <button className="small-btn" onClick={() => navigate("/settings")}>
                       Open Settings Page
                     </button>
                   </div>
@@ -357,12 +363,8 @@ export default function Dashboard() {
 
                   <div>
                     <h4>Account</h4>
-                    <p>
-                      Email: <strong>{user?.email}</strong>
-                    </p>
-                    <p>
-                      Role: <strong>{user?.role || "user"}</strong>
-                    </p>
+                    <p>Email: <strong>{user?.email}</strong></p>
+                    <p>Role: <strong>{user?.role || "user"}</strong></p>
                   </div>
                 </div>
               </div>

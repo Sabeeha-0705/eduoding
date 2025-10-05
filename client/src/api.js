@@ -1,3 +1,4 @@
+// client/src/api.js
 import axios from "axios";
 
 let BASE_URL = import.meta.env.VITE_API_BASE;
@@ -31,25 +32,24 @@ API.interceptors.response.use(
         localStorage.removeItem("authToken");
         sessionStorage.removeItem("authToken");
       } catch (e) {}
-      // prevent infinite redirect loops if already redirecting
       if (typeof window !== "undefined" && !window.__forceLogout) {
         window.__forceLogout = true;
         window.location.replace("/auth");
       }
     }
-    return Promise.reject(new Error(msg));
+    return Promise.reject(err);
   }
 );
 
-// Progress helpers (kept for convenience)
-export const toggleLessonProgress = (courseId, lessonId, completed) =>
-  API.post(`/progress/${courseId}/lesson`, { lessonId, completed });
+// 🔹 Progress helpers
+export const toggleLessonProgress = (courseId, lessonId, completed, totalLessons) =>
+  API.post(`/progress/${courseId}/lesson`, { lessonId, completed, totalLessons });
 
 export const fetchCourseProgress = (courseId) =>
   API.get(`/progress/${courseId}`);
 
-// Backwards-compatible named export
-export const api = API;
+export const fetchAllProgress = () => API.get("/progress");
 
-// Default export
+// 🔹 Named and default export
+export const api = API;
 export default API;
