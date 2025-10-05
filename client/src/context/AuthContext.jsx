@@ -1,34 +1,55 @@
-// client/src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from "react";
+import API, { fetchCourseProgress } from "../api";
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState(() =>
-    localStorage.getItem("authToken") || sessionStorage.getItem("authToken") || null
+  const [token, setToken] = useState(
+    localStorage.getItem("authToken") || sessionStorage.getItem("authToken")
   );
   const [user, setUser] = useState(null);
+  const [courseProgress, setCourseProgress] = useState({}); // { courseId: percent }
 
-  // inside useEffect in AuthProvider
-useEffect(() => {
-  if (!token) { setUser(null); return; }
-  try {
-    const payload = token.split(".")[1];
-    const json = JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
-    setUser({ email: json.email, id: json.id, role: json.role }); // if your JWT includes role
-  } catch (e) {
-    setUser(null);
+  useEffect(() => {
+    if (!token) {
+      setUser(null);
+      return;
+    }
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      setUser({ id: payload.id, email: payload.email, role: payload.role });
+    } catch {
+      setUser(null);
+    }
+  }, [token]);
+
+  async function refreshProgress(courseId) {
+    try {
+      const res = await fetchCourseProgress(courseId);
+      setCourseProgress((prev) => ({
+        ...prev,
+        [courseId]: res.data.completedPercent,
+      }));
+    } catch (err) {
+      console.error("refreshProgress failed", err);
+    }
   }
-}, [token]);
-
 
   return (
-    <AuthContext.Provider value={{ token, setToken, user, setUser }}>
+    <AuthContext.Provider
+      value={{
+        token,
+        setToken,
+        user,
+        setUser,
+        courseProgress,
+        refreshProgress,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
-
 export default AuthContext;

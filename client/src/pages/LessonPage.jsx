@@ -14,9 +14,6 @@ export default function LessonPage() {
   const [hasQuiz, setHasQuiz] = useState(null);
   const [completedIds, setCompletedIds] = useState([]);
 
-  const getToken = () =>
-    localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
-
   useEffect(() => {
     const run = async () => {
       try {
@@ -25,7 +22,7 @@ export default function LessonPage() {
         const res = await API.get(`/courses/${courseId}/videos`);
         setVideos(res.data || []);
 
-        // fetch progress
+        // fetch progress for this course
         const p = await API.get(`/progress/${courseId}`);
         setCompletedIds(p.data.completedLessonIds || []);
       } catch (e) {
@@ -45,7 +42,7 @@ export default function LessonPage() {
         await API.get(`/quiz/${courseId}`);
         if (!mounted) return;
         setHasQuiz(true);
-      } catch (e) {
+      } catch {
         if (!mounted) return;
         setHasQuiz(false);
       }
@@ -63,10 +60,7 @@ export default function LessonPage() {
   }, [videos, lessonId]);
 
   useEffect(() => {
-    if (!currentVideo) {
-      setNote("");
-      return;
-    }
+    if (!currentVideo) return setNote("");
     const key = `note-${courseId}-${currentVideo._id}`;
     setNote(localStorage.getItem(key) || "");
   }, [courseId, currentVideo?._id]);
@@ -87,6 +81,7 @@ export default function LessonPage() {
     return url;
   };
 
+  // ✅ main progress logic
   const toggleCompleted = async (lessonId, completed) => {
     try {
       const res = await API.post(`/progress/${courseId}/lesson`, {
@@ -99,7 +94,9 @@ export default function LessonPage() {
     }
   };
 
-  const markComplete = (lessonId) => toggleCompleted(lessonId, true);
+  const markComplete = async (lessonId) => {
+    await toggleCompleted(lessonId, true);
+  };
 
   const goPrev = () => {
     if (!currentVideo) return;
@@ -109,7 +106,8 @@ export default function LessonPage() {
   const goNext = () => {
     if (!currentVideo) return;
     const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
-    if (idx < videos.length - 1) navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
+    if (idx < videos.length - 1)
+      navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
   };
 
   if (loading)
@@ -124,16 +122,6 @@ export default function LessonPage() {
         <p style={{ color: "crimson" }}>{err}</p>
       </div>
     );
-  if (!videos.length) {
-    return (
-      <div className="lesson-page">
-        <button className="back-btn" onClick={() => navigate(`/course/${courseId}`)}>
-          ⬅ Back to Course
-        </button>
-        <h1>No lessons available yet.</h1>
-      </div>
-    );
-  }
 
   return (
     <div className="lesson-page">
@@ -147,15 +135,14 @@ export default function LessonPage() {
           <ul>
             {videos.map((v, i) => {
               const active = String(v._id) === String(currentVideo._id);
-              const checked = completedIds.some((id) => String(id) === String(v._id));
+              const checked = completedIds.includes(String(v._id));
               return (
                 <li key={v._id} className={active ? "active" : ""}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={(e) => toggleCompleted(v._id, e.target.checked)}
-                      title="Mark complete"
                     />
                     <Link to={`/course/${courseId}/lesson/${v._id}`}>
                       <span>#{i + 1}</span> {v.title}
@@ -176,38 +163,21 @@ export default function LessonPage() {
           <div className="video-container">
             {currentVideo.sourceType === "youtube" || currentVideo.youtubeUrl ? (
               <iframe
-                id="ytplayer"
-                src={`${toEmbed(currentVideo.youtubeUrl || currentVideo.fileUrl || "")}?enablejsapi=1`}
+                src={`${toEmbed(currentVideo.youtubeUrl)}?enablejsapi=1`}
                 title={currentVideo.title}
                 frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               />
             ) : (
               <video controls onEnded={() => markComplete(currentVideo._id)}>
-                <source
-                  src={
-                    (currentVideo.fileUrl || "").startsWith("http")
-                      ? currentVideo.fileUrl
-                      : `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}${currentVideo.fileUrl}`
-                  }
-                  type="video/mp4"
-                />
-                Your browser does not support the video tag.
+                <source src={currentVideo.fileUrl} type="video/mp4" />
               </video>
             )}
           </div>
 
           <div className="pager">
-            <button onClick={goPrev} disabled={String(videos[0]._id) === String(currentVideo._id)}>
-              ◀ Prev
-            </button>
-            <button
-              onClick={goNext}
-              disabled={String(videos[videos.length - 1]._id) === String(currentVideo._id)}
-            >
-              Next ▶
-            </button>
+            <button onClick={goPrev}>◀ Prev</button>
+            <button onClick={goNext}>Next ▶</button>
           </div>
 
           <div className="notes-section">
@@ -218,42 +188,7 @@ export default function LessonPage() {
               placeholder="Write your notes here…"
             />
             <div className="notes-actions">
-              <button onClick={saveNote} className="save-note-btn">
-                Save Note
-              </button>
-
-              <div className="quiz-actions">
-                {hasQuiz === null ? (
-                  <span className="quiz-checking">Checking quiz…</span>
-                ) : hasQuiz ? (
-                  <button
-                    className="take-quiz-btn"
-                    onClick={() => {
-                      const token = getToken();
-                      if (!token) {
-                        alert("Please login to take the quiz.");
-                        navigate("/auth");
-                        return;
-                      }
-                      navigate(`/course/${courseId}/quiz`);
-                    }}
-                  >
-                    Take Quiz
-                  </button>
-                ) : (
-                  <button
-                    disabled
-                    className="take-quiz-btn disabled"
-                    title="No quiz for this course"
-                  >
-                    Quiz unavailable
-                  </button>
-                )}
-
-                <button className="view-cert-btn" onClick={() => navigate("/certificates")}>
-                  My Certificates
-                </button>
-              </div>
+              <button onClick={saveNote}>Save Note</button>
             </div>
           </div>
         </main>

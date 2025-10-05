@@ -1,11 +1,11 @@
-// server/routes/progressRoutes.js
 import express from "express";
 import Progress from "../models/progressModel.js";
+import Lesson from "../models/lessonModel.js"; // 🔥 add this for total lessons count
 import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// GET progress for current user (list or for course)
+// 🔹 GET all progress for current user
 router.get("/", protect, async (req, res) => {
   try {
     const list = await Progress.find({ userId: req.user.id });
@@ -16,13 +16,12 @@ router.get("/", protect, async (req, res) => {
   }
 });
 
-// GET progress for a single course for the current user
+// 🔹 GET single course progress
 router.get("/:courseId", protect, async (req, res) => {
   try {
-    const { courseId } = req.params; // treat as string
+    const { courseId } = req.params;
     let prog = await Progress.findOne({ userId: req.user.id, courseId });
     if (!prog) {
-      // return empty progress if none
       prog = { courseId, completedLessonIds: [], completedPercent: 0 };
     }
     res.json(prog);
@@ -32,7 +31,7 @@ router.get("/:courseId", protect, async (req, res) => {
   }
 });
 
-// POST update overall progress (create or update)
+// 🔹 POST overall percent update (optional, not critical)
 router.post("/", protect, async (req, res) => {
   try {
     const { courseId, completedPercent } = req.body;
@@ -50,10 +49,10 @@ router.post("/", protect, async (req, res) => {
   }
 });
 
-// POST toggle a lesson complete/uncomplete for course
+// 🔹 POST toggle lesson complete/uncomplete
 router.post("/:courseId/lesson", protect, async (req, res) => {
   try {
-    const { courseId } = req.params; // string
+    const { courseId } = req.params;
     const { lessonId, completed } = req.body;
     if (!lessonId) return res.status(400).json({ message: "lessonId required" });
 
@@ -73,17 +72,21 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
 
     const updatedCompleted = Array.from(set);
 
-    // optional: compute percent if you know total lessons (frontend can pass total)
-    let completedPercent = prog.completedPercent;
-    if (typeof req.body.totalLessons === "number" && req.body.totalLessons > 0) {
-      completedPercent = Math.round((updatedCompleted.length / req.body.totalLessons) * 100);
-    }
+    // 🔥 Auto calculate percent using Lesson count from DB
+    const totalLessons = await Lesson.countDocuments({ courseId });
+    const completedPercent = totalLessons
+      ? Math.round((updatedCompleted.length / totalLessons) * 100)
+      : 0;
 
     prog.completedLessonIds = updatedCompleted;
     prog.completedPercent = completedPercent;
     await prog.save();
 
-    res.json(prog);
+    res.json({
+      courseId,
+      completedLessonIds: updatedCompleted,
+      completedPercent,
+    });
   } catch (err) {
     console.error("POST /progress/:courseId/lesson error:", err);
     res.status(500).json({ message: "Server error" });

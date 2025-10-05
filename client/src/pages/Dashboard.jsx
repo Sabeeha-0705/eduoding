@@ -1,7 +1,6 @@
-// src/pages/Dashboard.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import API from "../api"; // use default API instance (consistent with other files)
+import API from "../api";
 import "./Dashboard.css";
 
 export default function Dashboard() {
@@ -10,7 +9,7 @@ export default function Dashboard() {
   const [notes, setNotes] = useState([]);
   const [progressData, setProgressData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true); // responsive sidebar toggle
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
 
   const getToken = () =>
@@ -26,29 +25,18 @@ export default function Dashboard() {
           return;
         }
 
-        // PROFILE: try /users/me (server route used earlier)
-        let profileRes;
-        try {
-          profileRes = await API.get("/users/me");
-        } catch (err) {
-          // fallback: maybe server exposes /auth/profile
-          try {
-            profileRes = await API.get("/auth/profile");
-          } catch (err2) {
-            throw err2 || err;
-          }
-        }
-
-        // server might return { user } or user object directly
+        // 🔹 PROFILE
+        const profileRes = await API.get("/users/me").catch(() =>
+          API.get("/auth/profile")
+        );
         const profileData = profileRes.data?.user || profileRes.data;
         setUser(profileData);
 
-        // NOTES: try API, fallback to localStorage notes
+        // 🔹 NOTES
         try {
           const notesRes = await API.get("/notes");
           setNotes(notesRes.data || []);
-        } catch (err) {
-          // fallback to localStorage notes if offline or endpoint missing
+        } catch {
           const localNotes = [];
           Object.keys(localStorage).forEach((k) => {
             if (k.startsWith("note-")) {
@@ -62,16 +50,11 @@ export default function Dashboard() {
           setNotes(localNotes);
         }
 
-        // PROGRESS: fetch progress entries for this user
-        try {
-          const progRes = await API.get("/progress");
-          setProgressData(progRes.data || []);
-        } catch (err) {
-          setProgressData([]);
-        }
+        // 🔹 PROGRESS
+        const progRes = await API.get("/progress");
+        setProgressData(progRes.data || []);
       } catch (err) {
         console.error("Profile fetch failed", err);
-        // if unauthorized or server error, send to login
         localStorage.removeItem("authToken");
         sessionStorage.removeItem("authToken");
         navigate("/auth", { replace: true });
@@ -82,10 +65,9 @@ export default function Dashboard() {
 
     fetchAll();
 
-    // close sidebar on small screen resize
+    // responsive sidebar
     const onResize = () => {
-      if (window.innerWidth < 900) setSidebarOpen(false);
-      else setSidebarOpen(true);
+      setSidebarOpen(window.innerWidth >= 900);
     };
     onResize();
     window.addEventListener("resize", onResize);
@@ -130,11 +112,17 @@ export default function Dashboard() {
     { id: "5", title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes." },
   ];
 
-  if (loading) return <div className="dashboard-container"><main className="main-content"><p>Loading...</p></main></div>;
+  if (loading)
+    return (
+      <div className="dashboard-container">
+        <main className="main-content">
+          <p>Loading...</p>
+        </main>
+      </div>
+    );
 
   return (
     <div className="dashboard-container">
-      {/* mobile header */}
       <header className="mobile-header">
         <button
           aria-label="Toggle navigation"
@@ -145,107 +133,90 @@ export default function Dashboard() {
         </button>
         <div className="mobile-title">Eduoding</div>
         <div className="mobile-actions">
-          <button className="tiny-btn" onClick={() => navigate("/settings")}>⚙</button>
+          <button className="tiny-btn" onClick={() => navigate("/settings")}>
+            ⚙
+          </button>
         </div>
       </header>
 
-      <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`} aria-hidden={!sidebarOpen}>
+      <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}>
         <div className="logo">Eduoding</div>
 
         <nav>
           <ul>
-            <li
-              className={`sidebar-item ${activeTab === "courses" ? "active" : ""}`}
-              onClick={() => { setActiveTab("courses"); if (window.innerWidth < 900) setSidebarOpen(false); }}
-              role="button"
-              tabIndex={0}
-            >
-              <span className="item-icon">📘</span>
-              <span className="item-text">Courses</span>
-            </li>
-
-            <li
-              className={`sidebar-item ${activeTab === "notes" ? "active" : ""}`}
-              onClick={() => { setActiveTab("notes"); if (window.innerWidth < 900) setSidebarOpen(false); }}
-              role="button"
-              tabIndex={0}
-            >
-              <span className="item-icon">📝</span>
-              <span className="item-text">Notes</span>
-            </li>
-
-            <li
-              className={`sidebar-item ${activeTab === "progress" ? "active" : ""}`}
-              onClick={() => { setActiveTab("progress"); if (window.innerWidth < 900) setSidebarOpen(false); }}
-              role="button"
-              tabIndex={0}
-            >
-              <span className="item-icon">📊</span>
-              <span className="item-text">Progress</span>
-            </li>
-
-            <li
-              className={`sidebar-item ${activeTab === "settings" ? "active" : ""}`}
-              onClick={() => { setActiveTab("settings"); setSidebarOpen(false); navigate("/settings"); }}
-              role="button"
-              tabIndex={0}
-            >
-              <span className="item-icon">⚙</span>
-              <span className="item-text">Settings</span>
-            </li>
+            {["courses", "notes", "progress"].map((tab) => (
+              <li
+                key={tab}
+                className={`sidebar-item ${activeTab === tab ? "active" : ""}`}
+                onClick={() => {
+                  setActiveTab(tab);
+                  if (window.innerWidth < 900) setSidebarOpen(false);
+                }}
+              >
+                {tab === "courses" && "📘 "}
+                {tab === "notes" && "📝 "}
+                {tab === "progress" && "📊 "}
+                <span className="item-text">{tab}</span>
+              </li>
+            ))}
           </ul>
         </nav>
 
-        {/* Uploader quick links (visible only to uploader role) */}
         {user?.role === "uploader" && (
           <div className="sidebar-quick">
-            <button className="uploader-btn" onClick={() => navigate("/uploader/upload")}>➕ Upload Video</button>
-            <button className="uploader-btn outline" onClick={() => navigate("/uploader/dashboard")}>📁 My Uploads</button>
+            <button onClick={() => navigate("/uploader/upload")}>
+              ➕ Upload Video
+            </button>
+            <button onClick={() => navigate("/uploader/dashboard")}>
+              📁 My Uploads
+            </button>
           </div>
         )}
 
-        {/* Admin quick link (visible only to admin) */}
         {user?.role === "admin" && (
-          <button onClick={() => navigate("/admin/requests")} className="btn-admin">Admin Panel</button>
+          <button onClick={() => navigate("/admin/requests")} className="btn-admin">
+            Admin Panel
+          </button>
         )}
 
         <div style={{ marginTop: "auto" }}>
-          <div className="role-badge">Role: <strong>{user?.role || "user"}</strong></div>
-          <button className="logout-btn" onClick={logout}>Logout</button>
+          <div className="role-badge">
+            Role: <strong>{user?.role || "user"}</strong>
+          </div>
+          <button className="logout-btn" onClick={logout}>
+            Logout
+          </button>
         </div>
       </aside>
 
-      <main className="main-content" onClick={() => { if (window.innerWidth < 900 && sidebarOpen) setSidebarOpen(false); }}>
+      <main className="main-content">
         {user ? (
           <div className="page-inner">
-            <div className="header-row">
-              <h2>Welcome, {user?.username || user?.email}</h2>
-              <div className="small-meta"><span className="meta-role">{user?.role}</span></div>
-            </div>
+            <h2>Welcome, {user?.username || user?.email}</h2>
 
             {activeTab === "courses" && (
               <>
                 <p>Select a course and start learning 🚀</p>
                 <div className="courses-grid">
-                  {courses.map((course) => (
-                    <div key={course.id} className="course-card" aria-live="polite">
-                      <h3>{course.title}</h3>
-                      <p>{course.desc}</p>
-                      <div className="progress-bar" aria-label={`Progress for ${course.title}`}>
-                        <div
-                          className="progress"
-                          style={{ width: `${getProgressForCourse(course.id)}%` }}
-                        />
+                  {courses.map((course) => {
+                    const progress = getProgressForCourse(course.id);
+                    return (
+                      <div key={course.id} className="course-card">
+                        <h3>{course.title}</h3>
+                        <p>{course.desc}</p>
+                        <div className="progress-bar">
+                          <div className="progress" style={{ width: `${progress}%` }} />
+                        </div>
+                        <p className="progress-text">{progress}% Completed</p>
+                        <button
+                          className="join-btn"
+                          onClick={() => navigate(`/course/${course.id}`)}
+                        >
+                          {progress === 100 ? "Review Course" : "Continue"}
+                        </button>
                       </div>
-                      <p className="progress-text">{getProgressForCourse(course.id)}% Completed</p>
-                      <button
-                        className="join-btn"
-                        onClick={() => navigate(`/course/${course.id}`)}
-                      >
-                        Join Course
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -258,17 +229,26 @@ export default function Dashboard() {
                     {notes.map((note) => (
                       <li key={note._id}>
                         <p>{note.content || note.text}</p>
-                        <small style={{ color: "#666" }}>{note.createdAt ? new Date(note.createdAt).toLocaleString() : note._id}</small>
-                        <div>
-                          <button className="small-btn" onClick={() => handleDeleteNote(note._id)}>Delete</button>
-                        </div>
+                        <small>
+                          {note.createdAt
+                            ? new Date(note.createdAt).toLocaleString()
+                            : note._id}
+                        </small>
+                        <button
+                          className="small-btn"
+                          onClick={() => handleDeleteNote(note._id)}
+                        >
+                          Delete
+                        </button>
                       </li>
                     ))}
                   </ul>
                 ) : (
                   <div className="empty-card">
-                    <p>No notes yet — take notes while watching lessons and they'll be saved here.</p>
-                    <button className="join-btn" onClick={() => setActiveTab("courses")}>Go to Courses</button>
+                    <p>No notes yet — take notes while watching lessons.</p>
+                    <button onClick={() => setActiveTab("courses")}>
+                      Go to Courses
+                    </button>
                   </div>
                 )}
               </>
@@ -279,27 +259,27 @@ export default function Dashboard() {
                 <h3>📊 Progress</h3>
                 {progressData.length === 0 ? (
                   <div className="empty-card">
-                    <p>No progress tracked yet. Join a course and complete lessons to see progress.</p>
-                    <button className="join-btn" onClick={() => setActiveTab("courses")}>Browse Courses</button>
+                    <p>No progress tracked yet.</p>
+                    <button onClick={() => setActiveTab("courses")}>
+                      Browse Courses
+                    </button>
                   </div>
                 ) : (
                   <ul>
                     {progressData.map((p) => (
-                      <li key={p._id}>Course: {String(p.courseId)} — {Math.round(p.completedPercent)}% completed</li>
+                      <li key={p._id}>
+                        Course: {String(p.courseId)} —{" "}
+                        {Math.round(p.completedPercent)}% completed
+                      </li>
                     ))}
                   </ul>
                 )}
               </div>
             )}
-
-            {activeTab === "settings" && (
-              <div>
-                <h3>⚙ Settings</h3>
-                <p>Change password, update profile, notification prefs — coming soon.</p>
-              </div>
-            )}
           </div>
-        ) : (<p>Loading user...</p>)}
+        ) : (
+          <p>Loading user...</p>
+        )}
       </main>
     </div>
   );
