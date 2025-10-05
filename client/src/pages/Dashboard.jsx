@@ -9,12 +9,25 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("courses");
   const [notes, setNotes] = useState([]);
   const [progressData, setProgressData] = useState([]);
+  const [progressMap, setProgressMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
 
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+
+  // helper to normalize progress response
+  const normalizeProgressList = (list) => {
+    const arr = Array.isArray(list) ? list : [];
+    const map = {};
+    arr.forEach((p) => {
+      const key = String(p.courseId ?? p.course_id ?? "");
+      const percent = Number(p.completedPercent ?? p.completed_percent ?? 0) || 0;
+      map[key] = { ...p, completedPercent: percent };
+    });
+    return map;
+  };
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -51,9 +64,17 @@ export default function Dashboard() {
           setNotes(localNotes);
         }
 
-        // PROGRESS (list for user)
-        const progRes = await API.get("/progress");
-        setProgressData(progRes.data || []);
+        // PROGRESS (fetch list for user)
+        try {
+          const progRes = await API.get("/progress");
+          const list = progRes.data || [];
+          setProgressData(list);
+          setProgressMap(normalizeProgressList(list));
+        } catch (err) {
+          console.warn("Progress fetch failed:", err);
+          setProgressData([]);
+          setProgressMap({});
+        }
       } catch (err) {
         console.error("Profile fetch failed", err);
         localStorage.removeItem("authToken");
@@ -66,7 +87,6 @@ export default function Dashboard() {
 
     fetchAll();
 
-    // responsive sidebar
     const onResize = () => {
       setSidebarOpen(window.innerWidth >= 900);
     };
@@ -97,8 +117,9 @@ export default function Dashboard() {
   };
 
   const getProgressForCourse = (courseId) => {
-    const p = progressData.find((x) => String(x.courseId) === String(courseId));
-    return p ? Math.round(p.completedPercent) : 0;
+    const key = String(courseId);
+    const p = progressMap[key];
+    return p ? Math.round(Number(p.completedPercent) || 0) : 0;
   };
 
   const courses = [
@@ -107,10 +128,26 @@ export default function Dashboard() {
       title: "Full Stack Web Development (MERN)",
       desc: "Learn MongoDB, Express, React, Node.js with real projects.",
     },
-    { id: "2", title: "Data Science & AI", desc: "Master Python, Machine Learning, and AI applications." },
-    { id: "3", title: "Cloud & DevOps", desc: "Hands-on AWS, Docker, Kubernetes, CI/CD pipelines." },
-    { id: "4", title: "Cybersecurity & Ethical Hacking", desc: "Protect systems, learn penetration testing & network security." },
-    { id: "5", title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes." },
+    {
+      id: "2",
+      title: "Data Science & AI",
+      desc: "Master Python, Machine Learning, and AI applications.",
+    },
+    {
+      id: "3",
+      title: "Cloud & DevOps",
+      desc: "Hands-on AWS, Docker, Kubernetes, CI/CD pipelines.",
+    },
+    {
+      id: "4",
+      title: "Cybersecurity & Ethical Hacking",
+      desc: "Protect systems, learn penetration testing & network security.",
+    },
+    {
+      id: "5",
+      title: "UI/UX Design",
+      desc: "Design modern apps using Figma, wireframes & prototypes.",
+    },
   ];
 
   if (loading)
@@ -176,7 +213,10 @@ export default function Dashboard() {
         )}
 
         {user?.role === "admin" && (
-          <button onClick={() => navigate("/admin/requests")} className="btn-admin">
+          <button
+            onClick={() => navigate("/admin/requests")}
+            className="btn-admin"
+          >
             Admin Panel
           </button>
         )}
@@ -206,15 +246,25 @@ export default function Dashboard() {
                       <div key={course.id} className="course-card">
                         <h3>{course.title}</h3>
                         <p>{course.desc}</p>
-                        <div className="progress-bar" aria-label={`Progress for ${course.title}`}>
-                          <div className="progress" style={{ width: `${progress}%` }} />
+                        <div
+                          className="progress-bar"
+                          aria-label={`Progress for ${course.title}`}
+                        >
+                          <div
+                            className="progress"
+                            style={{ width: `${progress}%` }}
+                          />
                         </div>
-                        <p className="progress-text">{progress}% Completed</p>
+                        <p className="progress-text">
+                          {progress}% Completed
+                        </p>
                         <button
                           className="join-btn"
                           onClick={() => navigate(`/course/${course.id}`)}
                         >
-                          {progress === 100 ? "Review Course" : "Continue"}
+                          {progress === 100
+                            ? "Review Course"
+                            : "Continue"}
                         </button>
                       </div>
                     );
@@ -261,14 +311,23 @@ export default function Dashboard() {
                 <h3>📊 Progress</h3>
                 {progressData.length === 0 ? (
                   <div className="empty-card">
-                    <p>No progress tracked yet. Join a course and complete lessons to see progress.</p>
-                    <button className="join-btn" onClick={() => setActiveTab("courses")}>Browse Courses</button>
+                    <p>
+                      No progress tracked yet. Join a course and complete
+                      lessons to see progress.
+                    </p>
+                    <button
+                      className="join-btn"
+                      onClick={() => setActiveTab("courses")}
+                    >
+                      Browse Courses
+                    </button>
                   </div>
                 ) : (
                   <ul>
                     {progressData.map((p) => (
                       <li key={p._id}>
-                        Course: {String(p.courseId)} — {Math.round(p.completedPercent)}% completed
+                        Course: {String(p.courseId)} —{" "}
+                        {Math.round(Number(p.completedPercent) || 0)}% completed
                       </li>
                     ))}
                   </ul>
@@ -280,7 +339,10 @@ export default function Dashboard() {
               <div>
                 <h3>⚙ Settings</h3>
                 <div className="settings-card">
-                  <p>Update profile info, change password, and notification preferences here.</p>
+                  <p>
+                    Update profile info, change password, and notification
+                    preferences here.
+                  </p>
 
                   <div style={{ marginTop: 12 }}>
                     <button
@@ -295,8 +357,12 @@ export default function Dashboard() {
 
                   <div>
                     <h4>Account</h4>
-                    <p>Email: <strong>{user?.email}</strong></p>
-                    <p>Role: <strong>{user?.role || "user"}</strong></p>
+                    <p>
+                      Email: <strong>{user?.email}</strong>
+                    </p>
+                    <p>
+                      Role: <strong>{user?.role || "user"}</strong>
+                    </p>
                   </div>
                 </div>
               </div>
