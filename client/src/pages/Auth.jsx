@@ -1,7 +1,7 @@
-// src/pages/Auth.jsx
 import { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
-import { api } from "../api";
+// use default import (safer / matches api.js default export)
+import API from "../api";
 import bg from "../assets/bg.png";
 import "./Auth.css";
 import { useNavigate } from "react-router-dom";
@@ -51,7 +51,7 @@ function AuthPage() {
           ...rawData,
           email: rawData.email.toLowerCase().trim(),
         };
-        const res = await api.post("/auth/login", payload);
+        const res = await API.post("/auth/login", payload);
         if (res?.data?.token) {
           if (remember) localStorage.setItem("authToken", res.data.token);
           else sessionStorage.setItem("authToken", res.data.token);
@@ -67,7 +67,7 @@ function AuthPage() {
           email: rawData.email.toLowerCase().trim(),
           requestedUploader: !!requestedUploader,
         };
-        const res = await api.post("/auth/register", payload);
+        const res = await API.post("/auth/register", payload);
         setMsg(res.data.message || "OTP sent to email!");
         setOtpStep(true);
         setEmail(payload.email);
@@ -78,6 +78,7 @@ function AuthPage() {
         }
       }
     } catch (err) {
+      // API now throws Error(msg) from interceptor, but backend body preserved on err.response
       setMsg(err.response?.data?.message || err.message || "Error");
     }
   };
@@ -86,13 +87,13 @@ function AuthPage() {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
     try {
-      const res = await api.post("/auth/forgot-password", {
+      const res = await API.post("/auth/forgot-password", {
         email: data.email.toLowerCase().trim(),
       });
       setMsg(res.data.message || "Reset OTP sent to email!");
       setForgotMode(false);
     } catch (err) {
-      setMsg(err.response?.data?.message || "Error in forgot password");
+      setMsg(err.response?.data?.message || err.message || "Error in forgot password");
     }
   };
 
@@ -100,7 +101,7 @@ function AuthPage() {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
     try {
-      const res = await api.post("/auth/verify-otp", {
+      const res = await API.post("/auth/verify-otp", {
         email,
         otp: data.otp,
       });
@@ -108,7 +109,7 @@ function AuthPage() {
       setOtpStep(false);
       setIsLogin(true);
     } catch (err) {
-      setMsg(err.response?.data?.message || "OTP verification failed");
+      setMsg(err.response?.data?.message || err.message || "OTP verification failed");
     }
   };
 
@@ -119,7 +120,7 @@ function AuthPage() {
         setMsg("Google login failed: no credential returned");
         return;
       }
-      const res = await api.post("/auth/google", { token });
+      const res = await API.post("/auth/google", { token });
       if (res.data?.token) {
         localStorage.setItem("authToken", res.data.token);
         setMsg("✅ Google login success!");
@@ -127,7 +128,7 @@ function AuthPage() {
       } else setMsg("Google login failed: no app token returned");
     } catch (err) {
       console.error(err);
-      setMsg("Google login failed");
+      setMsg(err.response?.data?.message || err.message || "Google login failed");
     }
   };
 

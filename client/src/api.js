@@ -27,19 +27,29 @@ API.interceptors.response.use(
     const msg =
       err?.response?.data?.message || err.message || "Something went wrong";
     if (err?.response?.status === 401) {
-      localStorage.removeItem("authToken");
-      sessionStorage.removeItem("authToken");
-      window.location.replace("/auth");
+      try {
+        localStorage.removeItem("authToken");
+        sessionStorage.removeItem("authToken");
+      } catch (e) {}
+      // prevent infinite redirect loops if already redirecting
+      if (typeof window !== "undefined" && !window.__forceLogout) {
+        window.__forceLogout = true;
+        window.location.replace("/auth");
+      }
     }
     return Promise.reject(new Error(msg));
   }
 );
 
-// 🔥 Progress related helpers
+// Progress helpers (kept for convenience)
 export const toggleLessonProgress = (courseId, lessonId, completed) =>
   API.post(`/progress/${courseId}/lesson`, { lessonId, completed });
 
 export const fetchCourseProgress = (courseId) =>
   API.get(`/progress/${courseId}`);
 
+// Backwards-compatible named export
+export const api = API;
+
+// Default export
 export default API;
