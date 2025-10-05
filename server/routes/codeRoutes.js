@@ -3,6 +3,8 @@ import express from "express";
 import protect from "../middleware/authMiddleware.js";
 import axios from "axios";
 import CodeSubmission from "../models/codeSubmissionModel.js";
+import judge0 from "../utils/judge0Client.js"; // use the central client
+
 
 const router = express.Router();
 
