@@ -86,18 +86,23 @@ export default function LessonPage() {
     return url;
   };
 
-  // ✅ main progress logic
-  const toggleCompleted = async (lessonId, completed) => {
+   const toggleCompleted = async (lessonId, completed) => {
     try {
+      // send totalLessons so backend can compute completedPercent
+      const totalLessons = videos?.length || 0;
       const res = await API.post(`/progress/${courseId}/lesson`, {
         lessonId,
         completed,
+        totalLessons,
       });
       setCompletedIds(res.data.completedLessonIds || []);
+      // optional: if backend returns updated percent, you can use it (e.g. to show immediate changes)
+      // if (res.data.completedPercent !== undefined) { /* use if needed */ }
     } catch (e) {
       console.error("toggle complete failed", e);
     }
   };
+
 
   const markComplete = async (lessonId) => {
     await toggleCompleted(lessonId, true);
