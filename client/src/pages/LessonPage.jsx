@@ -1,3 +1,4 @@
+// client/src/pages/LessonPage.jsx
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import API from "../api";
@@ -13,6 +14,9 @@ export default function LessonPage() {
   const [note, setNote] = useState("");
   const [hasQuiz, setHasQuiz] = useState(null);
   const [completedIds, setCompletedIds] = useState([]);
+
+  const getToken = () =>
+    localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
   useEffect(() => {
     const run = async () => {
@@ -39,10 +43,11 @@ export default function LessonPage() {
     const checkQuiz = async () => {
       setHasQuiz(null);
       try {
-        await API.get(`/quiz/${courseId}`);
+        const res = await API.get(`/quiz/${courseId}`);
         if (!mounted) return;
-        setHasQuiz(true);
-      } catch {
+        // treat any 2xx as quiz available
+        setHasQuiz(res?.status >= 200 && res?.status < 300);
+      } catch (e) {
         if (!mounted) return;
         setHasQuiz(false);
       }
@@ -188,7 +193,54 @@ export default function LessonPage() {
               placeholder="Write your notes here…"
             />
             <div className="notes-actions">
-              <button onClick={saveNote}>Save Note</button>
+              <button onClick={saveNote} className="save-note-btn">
+                Save Note
+              </button>
+
+              <div className="quiz-actions">
+                {/* Always show Take Quiz, but disable / explain if quiz missing or not logged in */}
+                {hasQuiz === null ? (
+                  <span className="quiz-checking">Checking quiz…</span>
+                ) : (
+                  <>
+                    <button
+                      className={`take-quiz-btn ${hasQuiz ? "" : "disabled"}`}
+                      onClick={() => {
+                        const token = getToken();
+                        if (!token) {
+                          alert("Please login to take the quiz.");
+                          navigate("/auth");
+                          return;
+                        }
+                        if (!hasQuiz) {
+                          alert("No quiz available for this course.");
+                          return;
+                        }
+                        navigate(`/course/${courseId}/quiz`);
+                      }}
+                      disabled={!hasQuiz}
+                      title={!hasQuiz ? "No quiz for this course" : "Take the course quiz"}
+                    >
+                      Take Quiz
+                    </button>
+
+                    <button
+                      className="view-cert-btn"
+                      onClick={() => {
+                        const token = getToken();
+                        if (!token) {
+                          alert("Please login to view certificates.");
+                          navigate("/auth");
+                          return;
+                        }
+                        navigate("/certificates");
+                      }}
+                    >
+                      My Certificates
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </main>
