@@ -36,7 +36,7 @@ export default function Dashboard() {
         map[digits] = { ...p, completedPercent: percent };
       }
 
-      // if contains slash or colon, store last segment fallback
+      // if contains slash or colon or dash, store last segment fallback
       if (rawKey.includes("/") || rawKey.includes(":") || rawKey.includes("-")) {
         const parts = rawKey.split(/[\/:-]+/).filter(Boolean);
         if (parts.length) {
