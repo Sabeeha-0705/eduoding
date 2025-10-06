@@ -1,0 +1,48 @@
+/* client/src/pages/Leaderboard.css */
+.leaderboard {
+  padding: 20px;
+}
+
+.page-inner h2 {
+  margin-bottom: 8px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+.ldb-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(10,20,40,0.04);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ldb-table thead th {
+  text-align: left;
+  padding: 12px 16px;
+  background: #f7f8fa;
+  font-weight: 600;
+  color: #222;
+  border-bottom: 1px solid #eee;
+}
+
+.ldb-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f1f1;
+  color: #333;
+}
+
+.ldb-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.empty-card {
+  padding: 24px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(10,20,40,0.03);
+}

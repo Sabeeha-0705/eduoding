@@ -1,29 +1,44 @@
 // client/src/pages/Leaderboard.jsx
 import React, { useEffect, useState } from "react";
 import API from "../api";
+// import CSS (make sure this file exists)
 import "./Leaderboard.css";
 
 export default function Leaderboard() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
+    let mounted = true;
     const load = async () => {
       try {
         setLoading(true);
+        setLoadError(null);
         const res = await API.get("/leaderboard");
-        setUsers(res.data || []);
+        if (!mounted) return;
+        setUsers(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
         console.error("Leaderboard load failed:", err);
-        setUsers([]);
+        if (mounted) {
+          setUsers([]);
+          setLoadError(err);
+        }
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
     load();
+    return () => (mounted = false);
   }, []);
 
   if (loading) return <div className="leaderboard"><p>Loading leaderboard…</p></div>;
+  if (loadError)
+    return (
+      <div className="leaderboard">
+        <p>Error loading leaderboard. Check console / network.</p>
+      </div>
+    );
 
   return (
     <div className="leaderboard page-inner">
@@ -33,28 +48,30 @@ export default function Leaderboard() {
       {users.length === 0 ? (
         <div className="empty-card"><p>No users yet.</p></div>
       ) : (
-        <table className="ldb-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>User</th>
-              <th>Points</th>
-              <th>Badges</th>
-              <th>Role</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u, i) => (
-              <tr key={u._id}>
-                <td>{i + 1}</td>
-                <td>{u.username || u.email}</td>
-                <td>{u.points || 0}</td>
-                <td>{(u.badges && u.badges.length) ? u.badges.join(", ") : "—"}</td>
-                <td>{u.role || "user"}</td>
+        <div className="table-wrap">
+          <table className="ldb-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>User</th>
+                <th>Points</th>
+                <th>Badges</th>
+                <th>Role</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.map((u, i) => (
+                <tr key={u._id || i}>
+                  <td>{i + 1}</td>
+                  <td>{u.username || u.email || "Anonymous"}</td>
+                  <td>{Number(u.points || 0)}</td>
+                  <td>{Array.isArray(u.badges) && u.badges.length ? u.badges.join(", ") : "—"}</td>
+                  <td>{u.role || "user"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
