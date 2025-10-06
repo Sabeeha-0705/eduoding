@@ -22,6 +22,7 @@ import MySolutions from "./pages/MySolutions";
 import CodeEditor from "./pages/CodeEditor";
 import SubmissionView from "./pages/SubmissionView";
 import ErrorBoundary from "./components/ErrorBoundary";
+import Leaderboard from "./pages/Leaderboard";
 
 export default function App() {
   return (
@@ -166,6 +167,8 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/leaderboard" element={<Leaderboard />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -9,6 +9,7 @@ import cloudinary from "../utils/cloudinary.js";
 import fs from "fs";
 import path from "path";
 import axios from "axios";
+import User from "../models/authModel.js"; // <-- NEW
 
 const router = express.Router();
 
@@ -41,7 +42,6 @@ function judge0Headers() {
  */
 async function executeOnJudge0(payload) {
   try {
-    // Ensure the URL is correct: many judge0 CE endpoints accept /submissions?wait=true
     const url = `${JUDGE0_BASE.replace(/\/$/, "")}/submissions?wait=true&base64_encoded=false`;
     const res = await axios.post(url, payload, {
       headers: judge0Headers(),
@@ -70,13 +70,8 @@ router.get("/:courseId", protect, async (req, res) => {
  * POST /api/quiz/:courseId/submit
  * Body: { answers: [index|null,...] }
  *
- * This version:
- *  - grades MCQs
- *  - for every question with type === 'code', attempts to grade using user's latest saved code for the course:
- *     * if submission already contains a Judge0 result (rawResult/stdout) we use it
- *     * otherwise we send the code to Judge0 (requires languageId on the question or the submission)
- *  - returns:
- *    { message: "Passed"|"Failed", score, correctAnswers, codeResults?: [...] , certificate?: {...} }
+ * Grades MCQs and code questions (using saved CodeSubmission or Judge0).
+ * Updates user points and badges, returns score + details + certificate (if passed).
  */
 router.post("/:courseId/submit", protect, async (req, res) => {
   try {
@@ -87,6 +82,10 @@ router.post("/:courseId/submit", protect, async (req, res) => {
     if (!Array.isArray(quiz.questions) || quiz.questions.length === 0) {
       return res.status(400).json({ message: "Quiz has no questions" });
     }
+
+    // get user document (to update points/badges)
+    const userDoc = await User.findById(req.user.id);
+    if (!userDoc) return res.status(404).json({ message: "User not found" });
 
     // Normalize submitted answers to length
     const qCount = quiz.questions.length;
@@ -107,7 +106,6 @@ router.post("/:courseId/submit", protect, async (req, res) => {
     }
 
     // Next: handle code questions (auto-grade using saved submission or Judge0)
-    // We'll build codeResults array with details for each code question
     const codeResults = []; // { index, passed: bool, expected, got, error? }
     for (let i = 0; i < qCount; i++) {
       const q = quiz.questions[i];
@@ -127,7 +125,6 @@ router.post("/:courseId/submit", protect, async (req, res) => {
 
       if (latestSub) {
         usedSubmission = latestSub;
-        // if the submission already has a rawResult or stdout, use it
         if (latestSub.rawResult) {
           execResult = latestSub.rawResult;
         } else if (latestSub.stdout || latestSub.stderr || latestSub.compileOutput) {
@@ -141,15 +138,12 @@ router.post("/:courseId/submit", protect, async (req, res) => {
         }
       }
 
-      // If we don't have a result yet, attempt to execute via Judge0
+      // If we don't have a result yet, attempt to execute via Judge0 (only if numeric languageId available)
       if (!execResult && usedSubmission) {
-        // Determine languageId preference: question.languageId -> submission.languageId -> submission.languageName guess
         let languageId = q.languageId || usedSubmission.languageId || null;
 
-        // If languageId still null and submission has languageName, we could attempt to resolve but keep simple:
         if (!languageId && usedSubmission.languageName) {
-          // If developer wants to resolve names to ids, add a languages cache/endpoint.
-          // For now we cannot safely run without numeric languageId.
+          // no safe resolver here — skip execution if no numeric id
           languageId = null;
         }
 
@@ -161,18 +155,15 @@ router.post("/:courseId/submit", protect, async (req, res) => {
             got: null,
             error: "No numeric languageId available to execute submission",
           });
-          // cannot grade this code question — leave as incorrect
           continue;
         }
 
-        // build payload
         const payload = {
           source_code: usedSubmission.source || usedSubmission.code || "",
           language_id: Number(languageId),
           stdin: usedSubmission.stdin || "",
         };
 
-        // call Judge0
         const jres = await executeOnJudge0(payload);
         if (!jres) {
           codeResults.push({
@@ -184,7 +175,8 @@ router.post("/:courseId/submit", protect, async (req, res) => {
           });
           continue;
         }
-        // Save result snapshot back to submission (non-blocking)
+
+        // Save result snapshot back to submission (best-effort)
         try {
           usedSubmission.status = "done";
           usedSubmission.rawResult = jres;
@@ -195,13 +187,11 @@ router.post("/:courseId/submit", protect, async (req, res) => {
           usedSubmission.memory = jres.memory || "";
           await usedSubmission.save();
         } catch (e) {
-          // swallow save errors, but log
           console.warn("Failed to save submission result:", e.message || e);
         }
         execResult = jres;
       }
 
-      // if still no execResult, mark failed
       if (!execResult) {
         codeResults.push({
           index: i,
@@ -213,10 +203,8 @@ router.post("/:courseId/submit", protect, async (req, res) => {
         continue;
       }
 
-      // If compile output exists and non-empty, treat as failed (unless you want to parse)
       const stdoutRaw = String(execResult.stdout || "").replace(/\r/g, "");
       const stdoutNormalized = stdoutRaw.trim();
-
       const passed = stdoutNormalized === expectedNormalized;
 
       if (passed) correctCount++;
@@ -236,17 +224,38 @@ router.post("/:courseId/submit", protect, async (req, res) => {
     // compute percent across all questions (MCQ + code included equally)
     const percent = Math.round((correctCount / qCount) * 100);
 
-    // If failed -> return details (score + answers + codeResults)
+    // Reward points: simple rule => each correct question = 5 points; code correct can give bonus
+    const pointsFromThisAttempt = (correctCount * 5);
+    userDoc.points = (userDoc.points || 0) + pointsFromThisAttempt;
+
+    // Badges logic (keep idempotent)
+    if (percent === 100 && !userDoc.badges.includes("Quiz Master")) {
+      userDoc.badges.push("Quiz Master");
+    } else if (percent >= (quiz.passPercent || 60) && !userDoc.badges.includes("Passed Quiz")) {
+      userDoc.badges.push("Passed Quiz");
+    }
+
+    // push history
+    userDoc.quizHistory = userDoc.quizHistory || [];
+    userDoc.quizHistory.push({ courseId: req.params.courseId, score: percent });
+
+    // Save user (points/badges/history)
+    await userDoc.save();
+
+    // If failed -> return details (score + answers + codeResults + user stats)
     if (percent < (quiz.passPercent || 60)) {
       return res.json({
         message: "Failed",
         score: percent,
         correctAnswers,
         codeResults,
+        points: userDoc.points,
+        badges: userDoc.badges,
       });
     }
 
-    // Passed -> generate certificate (pdf -> upload) similar to previous implementation
+    // Passed -> generate certificate (pdf -> upload)
+    // create PDF cert for userDoc
     const doc = new PDFDocument({ size: "A4", margin: 48 });
     const buffers = [];
     doc.on("data", (b) => buffers.push(b));
@@ -275,12 +284,19 @@ router.post("/:courseId/submit", protect, async (req, res) => {
           passed: true,
         });
 
+        // also save reference in userDoc.certificates
+        userDoc.certificates = userDoc.certificates || [];
+        userDoc.certificates.push({ courseId: req.params.courseId, pdfUrl: upload.secure_url, score: percent });
+        await userDoc.save();
+
         return res.json({
           message: "Passed",
           score: percent,
           correctAnswers,
           codeResults,
           certificate: cert,
+          points: userDoc.points,
+          badges: userDoc.badges,
         });
       } catch (err) {
         console.error("upload/save certificate error:", err);
@@ -288,7 +304,7 @@ router.post("/:courseId/submit", protect, async (req, res) => {
       }
     });
 
-    // PDF layout
+    // ----- Build PDF layout -----
     const pageWidth = doc.page.width;
     const pageHeight = doc.page.height;
     doc.save();
@@ -313,7 +329,7 @@ router.post("/:courseId/submit", protect, async (req, res) => {
     doc.text("This certifies that", { align: "center" });
 
     doc.moveDown(0.6);
-    const recipient = req.user.username || req.user.name || req.user.email || "Student";
+    const recipient = userDoc.username || userDoc.email || "Student";
     doc.font("Helvetica-Bold").fontSize(20).fillColor("#111");
     doc.text(recipient, { align: "center" });
 

@@ -13,6 +13,8 @@ import progressRoutes from "./routes/progressRoutes.js";
 import videoRoutes from "./routes/videoRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
+import leaderboardRoutes from "./routes/leaderboardRoutes.js";
+import judge0Routes from "./routes/judge0Routes.js"; // optional if created
 import quizRoutes from "./routes/quizRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import codeRoutes from "./routes/codeRoutes.js";
@@ -76,6 +78,8 @@ app.use("/api/videos", videoRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/quiz", quizRoutes);
+app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/judge0", judge0Routes); //
 app.use("/api/users", userRoutes);
 app.use("/api/code", codeRoutes);
 // Verify transporter at startup

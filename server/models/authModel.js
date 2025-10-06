@@ -19,9 +19,6 @@ const userSchema = new mongoose.Schema(
     },
 
     // Keep minlength so DB enforces some length.
-    // We removed the complex regex validator because we hash passwords
-    // before saving (hashed string won't match the regex). Instead,
-    // validate password strength in controller before hashing.
     password: {
       type: String,
       minlength: [8, "Password must be at least 8 characters long"],
@@ -41,9 +38,31 @@ const userSchema = new mongoose.Schema(
 
     // did user request uploader?
     requestedUploader: { type: Boolean, default: false },
-      avatarUrl: { type: String }, 
+    avatarUrl: { type: String },
+
+    // --------- Gamification fields ----------
+    points: { type: Number, default: 0 },
+    badges: { type: [String], default: [] },
+
+    // optional: keep quiz history for reports
+    quizHistory: [
+      {
+        courseId: { type: String },
+        score: { type: Number },
+        date: { type: Date, default: Date.now },
+      },
+    ],
+
+    // optional certificate refs (if you keep them)
+    certificates: [
+      {
+        courseId: String,
+        pdfUrl: String,
+        score: Number,
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
-  
   { timestamps: true }
 );
 

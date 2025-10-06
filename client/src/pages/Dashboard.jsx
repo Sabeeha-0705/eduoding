@@ -4,55 +4,68 @@ import { useNavigate } from "react-router-dom";
 import API from "../api";
 import "./Dashboard.css";
 
+/*
+  Dashboard.jsx - improved
+  - Tries to fetch real courses from /courses; falls back to built-in list
+  - Fetches progress list and normalizes into lookup map
+  - Shows user points & badges in sidebar
+  - Adds "Refresh Progress" to re-sync manually
+  - Robust matching strategies for courseId <-> progress entries
+  - Thanglish friendly comments for quick dev understanding
+*/
+
 export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState("courses");
   const [notes, setNotes] = useState([]);
   const [progressData, setProgressData] = useState([]);
   const [progressMap, setProgressMap] = useState({});
+  const [courses, setCourses] = useState(null); // try server first
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [refreshingProgress, setRefreshingProgress] = useState(false);
+
   const navigate = useNavigate();
 
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
-  // Normalize progress list into a lookup map.
-  // Also create fallback keys: trailing digits, last path segment, and original key.
+  // Normalize server progress list into a lookup map for fast access
   const normalizeProgressList = (list) => {
     const arr = Array.isArray(list) ? list : [];
     const map = {};
     arr.forEach((p) => {
-      const rawKey = String(p.courseId ?? p.course_id ?? "");
-      const percent = Number(p.completedPercent ?? p.completed_percent ?? 0) || 0;
+      // some servers return courseId or course_id or an ObjectId string
+      const rawKey = String(p.courseId ?? p.course_id ?? p.course ?? "");
+      const percent = Number(p.completedPercent ?? p.completed_percent ?? p.percent ?? 0) || 0;
 
-      // store under original key
+      // canonical entry
       map[rawKey] = { ...p, completedPercent: percent };
 
-      // if ends with digits (like courseId_1 or /1), store numeric fallback
+      // if rawKey ends with digits (like "course_1" or ".../1") create fallback
       const digitsMatch = rawKey.match(/(\d+)$/);
       if (digitsMatch) {
-        const digits = digitsMatch[1];
-        map[digits] = { ...p, completedPercent: percent };
+        map[digitsMatch[1]] = { ...p, completedPercent: percent };
       }
 
-      // if contains slash or colon or dash, store last segment fallback
-      if (rawKey.includes("/") || rawKey.includes(":") || rawKey.includes("-")) {
-        const parts = rawKey.split(/[\/:-]+/).filter(Boolean);
+      // if rawKey contains separators, store last segment as fallback
+      if (rawKey.includes("/") || rawKey.includes(":") || rawKey.includes("-") || rawKey.includes("_")) {
+        const parts = rawKey.split(/[\/:_-]+/).filter(Boolean);
         if (parts.length) {
-          const last = parts[parts.length - 1];
-          if (last) map[last] = { ...p, completedPercent: percent };
+          map[parts[parts.length - 1]] = { ...p, completedPercent: percent };
         }
       }
 
-      // also store lowercase/trimmed versions to be safe
+      // lowercase fallback
       const lc = rawKey.toLowerCase().trim();
-      if (lc !== rawKey) map[lc] = { ...p, completedPercent: percent };
+      if (lc && lc !== rawKey) map[lc] = { ...p, completedPercent: percent };
     });
     return map;
   };
 
+  // Fetch user, notes, courses, progress
   useEffect(() => {
+    let mounted = true;
     const fetchAll = async () => {
       setLoading(true);
       try {
@@ -62,68 +75,87 @@ export default function Dashboard() {
           return;
         }
 
-        // PROFILE
-        const profileRes = await API.get("/users/me").catch(() =>
-          API.get("/auth/profile")
-        );
+        // PROFILE: try /users/me then /auth/profile
+        const profileRes = await API.get("/users/me").catch(() => API.get("/auth/profile"));
         const profileData = profileRes.data?.user || profileRes.data;
+        if (!mounted) return;
         setUser(profileData);
 
-        // NOTES (try server, fallback to localStorage)
+        // NOTES: try server, fallback to localStorage
         try {
           const notesRes = await API.get("/notes");
+          if (!mounted) return;
           setNotes(notesRes.data || []);
         } catch {
+          if (!mounted) return;
           const localNotes = [];
           Object.keys(localStorage).forEach((k) => {
             if (k.startsWith("note-")) {
-              localNotes.push({
-                _id: k,
-                content: localStorage.getItem(k),
-                createdAt: null,
-              });
+              localNotes.push({ _id: k, content: localStorage.getItem(k), createdAt: null });
             }
           });
           setNotes(localNotes);
         }
 
-        // PROGRESS (fetch list for user)
+        // COURSES: try to fetch from backend; fallback to default list below
+        try {
+          const coursesRes = await API.get("/courses");
+          if (!mounted) return;
+          // server may return array or { courses: [...] }
+          const serverCourses = Array.isArray(coursesRes.data) ? coursesRes.data : coursesRes.data?.courses || [];
+          if (serverCourses.length) {
+            setCourses(serverCourses.map((c) => ({ id: String(c._id ?? c.id ?? c.courseId ?? c.slug ?? c.title), title: c.title || c.name || `Course ${c._id}`, desc: c.description || c.desc || "" })));
+          } else {
+            setCourses(null); // fallback later
+          }
+        } catch (err) {
+          // console.warn("Courses fetch failed:", err);
+          setCourses(null);
+        }
+
+        // PROGRESS: fetch list for user
         try {
           const progRes = await API.get("/progress");
+          if (!mounted) return;
           const list = progRes.data || [];
           setProgressData(list);
           setProgressMap(normalizeProgressList(list));
         } catch (err) {
+          if (!mounted) return;
           console.warn("Progress fetch failed:", err);
           setProgressData([]);
           setProgressMap({});
         }
       } catch (err) {
-        console.error("Profile fetch failed", err);
+        console.error("Dashboard fetchAll error:", err);
+        // force logout on serious auth error
         localStorage.removeItem("authToken");
         sessionStorage.removeItem("authToken");
         navigate("/auth", { replace: true });
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     fetchAll();
-
-    const onResize = () => {
-      setSidebarOpen(window.innerWidth >= 900);
-    };
+    // responsive sidebar initial state
+    const onResize = () => setSidebarOpen(window.innerWidth >= 900);
     onResize();
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    return () => {
+      mounted = false;
+      window.removeEventListener("resize", onResize);
+    };
   }, [navigate]);
 
+  // Logout helper
   const logout = () => {
     localStorage.removeItem("authToken");
     sessionStorage.removeItem("authToken");
     navigate("/auth", { replace: true });
   };
 
+  // Delete note (server or local)
   const handleDeleteNote = async (noteId) => {
     try {
       if (noteId.startsWith("note-") && localStorage.getItem(noteId)) {
@@ -134,71 +166,68 @@ export default function Dashboard() {
       await API.delete(`/notes/${noteId}`);
       setNotes((n) => n.filter((x) => x._id !== noteId));
     } catch (err) {
-      console.error("Delete note failed:", err.message || err);
+      console.error("Delete note failed:", err?.message || err);
       alert("Failed to delete note");
     }
   };
 
-  // Improved getProgressForCourse: tries multiple matching strategies.
+  // Robust progress lookup
   const getProgressForCourse = (courseId) => {
     if (!progressMap || Object.keys(progressMap).length === 0) return 0;
-
     const cid = String(courseId);
-    // 1) exact match
+
+    // 1) exact key
     if (progressMap[cid]) return Math.round(Number(progressMap[cid].completedPercent) || 0);
 
-    // 2) direct numeric match (if courseId is "1","2", etc.)
-    const numeric = cid.match(/^\d+$/) ? cid : null;
-    if (numeric && progressMap[numeric]) return Math.round(Number(progressMap[numeric].completedPercent) || 0);
+    // 2) numeric key if courseId is number-like
+    if (/^\d+$/.test(cid) && progressMap[cid]) return Math.round(Number(progressMap[cid].completedPercent) || 0);
 
-    // 3) find key that endsWith the cid (handles long objectId ending with number or similar)
+    // 3) find key that endsWith cid
     const keys = Object.keys(progressMap);
     const ends = keys.find((k) => k.endsWith(cid));
     if (ends) return Math.round(Number(progressMap[ends].completedPercent) || 0);
 
-    // 4) find key that includes cid anywhere
-    const includes = keys.find((k) => k.includes(cid));
-    if (includes) return Math.round(Number(progressMap[includes].completedPercent) || 0);
+    // 4) find key includes
+    const inc = keys.find((k) => k.includes(cid));
+    if (inc) return Math.round(Number(progressMap[inc].completedPercent) || 0);
 
-    // 5) fallback: try numeric digits inside keys (first match)
-    const digitMatchKey = keys.find((k) => {
+    // 5) digit-match fallback
+    const digitKey = keys.find((k) => {
       const m = k.match(/(\d+)$/);
       return m && m[1] === cid;
     });
-    if (digitMatchKey) return Math.round(Number(progressMap[digitMatchKey].completedPercent) || 0);
+    if (digitKey) return Math.round(Number(progressMap[digitKey].completedPercent) || 0);
 
     return 0;
   };
 
-  const courses = [
-    {
-      id: "1",
-      title: "Full Stack Web Development (MERN)",
-      desc: "Learn MongoDB, Express, React, Node.js with real projects.",
-    },
-    {
-      id: "2",
-      title: "Data Science & AI",
-      desc: "Master Python, Machine Learning, and AI applications.",
-    },
-    {
-      id: "3",
-      title: "Cloud & DevOps",
-      desc: "Hands-on AWS, Docker, Kubernetes, CI/CD pipelines.",
-    },
-    {
-      id: "4",
-      title: "Cybersecurity & Ethical Hacking",
-      desc: "Protect systems, learn penetration testing & network security.",
-    },
-    {
-      id: "5",
-      title: "UI/UX Design",
-      desc: "Design modern apps using Figma, wireframes & prototypes.",
-    },
+  // Manual refresh (useful when LessonPage updates progress and dashboard hasn't synced)
+  const refreshProgress = async () => {
+    try {
+      setRefreshingProgress(true);
+      const progRes = await API.get("/progress");
+      const list = progRes.data || [];
+      setProgressData(list);
+      setProgressMap(normalizeProgressList(list));
+    } catch (err) {
+      console.warn("Refresh progress failed:", err);
+    } finally {
+      setRefreshingProgress(false);
+    }
+  };
+
+  // If backend didn't return courses, use this fallback static list
+  const fallbackCourses = [
+    { id: "1", title: "Full Stack Web Development (MERN)", desc: "Learn MongoDB, Express, React, Node.js with real projects." },
+    { id: "2", title: "Data Science & AI", desc: "Master Python, Machine Learning, and AI applications." },
+    { id: "3", title: "Cloud & DevOps", desc: "Hands-on AWS, Docker, Kubernetes, CI/CD pipelines." },
+    { id: "4", title: "Cybersecurity & Ethical Hacking", desc: "Protect systems, learn penetration testing & network security." },
+    { id: "5", title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes." },
   ];
 
-  if (loading)
+  const effectiveCourses = Array.isArray(courses) && courses.length ? courses : fallbackCourses;
+
+  if (loading) {
     return (
       <div className="dashboard-container">
         <main className="main-content">
@@ -206,25 +235,20 @@ export default function Dashboard() {
         </main>
       </div>
     );
+  }
 
   return (
     <div className="dashboard-container">
+      {/* mobile header */}
       <header className="mobile-header">
-        <button
-          aria-label="Toggle navigation"
-          className="hamburger"
-          onClick={() => setSidebarOpen((s) => !s)}
-        >
-          ☰
-        </button>
+        <button aria-label="Toggle navigation" className="hamburger" onClick={() => setSidebarOpen((s) => !s)}>☰</button>
         <div className="mobile-title">Eduoding</div>
         <div className="mobile-actions">
-          <button className="tiny-btn" onClick={() => navigate("/settings")}>
-            ⚙
-          </button>
+          <button className="tiny-btn" onClick={() => navigate("/settings")}>⚙</button>
         </div>
       </header>
 
+      {/* sidebar */}
       <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}>
         <div className="logo">Eduoding</div>
 
@@ -238,6 +262,8 @@ export default function Dashboard() {
                   setActiveTab(tab);
                   if (window.innerWidth < 900) setSidebarOpen(false);
                 }}
+                role="button"
+                tabIndex={0}
               >
                 {tab === "courses" && "📘 "}
                 {tab === "notes" && "📝 "}
@@ -257,31 +283,45 @@ export default function Dashboard() {
         )}
 
         {user?.role === "admin" && (
-          <button onClick={() => navigate("/admin/requests")} className="btn-admin">
-            Admin Panel
-          </button>
+          <button onClick={() => navigate("/admin/requests")} className="btn-admin">Admin Panel</button>
         )}
 
-        <div style={{ marginTop: "auto" }}>
-          <div className="role-badge">
-            Role: <strong>{user?.role || "user"}</strong>
+        <div style={{ marginTop: "auto", padding: 12 }}>
+          <div className="role-badge">Role: <strong>{user?.role || "user"}</strong></div>
+
+          {/* points & badges */}
+          <div style={{ marginTop: 10 }}>
+            <div><strong>Points:</strong> {user?.points ?? 0}</div>
+            <div style={{ marginTop: 6 }}><strong>Badges:</strong> {(user?.badges && user.badges.length) ? user.badges.join(", ") : "—"}</div>
           </div>
-          <button className="logout-btn" onClick={logout}>
-            Logout
-          </button>
+
+          <div style={{ marginTop: 10 }}>
+            <button className="logout-btn" onClick={logout}>Logout</button>
+          </div>
         </div>
       </aside>
 
+      {/* main content */}
       <main className="main-content">
         {user ? (
           <div className="page-inner">
-            <h2>Welcome, {user?.username || user?.email}</h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2>Welcome, {user?.username || user?.email}</h2>
+              <div>
+                <button onClick={refreshProgress} className="small-btn" disabled={refreshingProgress}>
+                  {refreshingProgress ? "Refreshing…" : "Refresh Progress"}
+                </button>
+                <button style={{ marginLeft: 8 }} className="small-btn" onClick={() => navigate("/leaderboard")}>
+                  Leaderboard
+                </button>
+              </div>
+            </div>
 
             {activeTab === "courses" && (
               <>
                 <p>Select a course and start learning 🚀</p>
                 <div className="courses-grid">
-                  {courses.map((course) => {
+                  {effectiveCourses.map((course) => {
                     const progress = getProgressForCourse(course.id);
                     return (
                       <div key={course.id} className="course-card">
@@ -309,12 +349,8 @@ export default function Dashboard() {
                     {notes.map((note) => (
                       <li key={note._id}>
                         <p>{note.content || note.text}</p>
-                        <small>
-                          {note.createdAt ? new Date(note.createdAt).toLocaleString() : note._id}
-                        </small>
-                        <button className="small-btn" onClick={() => handleDeleteNote(note._id)}>
-                          Delete
-                        </button>
+                        <small>{note.createdAt ? new Date(note.createdAt).toLocaleString() : note._id}</small>
+                        <button className="small-btn" onClick={() => handleDeleteNote(note._id)}>Delete</button>
                       </li>
                     ))}
                   </ul>
@@ -338,7 +374,7 @@ export default function Dashboard() {
                 ) : (
                   <ul>
                     {progressData.map((p) => (
-                      <li key={p._id}>
+                      <li key={p._id || `${p.courseId}`}>
                         Course: {String(p.courseId)} — {Math.round(Number(p.completedPercent) || 0)}% completed
                       </li>
                     ))}
@@ -352,19 +388,16 @@ export default function Dashboard() {
                 <h3>⚙ Settings</h3>
                 <div className="settings-card">
                   <p>Update profile info, change password, and notification preferences here.</p>
-
                   <div style={{ marginTop: 12 }}>
-                    <button className="small-btn" onClick={() => navigate("/settings")}>
-                      Open Settings Page
-                    </button>
+                    <button className="small-btn" onClick={() => navigate("/settings")}>Open Settings Page</button>
                   </div>
-
                   <hr style={{ margin: "16px 0" }} />
-
                   <div>
                     <h4>Account</h4>
                     <p>Email: <strong>{user?.email}</strong></p>
                     <p>Role: <strong>{user?.role || "user"}</strong></p>
+                    <p>Points: <strong>{user?.points ?? 0}</strong></p>
+                    <p>Badges: <strong>{(user?.badges && user.badges.length) ? user.badges.join(", ") : "—"}</strong></p>
                   </div>
                 </div>
               </div>
