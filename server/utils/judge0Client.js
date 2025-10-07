@@ -7,11 +7,12 @@ import axios from "axios";
 */
 
 const DEFAULT_BASE = "https://judge0-ce.p.rapidapi.com"; // RapidAPI base
-const PUBLIC_BASE = "https://judge0-ce.p.rapidapi.com";  // can switch to open public instance if needed
-const JUDGE0_BASE = (process.env.JUDGE0_BASE || DEFAULT_BASE).replace(/\/$/, "");
+const PUBLIC_BASE = "https://ce.judge0.app";  // ✅ Public community fallback (no key required)
+const JUDGE0_BASE = (process.env.JUDGE0_BASE || PUBLIC_BASE).replace(/\/$/, "");
 const JUDGE0_KEY = process.env.JUDGE0_KEY || "";
 const JUDGE0_HOST = process.env.JUDGE0_HOST || "judge0-ce.p.rapidapi.com";
 const IS_RAPIDAPI = JUDGE0_BASE.includes("rapidapi");
+
 
 /** 🔹 Common headers helper */
 function headers() {
