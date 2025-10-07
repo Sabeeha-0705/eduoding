@@ -1,14 +1,13 @@
 // server/routes/judge0Routes.js
 import express from "express";
 import rateLimit from "express-rate-limit";
-import judge0Client from "../utils/judge0Client.js";
-import { fetchLanguages, resolveLanguageId, LOCAL_MAP } from "../utils/judge0Client.js";
+import { fetchLanguages, resolveLanguageId, submit } from "../utils/judge0Client.js";
 
 const router = express.Router();
 
-/* ---------------------------------- Languages ---------------------------------- */
+/* ---------------------------------- LANGUAGES ---------------------------------- */
 
-// GET /api/judge0/languages
+// GET /api/judge0/languages → list available languages
 router.get("/languages", async (req, res) => {
   try {
     const langs = await fetchLanguages();
@@ -19,7 +18,7 @@ router.get("/languages", async (req, res) => {
   }
 });
 
-// GET /api/judge0/resolve?name=javascript
+// GET /api/judge0/resolve?name=python
 router.get("/resolve", async (req, res) => {
   const { name } = req.query;
   try {
@@ -31,11 +30,11 @@ router.get("/resolve", async (req, res) => {
   }
 });
 
-/* ---------------------------------- Practice Run ---------------------------------- */
+/* ---------------------------------- PRACTICE RUN ---------------------------------- */
 
 const runLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 15,
+  windowMs: 60 * 1000, // 1 min window
+  max: 15, // 15 runs/minute
   message: { message: "Too many runs — please wait a minute and try again." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -60,7 +59,8 @@ router.post("/run", runLimiter, async (req, res) => {
       stdin: "",
     };
 
-    const jres = await judge0Client.submit(payload, { wait: true, base64: false });
+    // Execute code via Judge0
+    const jres = await submit(payload, { wait: true, base64: false });
 
     const stdout = (jres.stdout || "").replace(/\r/g, "").trim();
     const stderr = (jres.stderr || "").replace(/\r/g, "").trim();

@@ -3,20 +3,17 @@ import axios from "axios";
 
 /*
   This utility sends code submissions to Judge0 for execution.
-  It supports both RapidAPI-hosted Judge0 and self-hosted (public) Judge0 APIs.
+  It supports both RapidAPI-hosted and self-hosted Judge0 APIs.
 */
 
-const DEFAULT_BASE = "https://judge0-ce.p.rapidapi.com"; // RapidAPI default
-const PUBLIC_BASE = "https://judge0-ce.p.rapidapi.com";  // can change to free Judge0 public if needed
+const DEFAULT_BASE = "https://judge0-ce.p.rapidapi.com"; // RapidAPI base
+const PUBLIC_BASE = "https://judge0-ce.p.rapidapi.com";  // can switch to open public instance if needed
 const JUDGE0_BASE = (process.env.JUDGE0_BASE || DEFAULT_BASE).replace(/\/$/, "");
 const JUDGE0_KEY = process.env.JUDGE0_KEY || "";
 const JUDGE0_HOST = process.env.JUDGE0_HOST || "judge0-ce.p.rapidapi.com";
-
 const IS_RAPIDAPI = JUDGE0_BASE.includes("rapidapi");
 
-/**
- * Header helper for both RapidAPI and non-RapidAPI usage
- */
+/** 🔹 Common headers helper */
 function headers() {
   const h = { "Content-Type": "application/json" };
   if (IS_RAPIDAPI) {
@@ -26,9 +23,7 @@ function headers() {
   return h;
 }
 
-/**
- * Local fallback language map for common Judge0 IDs
- */
+/** 🔹 Local fallback map of common languages */
 const LOCAL_MAP = {
   javascript: 63, node: 63, "node.js": 63,
   python: 71, python3: 71,
@@ -43,9 +38,7 @@ let _langCache = null;
 let _langCacheAt = 0;
 const LANG_TTL = 1000 * 60 * 60; // 1 hour cache
 
-/**
- * Fetch Judge0 language list (cached)
- */
+/** 🔹 Fetch languages list (cached) */
 export async function fetchLanguages(force = false) {
   if (!force && _langCache && (Date.now() - _langCacheAt) < LANG_TTL) return _langCache;
   try {
@@ -60,7 +53,7 @@ export async function fetchLanguages(force = false) {
     _langCacheAt = Date.now();
     return _langCache;
   } catch (err) {
-    console.warn("⚠️ Judge0 language fetch failed, using fallback map");
+    console.warn("⚠️ Judge0 language fetch failed — using fallback map");
     const fallback = Object.keys(LOCAL_MAP).map((k) => ({ id: LOCAL_MAP[k], name: k }));
     _langCache = fallback;
     _langCacheAt = Date.now();
@@ -68,9 +61,7 @@ export async function fetchLanguages(force = false) {
   }
 }
 
-/**
- * Resolve numeric Judge0 language_id from a language name or alias.
- */
+/** 🔹 Resolve numeric Judge0 language_id from name or alias */
 export async function resolveLanguageId(nameOrId) {
   if (!nameOrId) return null;
   if (typeof nameOrId === "number" || /^\d+$/.test(String(nameOrId))) return Number(nameOrId);
@@ -83,16 +74,12 @@ export async function resolveLanguageId(nameOrId) {
     const found = langs.find((l) => (l.name || "").toLowerCase().includes(key));
     if (found) return Number(found.id);
   } catch (err) {
-    console.warn("Language resolution fallback:", err?.message);
+    console.warn("⚠️ Language resolution fallback:", err?.message);
   }
   return null;
 }
 
-/**
- * Submit code to Judge0 and wait for the result.
- * payload = { source_code, language_id, stdin }
- * opts = { wait: true, base64: false }
- */
+/** 🔹 Submit code to Judge0 and wait for result */
 export async function submit(payload = {}, opts = { wait: true, base64: false }) {
   const wait = opts.wait !== false;
   const base64 = !!opts.base64;
@@ -103,10 +90,10 @@ export async function submit(payload = {}, opts = { wait: true, base64: false })
     const res = await axios.post(url, payload, { headers: headers(), timeout: 30000 });
     return res.data;
   } catch (err) {
-    // 🧠 Try again once with public Judge0 fallback if RapidAPI fails
     const msg = err?.response?.data?.message || err.message || "Unknown error";
     console.warn("⚠️ Judge0 submit failed:", msg);
 
+    // fallback retry with public Judge0 if RapidAPI fails
     if (IS_RAPIDAPI) {
       try {
         const fallbackURL = `${PUBLIC_BASE}/submissions${qs}`;
@@ -124,6 +111,6 @@ export async function submit(payload = {}, opts = { wait: true, base64: false })
   }
 }
 
-// ✅ Make sure this part is added
-export { fetchLanguages, resolveLanguageId, submit, LOCAL_MAP };
+/** ✅ Final named + default exports */
+export { LOCAL_MAP };
 export default { fetchLanguages, resolveLanguageId, submit, LOCAL_MAP };
