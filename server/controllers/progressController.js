@@ -1,55 +1,50 @@
-import Progress from "../models/progressModel.js";
-import Lesson from "../models/lessonModel.js";
+// server/controllers/progressController.js
+import Progress from "../models/Progress.js";
+import Video from "../models/Video.js"; // or Lesson if you use that model
 
-// toggle or mark completion for one lesson
-export async function updateLessonProgress(req, res) {
+export const updateLessonProgress = async (req, res) => {
   try {
     const { courseId } = req.params;
-    const { lessonId, completed } = req.body;
+    const { lessonId, completed, totalLessons } = req.body;
     const userId = req.user.id;
 
-    let doc = await Progress.findOne({ userId, courseId });
-    if (!doc) doc = await Progress.create({ userId, courseId });
-
-    let updatedIds = doc.completedLessonIds || [];
-
-    if (completed) {
-      if (!updatedIds.includes(String(lessonId)))
-        updatedIds.push(String(lessonId));
-    } else {
-      updatedIds = updatedIds.filter((id) => id !== String(lessonId));
+    // Find or create progress record for this user & course
+    let progress = await Progress.findOne({ userId, courseId });
+    if (!progress) {
+      progress = new Progress({
+        userId,
+        courseId,
+        completedLessonIds: [],
+        completedPercent: 0,
+      });
     }
 
-    const totalLessons = await Lesson.countDocuments({ courseId });
-    const percent = totalLessons
-      ? Math.round((updatedIds.length / totalLessons) * 100)
-      : 0;
+    // Update completed lesson list
+    const lessonSet = new Set(progress.completedLessonIds.map(String));
+    if (completed) lessonSet.add(String(lessonId));
+    else lessonSet.delete(String(lessonId));
+    progress.completedLessonIds = Array.from(lessonSet);
 
-    doc.completedLessonIds = updatedIds;
-    doc.completedPercent = percent;
-    await doc.save();
+    // Calculate completion percent
+    let total = totalLessons;
+    if (!total || total <= 0) {
+      // fallback: get total from database if not provided
+      total = await Video.countDocuments({ courseId });
+    }
 
-    return res.json({
-      courseId,
-      completedLessonIds: updatedIds,
-      completedPercent: percent,
+    const completedCount = progress.completedLessonIds.length;
+    progress.completedPercent = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+
+    await progress.save();
+
+    res.json({
+      success: true,
+      message: "Progress updated",
+      completedLessonIds: progress.completedLessonIds,
+      completedPercent: progress.completedPercent,
     });
   } catch (err) {
-    console.error("updateLessonProgress error", err);
-    return res.status(500).json({ message: "Failed to update progress" });
+    console.error("updateLessonProgress error:", err);
+    res.status(500).json({ message: "Failed to update progress" });
   }
-}
-
-// fetch single course progress
-export async function getCourseProgress(req, res) {
-  try {
-    const { courseId } = req.params;
-    const userId = req.user.id;
-    const doc = await Progress.findOne({ userId, courseId });
-    if (!doc) return res.json({ courseId, completedLessonIds: [], completedPercent: 0 });
-    return res.json(doc);
-  } catch (err) {
-    console.error("getCourseProgress error", err);
-    res.status(500).json({ message: "Error fetching progress" });
-  }
-}
+};
