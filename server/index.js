@@ -18,6 +18,7 @@ import judge0Routes from "./routes/judge0Routes.js"; // optional if created
 import quizRoutes from "./routes/quizRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import codeRoutes from "./routes/codeRoutes.js";
+import codeTestRoutes from "./routes/codeTestRoutes.js";
 import sendEmail, { verifyTransporter } from "./utils/sendEmail.js";
 
 dotenv.config();
@@ -82,6 +83,7 @@ app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/judge0", judge0Routes); //
 app.use("/api/users", userRoutes);
 app.use("/api/code", codeRoutes);
+app.use("/api/code-test", codeTestRoutes);
 // Verify transporter at startup
 verifyTransporter().catch((err) => {
   console.error("verifyTransporter error (startup):", err?.message || err);

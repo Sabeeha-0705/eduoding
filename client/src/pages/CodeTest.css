@@ -1,0 +1,46 @@
+/* client/src/pages/CodeTest.css */
+:root {
+  --card-bg: #ffffff;
+  --muted: #6b7280;
+}
+
+body { font-family: "Poppins", system-ui, sans-serif; }
+
+.code-test-wrap {
+  max-width: 900px;
+  margin: 24px auto;
+  padding: 12px;
+}
+
+.code-test-wrap h2 { font-size: 22px; margin-bottom: 6px; }
+.code-test-wrap label { display: block; margin-bottom: 6px; font-weight: 600; }
+.code-test-wrap select, .code-test-wrap textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #e6e6e6;
+  background: var(--card-bg);
+}
+
+.code-test-wrap textarea { min-height: 240px; font-family: monospace; font-size: 13px; color: #0f1724; }
+
+.code-test-submit {
+  margin-top: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.result-box {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #eee;
+}
+
+.result-box.passed { background: #e6ffef; border-color: #c7f0d3; }
+.result-box.failed { background: #fff0f0; border-color: #ffd6d6; }
+
+.small-meta { color: var(--muted); font-size: 13px; }

@@ -23,6 +23,7 @@ import CodeEditor from "./pages/CodeEditor";
 import SubmissionView from "./pages/SubmissionView";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Leaderboard from "./pages/Leaderboard";
+import CodeTest from "./pages/CodeTest";
 
 export default function App() {
   return (
@@ -169,6 +170,7 @@ export default function App() {
         />
 
         <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/code-test" element={<CodeTest />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

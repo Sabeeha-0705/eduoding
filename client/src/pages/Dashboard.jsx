@@ -355,6 +355,10 @@ export default function Dashboard() {
                 <button style={{ marginLeft: 8 }} className="small-btn" onClick={() => navigate("/leaderboard")}>
                   Leaderboard
                 </button>
+                <button style={{ marginLeft: 8 }} className="small-btn" onClick={() => navigate("/code-test")}>
+  Code Test
+</button>
+
               </div>
             </div>
 
