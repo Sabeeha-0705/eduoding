@@ -10,10 +10,9 @@ const LOCAL_LANGS = [
   { id: 46, name: "bash" },
   { id: 62, name: "java" },
 ];
-
-export default function CodeTest() {
+export default function CodeTest({ initialCourseId = null }) {
+  const [selectedCourse, setSelectedCourse] = useState(initialCourseId);
   const [courses, setCourses] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState(null);
   const [codeQuestion, setCodeQuestion] = useState(null);
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState(null);

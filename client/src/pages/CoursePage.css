@@ -59,3 +59,41 @@ p {
   background: #f9f9f9;
   margin-bottom: 8px
 }
+
+.challenge-section {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f6f9ff;
+  border-radius: 10px;
+  border: 1px solid #d0e0ff;
+}
+
+.solve-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.solve-btn:hover {
+  background: #0056b3;
+}
+
+.code-test-container {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #f9f9f9;
+}
+
+.close-btn {
+  background: #e74c3c;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 12px;
+  cursor: pointer;
+}

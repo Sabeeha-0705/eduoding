@@ -295,25 +295,33 @@ export default function Dashboard() {
 
         <nav>
           <ul>
-            {["courses", "notes", "progress", "settings"].map((tab) => (
-              <li
-                key={tab}
-                className={`sidebar-item ${activeTab === tab ? "active" : ""}`}
-                onClick={() => {
-                  setActiveTab(tab);
-                  if (window.innerWidth < 900) setSidebarOpen(false);
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                {tab === "courses" && "📘 "}
-                {tab === "notes" && "📝 "}
-                {tab === "progress" && "📊 "}
-                {tab === "settings" && "⚙ "}
-                <span className="item-text">{tab}</span>
-              </li>
-            ))}
-          </ul>
+  {["courses", "notes", "progress", "settings", "code-test"].map((tab) => (
+    <li
+      key={tab}
+      className={`sidebar-item ${activeTab === tab ? "active" : ""}`}
+      onClick={() => {
+        if (tab === "code-test") {
+          navigate("/code-test");
+          return;
+        }
+        setActiveTab(tab);
+        if (window.innerWidth < 900) setSidebarOpen(false);
+      }}
+      role="button"
+      tabIndex={0}
+    >
+      {tab === "courses" && "📘 "}
+      {tab === "notes" && "📝 "}
+      {tab === "progress" && "📊 "}
+      {tab === "settings" && "⚙ "}
+      {tab === "code-test" && "💻 "}
+      <span className="item-text">
+        {tab === "code-test" ? "Code Test" : tab}
+      </span>
+    </li>
+  ))}
+</ul>
+
         </nav>
 
         {user?.role === "uploader" && (
