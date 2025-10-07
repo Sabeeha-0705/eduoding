@@ -10,10 +10,9 @@ dotenv.config();
 await connectDB();
 
 const filePath = path.join(process.cwd(), "server", "data", "sampleQuizzes.json");
-// if file is at server root adjust path accordingly
 
 if (!fs.existsSync(filePath)) {
-  console.error("sampleQuizzes.json not found at", filePath);
+  console.error("❌ sampleQuizzes.json not found at", filePath);
   process.exit(1);
 }
 
@@ -22,16 +21,15 @@ const quizzes = JSON.parse(raw);
 
 async function seed() {
   try {
-    console.log("Seeding quizzes... total:", quizzes.length);
+    console.log(`🚀 Seeding quizzes... total: ${quizzes.length}`);
     for (const q of quizzes) {
-      // upsert by courseId
       await Quiz.findOneAndUpdate({ courseId: q.courseId }, { $set: q }, { upsert: true });
-      console.log("Seeded courseId:", q.courseId);
+      console.log(`✅ Seeded courseId: ${q.courseId} (${q.title})`);
     }
-    console.log("Seeding finished.");
+    console.log("🎉 Seeding finished successfully.");
     process.exit(0);
   } catch (err) {
-    console.error("Seed error:", err);
+    console.error("❌ Seed error:", err);
     process.exit(1);
   }
 }

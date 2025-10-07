@@ -14,8 +14,10 @@ export default function LessonPage() {
   const [note, setNote] = useState("");
   const [hasQuiz, setHasQuiz] = useState(null);
   const [completedIds, setCompletedIds] = useState([]);
+  const [updating, setUpdating] = useState(false);
 
   const bcRef = useRef(null);
+  const debounceRef = useRef(null);
 
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
@@ -46,8 +48,6 @@ export default function LessonPage() {
         const res = await API.get(`/courses/${courseId}/videos`);
         setVideos(res.data || []);
 
-        // fetch per-course progress (server route used in your app)
-        // backend may return { completedLessonIds: [...] }
         const p = await API.get(`/progress/${courseId}`);
         setCompletedIds(p.data?.completedLessonIds || []);
       } catch (e) {
@@ -105,19 +105,17 @@ export default function LessonPage() {
     return url;
   };
 
-  // Notify other parts of the app that progress changed
+  // 🔔 Notify other parts (Dashboard) that progress changed
   const notifyProgressUpdated = (payload = {}) => {
-    // CustomEvent for same-tab listeners
     try {
       const ev = new CustomEvent("eduoding:progress-updated", { detail: payload });
       window.dispatchEvent(ev);
-    } catch (e) {
+    } catch {
       try {
-        window.postMessage({ type: "eduoding:progress-updated", payload }, window.location.origin);
+        window.postMessage({ type: "eduoding:progress-updated", payload }, "*");
       } catch {}
     }
 
-    // BroadcastChannel for other tabs
     if (bcRef.current) {
       try {
         bcRef.current.postMessage({ type: "eduoding:progress-updated", payload });
@@ -125,43 +123,40 @@ export default function LessonPage() {
     }
   };
 
-  // Toggle completed on server and update UI, then notify
+  // 🔄 Toggle completed on server and update UI
   const toggleCompleted = async (lessonIdParam, completed) => {
-    try {
-      const totalLessons = videos?.length || 0;
-      // adjust route/body according to your backend
-      const res = await API.post(`/progress/${courseId}/lesson`, {
-        lessonId: lessonIdParam,
-        completed,
-        totalLessons,
-      });
+    if (updating) return; // prevent spam
+    setUpdating(true);
 
-      const newCompleted = res.data?.completedLessonIds ?? res.data?.completedLessonIds ?? [];
-      // fallback: if backend doesn't return ids but returns percent, still update local list
-      if (Array.isArray(newCompleted) && newCompleted.length >= 0) {
-        setCompletedIds(newCompleted.map((id) => String(id)));
-      } else {
-        // optimistic: toggle locally
-        setCompletedIds((prev) => {
-          const s = new Set(prev.map(String));
-          if (completed) s.add(String(lessonIdParam));
-          else s.delete(String(lessonIdParam));
-          return Array.from(s);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const totalLessons = videos?.length || 0;
+        const res = await API.post(`/progress/${courseId}/lesson`, {
+          lessonId: lessonIdParam,
+          completed,
+          totalLessons,
         });
-      }
 
-      // notify listeners (dashboard) with helpful details
-      notifyProgressUpdated({
-        courseId: String(courseId),
-        lessonId: String(lessonIdParam),
-        completed,
-        completedLessonIds: res.data?.completedLessonIds ?? undefined,
-        completedPercent: res.data?.completedPercent ?? undefined,
-      });
-    } catch (e) {
-      console.error("toggle complete failed", e);
-      alert("Failed to update progress");
-    }
+        const newCompleted = res.data?.completedLessonIds || [];
+        setCompletedIds(newCompleted.map(String));
+
+        notifyProgressUpdated({
+          courseId: String(courseId),
+          lessonId: String(lessonIdParam),
+          completed,
+          completedLessonIds: newCompleted,
+          completedPercent: res.data?.completedPercent ?? undefined,
+        });
+
+        console.log(`✅ Progress updated for lesson ${lessonIdParam}`);
+      } catch (e) {
+        console.error("toggle complete failed", e);
+        alert("Failed to update progress.");
+      } finally {
+        setUpdating(false);
+      }
+    }, 300); // debounce delay
   };
 
   const markComplete = async (lessonIdParam) => {
@@ -176,7 +171,8 @@ export default function LessonPage() {
   const goNext = () => {
     if (!currentVideo) return;
     const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
-    if (idx < videos.length - 1) navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
+    if (idx < videos.length - 1)
+      navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
   };
 
   if (loading)
@@ -185,6 +181,7 @@ export default function LessonPage() {
         <p>Loading lessons…</p>
       </div>
     );
+
   if (err)
     return (
       <div className="lesson-page">
@@ -204,7 +201,7 @@ export default function LessonPage() {
           <ul>
             {videos.map((v, i) => {
               const active = String(v._id) === String(currentVideo._id);
-              const checked = completedIds.map(String).includes(String(v._id));
+              const checked = completedIds.includes(String(v._id));
               return (
                 <li key={v._id} className={active ? "active" : ""}>
                   <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -227,7 +224,7 @@ export default function LessonPage() {
         </aside>
 
         <main className="lesson-main">
-          <h1>{currentVideo.title}</h1>
+          <h1>{currentVideo?.title}</h1>
 
           <div className="video-container">
             {currentVideo.sourceType === "youtube" || currentVideo.youtubeUrl ? (
@@ -238,7 +235,13 @@ export default function LessonPage() {
                 allowFullScreen
               />
             ) : (
-              <video controls onEnded={() => markComplete(currentVideo._id)}>
+              <video
+                controls
+                onEnded={() => {
+                  markComplete(currentVideo._id);
+                  notifyProgressUpdated({ courseId, lessonId: currentVideo._id });
+                }}
+              >
                 <source src={currentVideo.fileUrl} type="video/mp4" />
               </video>
             )}
@@ -282,7 +285,6 @@ export default function LessonPage() {
                         navigate(`/course/${courseId}/quiz`);
                       }}
                       disabled={!hasQuiz}
-                      title={!hasQuiz ? "No quiz for this course" : "Take the course quiz"}
                     >
                       Take Quiz
                     </button>

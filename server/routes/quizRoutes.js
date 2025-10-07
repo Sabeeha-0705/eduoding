@@ -9,7 +9,8 @@ import cloudinary from "../utils/cloudinary.js";
 import fs from "fs";
 import path from "path";
 import axios from "axios";
-import User from "../models/authModel.js"; // <-- NEW
+import User from "../models/authModel.js";
+import { recordQuizResult } from "../utils/rewardSystem.js"; // NEW
 
 const router = express.Router();
 
@@ -83,7 +84,7 @@ router.post("/:courseId/submit", protect, async (req, res) => {
       return res.status(400).json({ message: "Quiz has no questions" });
     }
 
-    // get user document (to update points/badges)
+    // get user document (we'll use recordQuizResult helper to persist points/badges/history)
     const userDoc = await User.findById(req.user.id);
     if (!userDoc) return res.status(404).json({ message: "User not found" });
 
@@ -224,23 +225,22 @@ router.post("/:courseId/submit", protect, async (req, res) => {
     // compute percent across all questions (MCQ + code included equally)
     const percent = Math.round((correctCount / qCount) * 100);
 
-    // Reward points: simple rule => each correct question = 5 points; code correct can give bonus
-    const pointsFromThisAttempt = (correctCount * 5);
-    userDoc.points = (userDoc.points || 0) + pointsFromThisAttempt;
+    // Reward points: simple rule => each correct question = 5 points; code correct gets same weighting
+    const pointsFromThisAttempt = correctCount * 5;
 
-    // Badges logic (keep idempotent)
-    if (percent === 100 && !userDoc.badges.includes("Quiz Master")) {
-      userDoc.badges.push("Quiz Master");
-    } else if (percent >= (quiz.passPercent || 60) && !userDoc.badges.includes("Passed Quiz")) {
-      userDoc.badges.push("Passed Quiz");
-    }
+    // decide badge (idempotent)
+    let badgeToAward = null;
+    if (percent === 100) badgeToAward = "Quiz Master";
+    else if (percent >= (quiz.passPercent || 60)) badgeToAward = "Passed Quiz";
 
-    // push history
-    userDoc.quizHistory = userDoc.quizHistory || [];
-    userDoc.quizHistory.push({ courseId: req.params.courseId, score: percent });
-
-    // Save user (points/badges/history)
-    await userDoc.save();
+    // Record quiz result and award points/badge (helper will update user)
+    // recordQuizResult will append history + award points + badge if provided
+    const updatedUser = await recordQuizResult(req.user.id, {
+      courseId: req.params.courseId,
+      score: percent,
+      awardPoints: pointsFromThisAttempt,
+      badge: badgeToAward,
+    });
 
     // If failed -> return details (score + answers + codeResults + user stats)
     if (percent < (quiz.passPercent || 60)) {
@@ -249,13 +249,13 @@ router.post("/:courseId/submit", protect, async (req, res) => {
         score: percent,
         correctAnswers,
         codeResults,
-        points: userDoc.points,
-        badges: userDoc.badges,
+        points: updatedUser?.points ?? null,
+        badges: updatedUser?.badges ?? null,
       });
     }
 
     // Passed -> generate certificate (pdf -> upload)
-    // create PDF cert for userDoc
+    // create PDF cert for updatedUser
     const doc = new PDFDocument({ size: "A4", margin: 48 });
     const buffers = [];
     doc.on("data", (b) => buffers.push(b));
@@ -284,10 +284,11 @@ router.post("/:courseId/submit", protect, async (req, res) => {
           passed: true,
         });
 
-        // also save reference in userDoc.certificates
-        userDoc.certificates = userDoc.certificates || [];
-        userDoc.certificates.push({ courseId: req.params.courseId, pdfUrl: upload.secure_url, score: percent });
-        await userDoc.save();
+        // also save reference in user certificates
+        const freshUser = await User.findById(req.user.id);
+        freshUser.certificates = freshUser.certificates || [];
+        freshUser.certificates.push({ courseId: req.params.courseId, pdfUrl: upload.secure_url, score: percent });
+        await freshUser.save();
 
         return res.json({
           message: "Passed",
@@ -295,8 +296,8 @@ router.post("/:courseId/submit", protect, async (req, res) => {
           correctAnswers,
           codeResults,
           certificate: cert,
-          points: userDoc.points,
-          badges: userDoc.badges,
+          points: freshUser.points,
+          badges: freshUser.badges,
         });
       } catch (err) {
         console.error("upload/save certificate error:", err);
@@ -329,7 +330,7 @@ router.post("/:courseId/submit", protect, async (req, res) => {
     doc.text("This certifies that", { align: "center" });
 
     doc.moveDown(0.6);
-    const recipient = userDoc.username || userDoc.email || "Student";
+    const recipient = (updatedUser && (updatedUser.username || updatedUser.email)) || userDoc.username || userDoc.email || "Student";
     doc.font("Helvetica-Bold").fontSize(20).fillColor("#111");
     doc.text(recipient, { align: "center" });
 

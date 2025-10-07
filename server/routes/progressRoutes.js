@@ -4,6 +4,7 @@ import Progress from "../models/progressModel.js";
 import Lesson from "../models/lessonModel.js"; // may be empty in some installs
 import Video from "../models/videoModel.js"; // fallback if you store lessons as videos
 import protect from "../middleware/authMiddleware.js";
+import { addPointsAndBadge } from "../utils/rewardSystem.js"; // NEW
 
 const router = express.Router();
 
@@ -88,11 +89,15 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
       });
     }
 
+    // prepare before/after counts for reward logic
+    const beforeSet = new Set((prog.completedLessonIds || []).map((id) => String(id)));
+    const beforeCount = beforeSet.size;
+
     // update set of completed IDs
-    const set = new Set((prog.completedLessonIds || []).map((id) => String(id)));
-    if (completed) set.add(String(lessonId));
-    else set.delete(String(lessonId));
-    const updatedCompleted = Array.from(set);
+    if (completed) beforeSet.add(String(lessonId));
+    else beforeSet.delete(String(lessonId));
+    const updatedCompleted = Array.from(beforeSet);
+    const afterCount = updatedCompleted.length;
 
     // determine total lessons:
     // 1) try real Lesson model count
@@ -130,6 +135,22 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
     prog.completedPercent = completedPercent;
     await prog.save();
 
+    // Reward logic:
+    // - If user newly completed a lesson (afterCount > beforeCount and 'completed' true) => +10 points
+    // - If user reached 100% (completedPercent === 100) and previously <100 => +50 pts + badge
+    try {
+      if (completed && afterCount > beforeCount) {
+        await addPointsAndBadge(req.user.id, 10, null);
+      }
+
+      const previouslyPercent = totalLessons > 0 ? Math.round((beforeCount / totalLessons) * 100) : 0;
+      if (completedPercent === 100 && previouslyPercent < 100) {
+        await addPointsAndBadge(req.user.id, 50, "🏆 Course Master");
+      }
+    } catch (rewardErr) {
+      console.warn("Rewards update failed (non-fatal):", rewardErr);
+    }
+
     console.log(
       `Progress update: user=${req.user.id} course=${courseId} ${updatedCompleted.length}/${totalLessons} -> ${completedPercent}%`
     );
@@ -146,7 +167,6 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
         });
       } catch (delErr) {
         console.warn("Failed to delete empty progress doc:", delErr);
-        // fall through and still return current data (which is empty)
         return res.json({
           courseId,
           completedLessonIds: [],

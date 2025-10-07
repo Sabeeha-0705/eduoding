@@ -1,17 +1,15 @@
 // client/src/pages/Dashboard.jsx
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../api";
 import "./Dashboard.css";
 
 /*
   Dashboard.jsx - improved
-  - Tries to fetch real courses from /courses; falls back to built-in list
-  - Fetches progress list and normalizes into lookup map
-  - Shows user points & badges in sidebar
-  - Adds "Refresh Progress" to re-sync manually
-  - Listens for 'eduoding:progress-updated' events (and BroadcastChannel messages)
-    so progress refreshes automatically when LessonPage updates progress.
+  - Fetches user + courses + progress
+  - Listens to 'eduoding:progress-updated' (custom event), BroadcastChannel and postMessage
+  - On progress update we refresh progress AND refetch user so points/badges reflected
+  - Provides manual "Refresh Progress" button
 */
 
 export default function Dashboard() {
@@ -20,13 +18,14 @@ export default function Dashboard() {
   const [notes, setNotes] = useState([]);
   const [progressData, setProgressData] = useState([]);
   const [progressMap, setProgressMap] = useState({});
-  const [courses, setCourses] = useState(null); // try server first
+  const [courses, setCourses] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
 
   const navigate = useNavigate();
   const bcRef = useRef(null);
+  const mountedRef = useRef(true);
 
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
@@ -40,44 +39,57 @@ export default function Dashboard() {
       map[rawKey] = { ...p, completedPercent: percent };
 
       const digitsMatch = rawKey.match(/(\d+)$/);
-      if (digitsMatch) {
-        map[digitsMatch[1]] = { ...p, completedPercent: percent };
-      }
+      if (digitsMatch) map[digitsMatch[1]] = { ...p, completedPercent: percent };
+
       if (rawKey.includes("/") || rawKey.includes(":") || rawKey.includes("-") || rawKey.includes("_")) {
         const parts = rawKey.split(/[\/:_-]+/).filter(Boolean);
         if (parts.length) map[parts[parts.length - 1]] = { ...p, completedPercent: percent };
       }
+
       const lc = rawKey.toLowerCase().trim();
       if (lc && lc !== rawKey) map[lc] = { ...p, completedPercent: percent };
     });
     return map;
   };
 
-  // fetch initial data
-  useEffect(() => {
-    let mounted = true;
-    const fetchAll = async () => {
-      setLoading(true);
+  const fetchUser = useCallback(async () => {
+    try {
+      const token = getToken();
+      if (!token) {
+        navigate("/auth", { replace: true });
+        return null;
+      }
+      const profileRes = await API.get("/users/me").catch(() => API.get("/auth/profile"));
+      const profileData = profileRes.data?.user || profileRes.data;
+      if (mountedRef.current) setUser(profileData);
+      return profileData;
+    } catch (err) {
+      console.error("fetchUser error:", err);
+      localStorage.removeItem("authToken");
+      sessionStorage.removeItem("authToken");
+      navigate("/auth", { replace: true });
+      return null;
+    }
+  }, [navigate]);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        navigate("/auth", { replace: true });
+        return;
+      }
+
+      // PROFILE
+      await fetchUser();
+
+      // NOTES
       try {
-        const token = getToken();
-        if (!token) {
-          navigate("/auth", { replace: true });
-          return;
-        }
-
-        // PROFILE
-        const profileRes = await API.get("/users/me").catch(() => API.get("/auth/profile"));
-        const profileData = profileRes.data?.user || profileRes.data;
-        if (!mounted) return;
-        setUser(profileData);
-
-        // NOTES
-        try {
-          const notesRes = await API.get("/notes");
-          if (!mounted) return;
-          setNotes(notesRes.data || []);
-        } catch {
-          if (!mounted) return;
+        const notesRes = await API.get("/notes");
+        if (mountedRef.current) setNotes(notesRes.data || []);
+      } catch {
+        if (mountedRef.current) {
           const localNotes = [];
           Object.keys(localStorage).forEach((k) => {
             if (k.startsWith("note-")) {
@@ -86,69 +98,72 @@ export default function Dashboard() {
           });
           setNotes(localNotes);
         }
+      }
 
-        // COURSES
-        try {
-          const coursesRes = await API.get("/courses");
-          if (!mounted) return;
-          const serverCourses = Array.isArray(coursesRes.data) ? coursesRes.data : coursesRes.data?.courses || [];
-          if (serverCourses.length) {
-            setCourses(
-              serverCourses.map((c) => ({
-                id: String(c._id ?? c.id ?? c.courseId ?? c.slug ?? c.title),
-                title: c.title || c.name || `Course ${c._id}`,
-                desc: c.description || c.desc || "",
-              }))
-            );
-          } else {
-            setCourses(null);
-          }
-        } catch (err) {
+      // COURSES (try server)
+      try {
+        const coursesRes = await API.get("/courses");
+        if (!mountedRef.current) return;
+        const serverCourses = Array.isArray(coursesRes.data)
+          ? coursesRes.data
+          : coursesRes.data?.courses || [];
+        if (serverCourses.length) {
+          setCourses(
+            serverCourses.map((c) => ({
+              id: String(c._id ?? c.id ?? c.courseId ?? c.slug ?? c.title),
+              title: c.title || c.name || `Course ${c._id}`,
+              desc: c.description || c.desc || "",
+            }))
+          );
+        } else {
           setCourses(null);
         }
+      } catch {
+        setCourses(null);
+      }
 
-        // PROGRESS
-        try {
-          const progRes = await API.get("/progress");
-          if (!mounted) return;
-          const list = progRes.data || [];
-          setProgressData(list);
-          setProgressMap(normalizeProgressList(list));
-        } catch (err) {
-          if (!mounted) return;
-          console.warn("Progress fetch failed:", err);
+      // PROGRESS
+      try {
+        const progRes = await API.get("/progress");
+        if (!mountedRef.current) return;
+        const list = progRes.data || [];
+        setProgressData(list);
+        setProgressMap(normalizeProgressList(list));
+      } catch (err) {
+        console.warn("Progress fetch failed:", err);
+        if (mountedRef.current) {
           setProgressData([]);
           setProgressMap({});
         }
-      } catch (err) {
-        console.error("Dashboard fetchAll error:", err);
-        localStorage.removeItem("authToken");
-        sessionStorage.removeItem("authToken");
-        navigate("/auth", { replace: true });
-      } finally {
-        if (mounted) setLoading(false);
       }
-    };
+    } catch (err) {
+      console.error("Dashboard fetchAll error:", err);
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }, [fetchUser, navigate]);
 
+  useEffect(() => {
+    mountedRef.current = true;
     fetchAll();
 
-    // responsive sidebar initial state
     const onResize = () => setSidebarOpen(window.innerWidth >= 900);
     onResize();
     window.addEventListener("resize", onResize);
 
-    // Setup BroadcastChannel for receiving progress updates from other tabs
+    // BroadcastChannel (cross-tab)
     if ("BroadcastChannel" in window) {
       try {
         bcRef.current = new BroadcastChannel("eduoding");
         bcRef.current.onmessage = (m) => {
           try {
             if (m?.data?.type === "eduoding:progress-updated") {
-              // simply refresh progress when other tab posts update
+              // refresh progress AND refetch user to reflect new points/badges
               refreshProgress();
+              fetchUser();
             }
           } catch (e) {
-            // ignore
+            /* ignore */
           }
         };
       } catch (e) {
@@ -156,23 +171,26 @@ export default function Dashboard() {
       }
     }
 
-    // custom event listener (same-tab or cross-window when dispatched)
+    // custom event in same tab
     const onProgressUpdated = (ev) => {
-      // console.log("Dashboard received progress event", ev?.detail);
       refreshProgress();
+      fetchUser();
     };
     window.addEventListener("eduoding:progress-updated", onProgressUpdated);
 
-    // also listen for window.postMessage fallback (rare)
+    // postMessage fallback
     const onPostMsg = (msg) => {
       try {
-        if (msg?.data?.type === "eduoding:progress-updated") refreshProgress();
+        if (msg?.data?.type === "eduoding:progress-updated") {
+          refreshProgress();
+          fetchUser();
+        }
       } catch {}
     };
     window.addEventListener("message", onPostMsg);
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
       window.removeEventListener("resize", onResize);
       window.removeEventListener("eduoding:progress-updated", onProgressUpdated);
       window.removeEventListener("message", onPostMsg);
@@ -182,8 +200,7 @@ export default function Dashboard() {
         } catch {}
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate]);
+  }, [fetchAll, fetchUser]);
 
   const logout = () => {
     localStorage.removeItem("authToken");
@@ -206,11 +223,9 @@ export default function Dashboard() {
     }
   };
 
-  // Robust progress lookup
   const getProgressForCourse = (courseId) => {
     if (!progressMap || Object.keys(progressMap).length === 0) return 0;
     const cid = String(courseId);
-
     if (progressMap[cid]) return Math.round(Number(progressMap[cid].completedPercent) || 0);
 
     const keys = Object.keys(progressMap);
@@ -234,12 +249,14 @@ export default function Dashboard() {
       setRefreshingProgress(true);
       const progRes = await API.get("/progress");
       const list = progRes.data || [];
-      setProgressData(list);
-      setProgressMap(normalizeProgressList(list));
+      if (mountedRef.current) {
+        setProgressData(list);
+        setProgressMap(normalizeProgressList(list));
+      }
     } catch (err) {
       console.warn("Refresh progress failed:", err);
     } finally {
-      setRefreshingProgress(false);
+      if (mountedRef.current) setRefreshingProgress(false);
     }
   };
 
@@ -301,13 +318,13 @@ export default function Dashboard() {
 
         {user?.role === "uploader" && (
           <div className="sidebar-quick">
-            <button onClick={() => navigate("/uploader/upload")}>➕ Upload Video</button>
-            <button onClick={() => navigate("/uploader/dashboard")}>📁 My Uploads</button>
+            <button onClick={() => navigate("/uploader/upload")} className="uploader-btn">➕ Upload Video</button>
+            <button onClick={() => navigate("/uploader/dashboard")} className="uploader-btn outline">📁 My Uploads</button>
           </div>
         )}
 
         {user?.role === "admin" && (
-          <button onClick={() => navigate("/admin/requests")} className="btn-admin">Admin Panel</button>
+          <button onClick={() => navigate("/admin/requests")} className="admin-btn">Admin Panel</button>
         )}
 
         <div style={{ marginTop: "auto", padding: 12 }}>
@@ -315,7 +332,9 @@ export default function Dashboard() {
 
           <div style={{ marginTop: 10 }}>
             <div><strong>Points:</strong> {user?.points ?? 0}</div>
-            <div style={{ marginTop: 6 }}><strong>Badges:</strong> {(user?.badges && user.badges.length) ? user.badges.join(", ") : "—"}</div>
+            <div style={{ marginTop: 6 }}>
+              <strong>Badges:</strong> {(user?.badges && user.badges.length) ? user.badges.join(", ") : "—"}
+            </div>
           </div>
 
           <div style={{ marginTop: 10 }}>
@@ -370,9 +389,13 @@ export default function Dashboard() {
                   <ul className="notes-list">
                     {notes.map((note) => (
                       <li key={note._id}>
-                        <p>{note.content || note.text}</p>
-                        <small>{note.createdAt ? new Date(note.createdAt).toLocaleString() : note._id}</small>
-                        <button className="small-btn" onClick={() => handleDeleteNote(note._id)}>Delete</button>
+                        <div>
+                          <p>{note.content || note.text}</p>
+                          <small>{note.createdAt ? new Date(note.createdAt).toLocaleString() : note._id}</small>
+                        </div>
+                        <div>
+                          <button className="small-btn" onClick={() => handleDeleteNote(note._id)}>Delete</button>
+                        </div>
                       </li>
                     ))}
                   </ul>

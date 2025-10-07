@@ -66,5 +66,18 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Optionally add a safe public payload method
+userSchema.methods.publicProfile = function () {
+  return {
+    id: this._id,
+    username: this.username,
+    email: this.email,
+    role: this.role,
+    points: this.points || 0,
+    badges: this.badges || [],
+    avatarUrl: this.avatarUrl,
+  };
+};
+
 const User = mongoose.model("User", userSchema);
 export default User;

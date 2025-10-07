@@ -1,7 +1,7 @@
 [
   {
     "courseId": "1",
-    "title": "MERN - Final Quiz (with Code Challenge)",
+    "title": "MERN - Final Quiz",
     "passPercent": 60,
     "questions": [
       {
@@ -15,14 +15,6 @@
         "correctIndex": 2
       },
       {
-        "question": "Write a program that prints exactly 'Hello Eduoding' to stdout.",
-        "type": "code",
-        "languageId": 63,
-        "expectedOutput": "Hello Eduoding",
-        "boilerplate": "// Write code below\nconsole.log('Hello Eduoding');",
-        "hint": "Use console.log in Node.js"
-      },
-      {
         "question": "Which runs on the server in MERN?",
         "options": ["Express", "React", "Redux", "Next.js"],
         "correctIndex": 0
@@ -31,12 +23,17 @@
         "question": "Which command installs packages with npm?",
         "options": ["npm install", "npm init", "npm run", "npm start"],
         "correctIndex": 0
+      },
+      {
+        "question": "Which file defines dependencies in a Node.js app?",
+        "options": ["index.js", "package.json", "app.js", "server.js"],
+        "correctIndex": 1
       }
     ]
   },
   {
     "courseId": "2",
-    "title": "Data Science & AI - Quiz (with Code Challenge)",
+    "title": "Data Science & AI - Quiz",
     "passPercent": 60,
     "questions": [
       {
@@ -50,14 +47,6 @@
         "correctIndex": 1
       },
       {
-        "question": "Write a Python program that prints 'AI Ready' to output.",
-        "type": "code",
-        "languageId": 71,
-        "expectedOutput": "AI Ready",
-        "boilerplate": "# Write your Python code here\nprint('AI Ready')",
-        "hint": "Use print() in Python"
-      },
-      {
         "question": "Which library is for ML in Python?",
         "options": ["scikit-learn", "React", "Express", "TensorBoard"],
         "correctIndex": 0
@@ -66,12 +55,17 @@
         "question": "Which is for deep learning?",
         "options": ["TensorFlow", "Postgres", "Vue", "Redux"],
         "correctIndex": 0
+      },
+      {
+        "question": "Which library is used for data visualization?",
+        "options": ["Matplotlib", "Express", "React", "Bootstrap"],
+        "correctIndex": 0
       }
     ]
   },
   {
     "courseId": "3",
-    "title": "Cloud & DevOps - Quiz (with Code Challenge)",
+    "title": "Cloud & DevOps - Quiz",
     "passPercent": 60,
     "questions": [
       {
@@ -85,14 +79,6 @@
         "correctIndex": 1
       },
       {
-        "question": "Write a shell command that prints 'Cloud Ready'.",
-        "type": "code",
-        "languageId": 46,
-        "expectedOutput": "Cloud Ready",
-        "boilerplate": "#!/bin/bash\necho 'Cloud Ready'",
-        "hint": "Use echo in bash"
-      },
-      {
         "question": "CI means?",
         "options": ["Continuous Integration", "Code Index", "Continuous Inference", "Cloud Init"],
         "correctIndex": 0
@@ -101,12 +87,17 @@
         "question": "Which cloud provider offers S3?",
         "options": ["Azure", "GCP", "AWS", "IBM Cloud"],
         "correctIndex": 2
+      },
+      {
+        "question": "Which command builds a Docker image?",
+        "options": ["docker start", "docker build", "docker run", "docker init"],
+        "correctIndex": 1
       }
     ]
   },
   {
     "courseId": "4",
-    "title": "Cybersecurity - Quiz (with Code Challenge)",
+    "title": "Cybersecurity - Quiz",
     "passPercent": 60,
     "questions": [
       {
@@ -120,14 +111,6 @@
         "correctIndex": 0
       },
       {
-        "question": "Write a Python snippet that prints 'Secure'.",
-        "type": "code",
-        "languageId": 71,
-        "expectedOutput": "Secure",
-        "boilerplate": "print('Secure')",
-        "hint": "Use Python 3 print()"
-      },
-      {
         "question": "Penetration testing is?",
         "options": ["Breaking builds", "Security testing by simulating attack", "UI testing", "Load testing"],
         "correctIndex": 1
@@ -136,12 +119,17 @@
         "question": "What is a vulnerability?",
         "options": ["A patch", "A security flaw", "Encryption method", "Dev tool"],
         "correctIndex": 1
+      },
+      {
+        "question": "What is a firewall used for?",
+        "options": ["Blocking unauthorized traffic", "Compressing files", "Testing code", "Rendering UI"],
+        "correctIndex": 0
       }
     ]
   },
   {
     "courseId": "5",
-    "title": "UI/UX - Quiz (with Code Challenge)",
+    "title": "UI/UX - Quiz",
     "passPercent": 60,
     "questions": [
       {
@@ -155,14 +143,6 @@
         "correctIndex": 1
       },
       {
-        "question": "Write JS code that prints 'Design Ready'.",
-        "type": "code",
-        "languageId": 63,
-        "expectedOutput": "Design Ready",
-        "boilerplate": "console.log('Design Ready');",
-        "hint": "Use Node.js console.log"
-      },
-      {
         "question": "Good UX focuses on?",
         "options": ["Performance only", "User needs & flows", "Only colors", "Back-end logic"],
         "correctIndex": 1
@@ -170,6 +150,11 @@
       {
         "question": "Prototype purpose is?",
         "options": ["Ship product", "Test UX", "Database backup", "Optimize CPU"],
+        "correctIndex": 1
+      },
+      {
+        "question": "Which color model is used in digital design?",
+        "options": ["CMYK", "RGB", "HSL", "Pantone"],
         "correctIndex": 1
       }
     ]
