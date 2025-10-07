@@ -313,8 +313,10 @@ export default function Dashboard() {
       {tab === "courses" && "📘 "}
       {tab === "notes" && "📝 "}
       {tab === "progress" && "📊 "}
+      
+{tab === "code-test" && "💻 "}
       {tab === "settings" && "⚙ "}
-      {tab === "code-test" && "💻 "}
+      
       <span className="item-text">
         {tab === "code-test" ? "Code Test" : tab}
       </span>
