@@ -24,6 +24,7 @@ import SubmissionView from "./pages/SubmissionView";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Leaderboard from "./pages/Leaderboard";
 import CodeTest from "./pages/CodeTest";
+import BadgesPage from "./pages/BadgesPage";
 
 export default function App() {
   return (
@@ -171,6 +172,7 @@ export default function App() {
 
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/code-test" element={<CodeTest />} />
+        <Route path="/badges" element={<BadgesPage />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

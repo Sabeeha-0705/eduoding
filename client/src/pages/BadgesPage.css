@@ -1,0 +1,140 @@
+/* client/src/pages/BadgesPage.css */
+:root {
+  --accent: #057a75;
+  --light-bg: #f9fafb;
+  --text-muted: #6b7280;
+  --card-bg: #ffffff;
+  --border: #e5e7eb;
+}
+
+.badges-container {
+  max-width: 900px;
+  margin: 24px auto;
+  padding: 16px;
+  font-family: "Poppins", system-ui, sans-serif;
+  color: #111827;
+}
+
+.badges-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.badges-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.badges-intro {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.badge-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.badge-hero img {
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+}
+
+.badge-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.badge-user-info .name {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.badge-user-info .points {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.small-meta {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.badges-list {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.badge-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  transition: all 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 18px rgba(6, 28, 63, 0.06);
+}
+
+.badge-card img {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 0;
+  object-fit: contain;
+}
+
+.badge-card .badge-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: #111827;
+}
+
+.badge-card small {
+  display: block;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.badges-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 20px;
+  background: var(--light-bg);
+  border-radius: 10px;
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+}
+
+@media (max-width: 600px) {
+  .badge-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .badge-hero img {
+    width: 90px;
+    height: 90px;
+  }
+}

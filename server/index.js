@@ -1,9 +1,9 @@
-// server/index.js (or app.js) — full file
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import rateLimit from "express-rate-limit";
 
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -26,6 +26,16 @@ connectDB();
 
 const app = express();
 app.use(express.json({ limit: "10mb" }));
+
+// Mild global rate limiter
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 200, // general requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use(globalLimiter);
 
 // Allowed frontends (dev + prod)
 const allowedOrigins = new Set([
@@ -80,10 +90,13 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/quiz", quizRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
-app.use("/api/judge0", judge0Routes); //
+app.use("/api/judge0", judge0Routes);
 app.use("/api/users", userRoutes);
 app.use("/api/code", codeRoutes);
+
+// NOTE: codeTestRoutes includes its own per-user limiter - keep that
 app.use("/api/code-test", codeTestRoutes);
+
 // Verify transporter at startup
 verifyTransporter().catch((err) => {
   console.error("verifyTransporter error (startup):", err?.message || err);

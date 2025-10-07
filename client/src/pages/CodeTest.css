@@ -2,45 +2,178 @@
 :root {
   --card-bg: #ffffff;
   --muted: #6b7280;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --border: #e5e7eb;
 }
 
-body { font-family: "Poppins", system-ui, sans-serif; }
+body {
+  font-family: "Poppins", system-ui, sans-serif;
+}
 
+/* container */
 .code-test-wrap {
   max-width: 900px;
   margin: 24px auto;
-  padding: 12px;
+  padding: 20px;
+  background: #fafbff;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+  border: 1px solid #eef2ff;
 }
 
-.code-test-wrap h2 { font-size: 22px; margin-bottom: 6px; }
-.code-test-wrap label { display: block; margin-bottom: 6px; font-weight: 600; }
-.code-test-wrap select, .code-test-wrap textarea {
+.code-test-wrap h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 6px;
+}
+
+.code-test-wrap p {
+  color: var(--muted);
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+/* labels & inputs */
+.code-test-wrap label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.code-test-wrap select,
+.code-test-wrap textarea {
   width: 100%;
   box-sizing: border-box;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid #e6e6e6;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
   background: var(--card-bg);
+  transition: border 0.2s, box-shadow 0.2s;
 }
 
-.code-test-wrap textarea { min-height: 240px; font-family: monospace; font-size: 13px; color: #0f1724; }
+.code-test-wrap select:focus,
+.code-test-wrap textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+  outline: none;
+}
 
+.code-test-wrap textarea {
+  min-height: 260px;
+  font-family: monospace;
+  font-size: 14px;
+  color: #0f1724;
+  resize: vertical;
+}
+
+/* submit buttons */
 .code-test-submit {
-  margin-top: 12px;
+  margin-top: 14px;
   display: flex;
   gap: 12px;
   align-items: center;
 }
 
-.result-box {
-  margin-top: 12px;
-  padding: 12px;
+.code-test-submit button {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
   border-radius: 8px;
-  background: #fff;
-  border: 1px solid #eee;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
 }
 
-.result-box.passed { background: #e6ffef; border-color: #c7f0d3; }
-.result-box.failed { background: #fff0f0; border-color: #ffd6d6; }
+.code-test-submit button:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
 
-.small-meta { color: var(--muted); font-size: 13px; }
+.code-test-submit button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* result section */
+.result-box {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+}
+
+.result-box.passed {
+  background: #e6ffef;
+  border-color: #b9f5c8;
+}
+
+.result-box.failed {
+  background: #fff0f0;
+  border-color: #ffc4c4;
+}
+
+.result-box strong {
+  font-size: 15px;
+  color: #111827;
+}
+
+.result-box code {
+  background: #f9fafb;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.result-box .small-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* fallback section when no challenge */
+.no-challenge {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f9fafc;
+  border: 1px solid #e5e7eb;
+}
+
+.no-challenge button {
+  margin-top: 8px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.no-challenge button:hover {
+  background: var(--primary-hover);
+}
+/* ensure editor container inherits rounded corners */
+.monaco-editor .overflow-guard, .monaco-editor .monaco-scrollable-element {
+  border-radius: 8px;
+}
+
+/* responsive */
+@media (max-width: 600px) {
+  .code-test-wrap {
+    padding: 14px;
+  }
+
+  .code-test-wrap h2 {
+    font-size: 20px;
+  }
+
+  .code-test-wrap textarea {
+    min-height: 200px;
+  }
+}

@@ -1,4 +1,3 @@
-// client/src/pages/Dashboard.jsx
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../api";
@@ -302,6 +301,9 @@ export default function Dashboard() {
       onClick={() => {
         if (tab === "code-test") {
           navigate("/code-test");
+          // keep activeTab state so UI highlights it when user returns
+          setActiveTab("code-test");
+          if (window.innerWidth < 900) setSidebarOpen(false);
           return;
         }
         setActiveTab(tab);
@@ -313,10 +315,8 @@ export default function Dashboard() {
       {tab === "courses" && "📘 "}
       {tab === "notes" && "📝 "}
       {tab === "progress" && "📊 "}
-      
       {tab === "code-test" && "💻 "}
       {tab === "settings" && "⚙ "}
-      
       <span className="item-text">
         {tab === "code-test" ? "Code Test" : tab}
       </span>
