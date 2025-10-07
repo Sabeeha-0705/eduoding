@@ -124,9 +124,6 @@ export async function submit(payload = {}, opts = { wait: true, base64: false })
   }
 }
 
-export default {
-  fetchLanguages,
-  resolveLanguageId,
-  submit,
-  LOCAL_MAP,
-};
+// ✅ Make sure this part is added
+export { fetchLanguages, resolveLanguageId, submit, LOCAL_MAP };
+export default { fetchLanguages, resolveLanguageId, submit, LOCAL_MAP };
