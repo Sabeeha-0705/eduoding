@@ -1,7 +1,6 @@
 // client/src/pages/Leaderboard.jsx
 import React, { useEffect, useState } from "react";
 import API from "../api";
-// import CSS (make sure this file exists)
 import "./Leaderboard.css";
 
 export default function Leaderboard() {
@@ -32,7 +31,13 @@ export default function Leaderboard() {
     return () => (mounted = false);
   }, []);
 
-  if (loading) return <div className="leaderboard"><p>Loading leaderboard…</p></div>;
+  if (loading)
+    return (
+      <div className="leaderboard">
+        <p>Loading leaderboard…</p>
+      </div>
+    );
+
   if (loadError)
     return (
       <div className="leaderboard">
@@ -46,7 +51,9 @@ export default function Leaderboard() {
       <p>Top learners by points</p>
 
       {users.length === 0 ? (
-        <div className="empty-card"><p>No users yet.</p></div>
+        <div className="empty-card">
+          <p>No users yet.</p>
+        </div>
       ) : (
         <div className="table-wrap">
           <table className="ldb-table">
@@ -63,9 +70,44 @@ export default function Leaderboard() {
               {users.map((u, i) => (
                 <tr key={u._id || i}>
                   <td>{i + 1}</td>
-                  <td>{u.username || u.email || "Anonymous"}</td>
+                  <td>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      <img
+                        src={
+                          u.avatar ||
+                          u.avatarUrl ||
+                          "/assets/default-avatar.png"
+                        }
+                        alt={u.username || u.email}
+                        style={{
+                          width: "40px",
+                          height: "40px",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          border: "1px solid #ddd",
+                        }}
+                      />
+                      <span style={{ fontWeight: 600 }}>
+                        {u.username || u.email || "Anonymous"}
+                      </span>
+                    </div>
+                  </td>
                   <td>{Number(u.points || 0)}</td>
-                  <td>{Array.isArray(u.badges) && u.badges.length ? u.badges.join(", ") : "—"}</td>
+                  <td>
+                    {Array.isArray(u.badges) && u.badges.length ? (
+                      <span>
+                        🏅 {u.badges.join(", ")}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td>{u.role || "user"}</td>
                 </tr>
               ))}
