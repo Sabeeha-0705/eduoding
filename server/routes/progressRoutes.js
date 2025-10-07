@@ -143,4 +143,11 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
   }
 });
 
+// Cleanup: delete progress if nothing completed
+if (updatedCompleted.length === 0) {
+  await Progress.deleteOne({ userId: req.user.id, courseId });
+  console.log(`🧹 Deleted empty progress record for course ${courseId}`);
+}
+
+
 export default router;
