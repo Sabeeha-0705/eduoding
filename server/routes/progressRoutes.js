@@ -2,7 +2,7 @@
 import express from "express";
 import Progress from "../models/progressModel.js";
 import Lesson from "../models/lessonModel.js"; // may be empty in some installs
-import Video from "../models/videoModel.js"; // try video model fallback (if you have it)
+import Video from "../models/videoModel.js"; // fallback if you store lessons as videos
 import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -14,10 +14,10 @@ const router = express.Router();
 router.get("/", protect, async (req, res) => {
   try {
     const list = await Progress.find({ userId: req.user.id }).sort({ updatedAt: -1 });
-    res.json(list);
+    return res.json(list);
   } catch (err) {
     console.error("GET /progress error:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -36,10 +36,10 @@ router.get("/:courseId", protect, async (req, res) => {
         completedPercent: 0,
       };
     }
-    res.json(prog);
+    return res.json(prog);
   } catch (err) {
     console.error("GET /progress/:courseId error:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -59,10 +59,10 @@ router.post("/", protect, async (req, res) => {
       { upsert: true, new: true }
     );
 
-    res.json(upd);
+    return res.json(upd);
   } catch (err) {
     console.error("POST /progress error:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -100,17 +100,17 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
     // 3) fallback to req.body.totalLessons or 0
     let totalLessons = 0;
     try {
-      if (Lesson && Lesson.countDocuments) {
-        totalLessons = await Lesson.countDocuments({ courseId: courseId });
+      if (Lesson && typeof Lesson.countDocuments === "function") {
+        totalLessons = await Lesson.countDocuments({ courseId });
       }
     } catch (e) {
       console.warn("Lesson count error (ignored):", e.message || e);
       totalLessons = 0;
     }
 
-    if (!totalLessons && Video && Video.countDocuments) {
+    if (!totalLessons && Video && typeof Video.countDocuments === "function") {
       try {
-        totalLessons = await Video.countDocuments({ courseId: courseId });
+        totalLessons = await Video.countDocuments({ courseId });
       } catch (e) {
         console.warn("Video count error (ignored):", e.message || e);
       }
@@ -125,29 +125,46 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
       ? Math.round((updatedCompleted.length / totalLessons) * 100)
       : 0;
 
-    // save
+    // Save progress
     prog.completedLessonIds = updatedCompleted;
     prog.completedPercent = completedPercent;
     await prog.save();
 
-    console.log(`Progress update: user=${req.user.id} course=${courseId} ${updatedCompleted.length}/${totalLessons} -> ${completedPercent}%`);
+    console.log(
+      `Progress update: user=${req.user.id} course=${courseId} ${updatedCompleted.length}/${totalLessons} -> ${completedPercent}%`
+    );
 
-    res.json({
+    // Cleanup: delete progress if nothing completed
+    if (updatedCompleted.length === 0) {
+      try {
+        await Progress.deleteOne({ userId: req.user.id, courseId });
+        console.log(`🧹 Deleted empty progress record for course ${courseId}`);
+        return res.json({
+          courseId,
+          completedLessonIds: [],
+          completedPercent: 0,
+        });
+      } catch (delErr) {
+        console.warn("Failed to delete empty progress doc:", delErr);
+        // fall through and still return current data (which is empty)
+        return res.json({
+          courseId,
+          completedLessonIds: [],
+          completedPercent: 0,
+        });
+      }
+    }
+
+    // Normal response when there are completed lessons
+    return res.json({
       courseId,
       completedLessonIds: updatedCompleted,
       completedPercent,
     });
   } catch (err) {
     console.error("POST /progress/:courseId/lesson error:", err);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 });
-
-// Cleanup: delete progress if nothing completed
-if (updatedCompleted.length === 0) {
-  await Progress.deleteOne({ userId: req.user.id, courseId });
-  console.log(`🧹 Deleted empty progress record for course ${courseId}`);
-}
-
 
 export default router;
