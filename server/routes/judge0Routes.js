@@ -5,9 +5,9 @@ import { fetchLanguages, resolveLanguageId, submit } from "../utils/judge0Client
 
 const router = express.Router();
 
-/* ---------------------------------- LANGUAGES ---------------------------------- */
+/* ------------------- LANGUAGES ------------------- */
 
-// GET /api/judge0/languages → list available languages
+// GET /api/judge0/languages
 router.get("/languages", async (req, res) => {
   try {
     const langs = await fetchLanguages();
@@ -30,15 +30,24 @@ router.get("/resolve", async (req, res) => {
   }
 });
 
-/* ---------------------------------- PRACTICE RUN ---------------------------------- */
+/* ------------------- PRACTICE RUN ------------------- */
 
+/**
+ * NOTE: choose a safe keyGenerator. If your app runs behind a proxy (Render),
+ * set app.set('trust proxy', true) in your main server file so req.ip works.
+ */
 const runLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 min window
-  max: 15, // 15 runs/minute
+  windowMs: 60 * 1000, // 1 minute
+  max: 15, // 15 runs per minute per key
   message: { message: "Too many runs — please wait a minute and try again." },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: (req) => {
+    // prefer first X-Forwarded-For entry if present (works behind proxies)
+    const xf = req.headers["x-forwarded-for"];
+    if (xf && typeof xf === "string") return xf.split(",")[0].trim();
+    return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || req.hostname || "unknown";
+  },
 });
 
 router.post("/run", runLimiter, async (req, res) => {
@@ -59,7 +68,6 @@ router.post("/run", runLimiter, async (req, res) => {
       stdin: "",
     };
 
-    // Execute code via Judge0
     const jres = await submit(payload, { wait: true, base64: false });
 
     const stdout = (jres.stdout || "").replace(/\r/g, "").trim();
@@ -78,7 +86,15 @@ router.post("/run", runLimiter, async (req, res) => {
     });
   } catch (err) {
     console.error("POST /judge0/run error:", err);
-    return res.status(500).json({ message: err?.message || "Execution failed" });
+    // If DNS (ENOTFOUND) or similar, give a helpful message
+    const msg = err?.message || String(err);
+    if (msg.includes("ENOTFOUND")) {
+      return res.status(502).json({ message: "Judge0 host unreachable (DNS) or wrong base URL" });
+    }
+    if (msg.toLowerCase().includes("rate") || msg.includes("Too many")) {
+      return res.status(429).json({ message: "Judge0 rate limit / quota reached. Try again later." });
+    }
+    return res.status(500).json({ message: msg });
   }
 });
 

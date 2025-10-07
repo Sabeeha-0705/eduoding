@@ -1,3 +1,6 @@
+// server/index.js (updated)
+// This is your main server entry with trust-proxy and safer rate-limit key generation.
+
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -25,14 +28,32 @@ dotenv.config();
 connectDB();
 
 const app = express();
+
+// IMPORTANT: trust proxy so req.ip and X-Forwarded-For behave correctly behind Render / proxies
+// This avoids express-rate-limit errors related to IP/key generation.
+app.set("trust proxy", true);
+
+// Body parsing
 app.use(express.json({ limit: "10mb" }));
 
-// Mild global rate limiter
+/**
+ * Global rate limiter (mild). Use a robust keyGenerator that prefers X-Forwarded-For
+ * (helps when behind proxies). This avoids express-rate-limit IPv6/key-generator warnings.
+ */
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 200, // general requests per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    const xf = req.headers["x-forwarded-for"];
+    if (xf && typeof xf === "string") {
+      // x-forwarded-for can be comma-separated list; use first value
+      return xf.split(",")[0].trim();
+    }
+    // fallback to express-derived ip
+    return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || req.hostname || "unknown";
+  },
 });
 
 app.use(globalLimiter);
@@ -45,6 +66,7 @@ const allowedOrigins = new Set([
 ]);
 
 // CORS middleware (explicit headers so preflight passes)
+// Keeps your previous behavior but stable behind proxies
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (!origin) {
@@ -54,7 +76,6 @@ app.use((req, res, next) => {
     res.setHeader("Vary", "Origin");
   } else {
     console.warn(`CORS: blocked origin -> ${origin}`);
-    // Deny by setting null OR you can choose to allow for debug
     res.setHeader("Access-Control-Allow-Origin", "null");
   }
 
@@ -90,7 +111,10 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/quiz", quizRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
+
+// judge0 endpoints (practice/run). Make sure judge0Routes uses its own limiter too.
 app.use("/api/judge0", judge0Routes);
+
 app.use("/api/users", userRoutes);
 app.use("/api/code", codeRoutes);
 

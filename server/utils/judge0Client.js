@@ -2,19 +2,18 @@
 import axios from "axios";
 
 /*
-  This utility sends code submissions to Judge0 for execution.
-  It supports both RapidAPI-hosted and self-hosted Judge0 APIs.
+  judge0Client.js
+  - Robust submit + language helpers for Judge0
+  - Tries configured JUDGE0_BASE first, then public fallback when appropriate
 */
 
-const DEFAULT_BASE = "https://judge0-ce.p.rapidapi.com"; // RapidAPI base
-const PUBLIC_BASE = "https://ce.judge0.app";  // ✅ Public community fallback (no key required)
+const DEFAULT_BASE = "https://judge0-ce.p.rapidapi.com"; // RapidAPI default
+const PUBLIC_BASE = process.env.PUBLIC_JUDGE0_BASE || "https://ce.judge0.app"; // public instance fallback
 const JUDGE0_BASE = (process.env.JUDGE0_BASE || PUBLIC_BASE).replace(/\/$/, "");
 const JUDGE0_KEY = process.env.JUDGE0_KEY || "";
 const JUDGE0_HOST = process.env.JUDGE0_HOST || "judge0-ce.p.rapidapi.com";
 const IS_RAPIDAPI = JUDGE0_BASE.includes("rapidapi");
 
-
-/** 🔹 Common headers helper */
 function headers() {
   const h = { "Content-Type": "application/json" };
   if (IS_RAPIDAPI) {
@@ -24,7 +23,7 @@ function headers() {
   return h;
 }
 
-/** 🔹 Local fallback map of common languages */
+/** Local fallback map for common languages */
 const LOCAL_MAP = {
   javascript: 63, node: 63, "node.js": 63,
   python: 71, python3: 71,
@@ -37,9 +36,8 @@ const LOCAL_MAP = {
 
 let _langCache = null;
 let _langCacheAt = 0;
-const LANG_TTL = 1000 * 60 * 60; // 1 hour cache
+const LANG_TTL = 1000 * 60 * 60; // 1 hour
 
-/** 🔹 Fetch languages list (cached) */
 export async function fetchLanguages(force = false) {
   if (!force && _langCache && (Date.now() - _langCacheAt) < LANG_TTL) return _langCache;
   try {
@@ -54,7 +52,7 @@ export async function fetchLanguages(force = false) {
     _langCacheAt = Date.now();
     return _langCache;
   } catch (err) {
-    console.warn("⚠️ Judge0 language fetch failed — using fallback map");
+    console.warn("⚠️ Judge0 language fetch failed — using fallback map", err?.message || "");
     const fallback = Object.keys(LOCAL_MAP).map((k) => ({ id: LOCAL_MAP[k], name: k }));
     _langCache = fallback;
     _langCacheAt = Date.now();
@@ -62,7 +60,6 @@ export async function fetchLanguages(force = false) {
   }
 }
 
-/** 🔹 Resolve numeric Judge0 language_id from name or alias */
 export async function resolveLanguageId(nameOrId) {
   if (!nameOrId) return null;
   if (typeof nameOrId === "number" || /^\d+$/.test(String(nameOrId))) return Number(nameOrId);
@@ -75,12 +72,11 @@ export async function resolveLanguageId(nameOrId) {
     const found = langs.find((l) => (l.name || "").toLowerCase().includes(key));
     if (found) return Number(found.id);
   } catch (err) {
-    console.warn("⚠️ Language resolution fallback:", err?.message);
+    console.warn("⚠️ Language resolution fallback:", err?.message || "");
   }
   return null;
 }
 
-/** 🔹 Submit code to Judge0 and wait for result */
 export async function submit(payload = {}, opts = { wait: true, base64: false }) {
   const wait = opts.wait !== false;
   const base64 = !!opts.base64;
@@ -91,10 +87,10 @@ export async function submit(payload = {}, opts = { wait: true, base64: false })
     const res = await axios.post(url, payload, { headers: headers(), timeout: 30000 });
     return res.data;
   } catch (err) {
-    const msg = err?.response?.data?.message || err.message || "Unknown error";
-    console.warn("⚠️ Judge0 submit failed:", msg);
+    const msg = err?.response?.data?.message || err.message || String(err);
+    console.warn("⚠️ Judge0 submit failed (primary):", msg);
 
-    // fallback retry with public Judge0 if RapidAPI fails
+    // If the configured base looks like RapidAPI, try the public fallback once
     if (IS_RAPIDAPI) {
       try {
         const fallbackURL = `${PUBLIC_BASE}/submissions${qs}`;
@@ -104,7 +100,8 @@ export async function submit(payload = {}, opts = { wait: true, base64: false })
         });
         return res2.data;
       } catch (err2) {
-        throw new Error("Judge0 submit failed (both APIs): " + (err2?.response?.data?.message || err2.message));
+        const m2 = err2?.response?.data?.message || err2.message || String(err2);
+        throw new Error("Judge0 submit failed (both APIs): " + m2);
       }
     }
 
@@ -112,6 +109,5 @@ export async function submit(payload = {}, opts = { wait: true, base64: false })
   }
 }
 
-/** ✅ Final named + default exports */
 export { LOCAL_MAP };
 export default { fetchLanguages, resolveLanguageId, submit, LOCAL_MAP };
