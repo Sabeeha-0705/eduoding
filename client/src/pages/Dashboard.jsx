@@ -1,5 +1,5 @@
 // client/src/pages/Dashboard.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../api";
 import "./Dashboard.css";
@@ -10,8 +10,8 @@ import "./Dashboard.css";
   - Fetches progress list and normalizes into lookup map
   - Shows user points & badges in sidebar
   - Adds "Refresh Progress" to re-sync manually
-  - Robust matching strategies for courseId <-> progress entries
-  - Thanglish friendly comments for quick dev understanding
+  - Listens for 'eduoding:progress-updated' events (and BroadcastChannel messages)
+    so progress refreshes automatically when LessonPage updates progress.
 */
 
 export default function Dashboard() {
@@ -26,44 +26,34 @@ export default function Dashboard() {
   const [refreshingProgress, setRefreshingProgress] = useState(false);
 
   const navigate = useNavigate();
+  const bcRef = useRef(null);
 
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
-  // Normalize server progress list into a lookup map for fast access
   const normalizeProgressList = (list) => {
     const arr = Array.isArray(list) ? list : [];
     const map = {};
     arr.forEach((p) => {
-      // some servers return courseId or course_id or an ObjectId string
       const rawKey = String(p.courseId ?? p.course_id ?? p.course ?? "");
       const percent = Number(p.completedPercent ?? p.completed_percent ?? p.percent ?? 0) || 0;
-
-      // canonical entry
       map[rawKey] = { ...p, completedPercent: percent };
 
-      // if rawKey ends with digits (like "course_1" or ".../1") create fallback
       const digitsMatch = rawKey.match(/(\d+)$/);
       if (digitsMatch) {
         map[digitsMatch[1]] = { ...p, completedPercent: percent };
       }
-
-      // if rawKey contains separators, store last segment as fallback
       if (rawKey.includes("/") || rawKey.includes(":") || rawKey.includes("-") || rawKey.includes("_")) {
         const parts = rawKey.split(/[\/:_-]+/).filter(Boolean);
-        if (parts.length) {
-          map[parts[parts.length - 1]] = { ...p, completedPercent: percent };
-        }
+        if (parts.length) map[parts[parts.length - 1]] = { ...p, completedPercent: percent };
       }
-
-      // lowercase fallback
       const lc = rawKey.toLowerCase().trim();
       if (lc && lc !== rawKey) map[lc] = { ...p, completedPercent: percent };
     });
     return map;
   };
 
-  // Fetch user, notes, courses, progress
+  // fetch initial data
   useEffect(() => {
     let mounted = true;
     const fetchAll = async () => {
@@ -75,13 +65,13 @@ export default function Dashboard() {
           return;
         }
 
-        // PROFILE: try /users/me then /auth/profile
+        // PROFILE
         const profileRes = await API.get("/users/me").catch(() => API.get("/auth/profile"));
         const profileData = profileRes.data?.user || profileRes.data;
         if (!mounted) return;
         setUser(profileData);
 
-        // NOTES: try server, fallback to localStorage
+        // NOTES
         try {
           const notesRes = await API.get("/notes");
           if (!mounted) return;
@@ -97,23 +87,27 @@ export default function Dashboard() {
           setNotes(localNotes);
         }
 
-        // COURSES: try to fetch from backend; fallback to default list below
+        // COURSES
         try {
           const coursesRes = await API.get("/courses");
           if (!mounted) return;
-          // server may return array or { courses: [...] }
           const serverCourses = Array.isArray(coursesRes.data) ? coursesRes.data : coursesRes.data?.courses || [];
           if (serverCourses.length) {
-            setCourses(serverCourses.map((c) => ({ id: String(c._id ?? c.id ?? c.courseId ?? c.slug ?? c.title), title: c.title || c.name || `Course ${c._id}`, desc: c.description || c.desc || "" })));
+            setCourses(
+              serverCourses.map((c) => ({
+                id: String(c._id ?? c.id ?? c.courseId ?? c.slug ?? c.title),
+                title: c.title || c.name || `Course ${c._id}`,
+                desc: c.description || c.desc || "",
+              }))
+            );
           } else {
-            setCourses(null); // fallback later
+            setCourses(null);
           }
         } catch (err) {
-          // console.warn("Courses fetch failed:", err);
           setCourses(null);
         }
 
-        // PROGRESS: fetch list for user
+        // PROGRESS
         try {
           const progRes = await API.get("/progress");
           if (!mounted) return;
@@ -128,7 +122,6 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error("Dashboard fetchAll error:", err);
-        // force logout on serious auth error
         localStorage.removeItem("authToken");
         sessionStorage.removeItem("authToken");
         navigate("/auth", { replace: true });
@@ -138,24 +131,66 @@ export default function Dashboard() {
     };
 
     fetchAll();
+
     // responsive sidebar initial state
     const onResize = () => setSidebarOpen(window.innerWidth >= 900);
     onResize();
     window.addEventListener("resize", onResize);
+
+    // Setup BroadcastChannel for receiving progress updates from other tabs
+    if ("BroadcastChannel" in window) {
+      try {
+        bcRef.current = new BroadcastChannel("eduoding");
+        bcRef.current.onmessage = (m) => {
+          try {
+            if (m?.data?.type === "eduoding:progress-updated") {
+              // simply refresh progress when other tab posts update
+              refreshProgress();
+            }
+          } catch (e) {
+            // ignore
+          }
+        };
+      } catch (e) {
+        bcRef.current = null;
+      }
+    }
+
+    // custom event listener (same-tab or cross-window when dispatched)
+    const onProgressUpdated = (ev) => {
+      // console.log("Dashboard received progress event", ev?.detail);
+      refreshProgress();
+    };
+    window.addEventListener("eduoding:progress-updated", onProgressUpdated);
+
+    // also listen for window.postMessage fallback (rare)
+    const onPostMsg = (msg) => {
+      try {
+        if (msg?.data?.type === "eduoding:progress-updated") refreshProgress();
+      } catch {}
+    };
+    window.addEventListener("message", onPostMsg);
+
     return () => {
       mounted = false;
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("eduoding:progress-updated", onProgressUpdated);
+      window.removeEventListener("message", onPostMsg);
+      if (bcRef.current) {
+        try {
+          bcRef.current.close();
+        } catch {}
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
-  // Logout helper
   const logout = () => {
     localStorage.removeItem("authToken");
     sessionStorage.removeItem("authToken");
     navigate("/auth", { replace: true });
   };
 
-  // Delete note (server or local)
   const handleDeleteNote = async (noteId) => {
     try {
       if (noteId.startsWith("note-") && localStorage.getItem(noteId)) {
@@ -176,22 +211,15 @@ export default function Dashboard() {
     if (!progressMap || Object.keys(progressMap).length === 0) return 0;
     const cid = String(courseId);
 
-    // 1) exact key
     if (progressMap[cid]) return Math.round(Number(progressMap[cid].completedPercent) || 0);
 
-    // 2) numeric key if courseId is number-like
-    if (/^\d+$/.test(cid) && progressMap[cid]) return Math.round(Number(progressMap[cid].completedPercent) || 0);
-
-    // 3) find key that endsWith cid
     const keys = Object.keys(progressMap);
     const ends = keys.find((k) => k.endsWith(cid));
     if (ends) return Math.round(Number(progressMap[ends].completedPercent) || 0);
 
-    // 4) find key includes
     const inc = keys.find((k) => k.includes(cid));
     if (inc) return Math.round(Number(progressMap[inc].completedPercent) || 0);
 
-    // 5) digit-match fallback
     const digitKey = keys.find((k) => {
       const m = k.match(/(\d+)$/);
       return m && m[1] === cid;
@@ -201,7 +229,6 @@ export default function Dashboard() {
     return 0;
   };
 
-  // Manual refresh (useful when LessonPage updates progress and dashboard hasn't synced)
   const refreshProgress = async () => {
     try {
       setRefreshingProgress(true);
@@ -216,7 +243,6 @@ export default function Dashboard() {
     }
   };
 
-  // If backend didn't return courses, use this fallback static list
   const fallbackCourses = [
     { id: "1", title: "Full Stack Web Development (MERN)", desc: "Learn MongoDB, Express, React, Node.js with real projects." },
     { id: "2", title: "Data Science & AI", desc: "Master Python, Machine Learning, and AI applications." },
@@ -239,7 +265,6 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-container">
-      {/* mobile header */}
       <header className="mobile-header">
         <button aria-label="Toggle navigation" className="hamburger" onClick={() => setSidebarOpen((s) => !s)}>☰</button>
         <div className="mobile-title">Eduoding</div>
@@ -248,7 +273,6 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* sidebar */}
       <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}>
         <div className="logo">Eduoding</div>
 
@@ -289,7 +313,6 @@ export default function Dashboard() {
         <div style={{ marginTop: "auto", padding: 12 }}>
           <div className="role-badge">Role: <strong>{user?.role || "user"}</strong></div>
 
-          {/* points & badges */}
           <div style={{ marginTop: 10 }}>
             <div><strong>Points:</strong> {user?.points ?? 0}</div>
             <div style={{ marginTop: 6 }}><strong>Badges:</strong> {(user?.badges && user.badges.length) ? user.badges.join(", ") : "—"}</div>
@@ -301,7 +324,6 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      {/* main content */}
       <main className="main-content">
         {user ? (
           <div className="page-inner">

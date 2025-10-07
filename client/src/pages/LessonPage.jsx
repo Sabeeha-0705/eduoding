@@ -1,6 +1,6 @@
 // client/src/pages/LessonPage.jsx
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import API from "../api";
 import "./LessonPage.css";
 
@@ -15,8 +15,28 @@ export default function LessonPage() {
   const [hasQuiz, setHasQuiz] = useState(null);
   const [completedIds, setCompletedIds] = useState([]);
 
+  const bcRef = useRef(null);
+
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+
+  // Setup BroadcastChannel (multi-tab sync)
+  useEffect(() => {
+    if ("BroadcastChannel" in window) {
+      try {
+        bcRef.current = new BroadcastChannel("eduoding");
+      } catch (e) {
+        bcRef.current = null;
+      }
+    }
+    return () => {
+      if (bcRef.current) {
+        try {
+          bcRef.current.close();
+        } catch {}
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const run = async () => {
@@ -26,9 +46,10 @@ export default function LessonPage() {
         const res = await API.get(`/courses/${courseId}/videos`);
         setVideos(res.data || []);
 
-        // fetch progress for this course
+        // fetch per-course progress (server route used in your app)
+        // backend may return { completedLessonIds: [...] }
         const p = await API.get(`/progress/${courseId}`);
-        setCompletedIds(p.data.completedLessonIds || []);
+        setCompletedIds(p.data?.completedLessonIds || []);
       } catch (e) {
         setErr(e?.response?.data?.message || e.message || "Failed to load videos");
       } finally {
@@ -45,7 +66,6 @@ export default function LessonPage() {
       try {
         const res = await API.get(`/quiz/${courseId}`);
         if (!mounted) return;
-        // treat any 2xx as quiz available
         setHasQuiz(res?.status >= 200 && res?.status < 300);
       } catch (e) {
         if (!mounted) return;
@@ -81,31 +101,71 @@ export default function LessonPage() {
     if (!url) return "";
     if (url.includes("/embed/")) return url;
     if (url.includes("watch?v=")) return url.replace("watch?v=", "embed/");
-    if (url.includes("youtu.be/"))
-      return url.replace("youtu.be/", "www.youtube.com/embed/");
+    if (url.includes("youtu.be/")) return url.replace("youtu.be/", "www.youtube.com/embed/");
     return url;
   };
 
-   const toggleCompleted = async (lessonId, completed) => {
+  // Notify other parts of the app that progress changed
+  const notifyProgressUpdated = (payload = {}) => {
+    // CustomEvent for same-tab listeners
     try {
-      // send totalLessons so backend can compute completedPercent
-      const totalLessons = videos?.length || 0;
-      const res = await API.post(`/progress/${courseId}/lesson`, {
-        lessonId,
-        completed,
-        totalLessons,
-      });
-      setCompletedIds(res.data.completedLessonIds || []);
-      // optional: if backend returns updated percent, you can use it (e.g. to show immediate changes)
-      // if (res.data.completedPercent !== undefined) { /* use if needed */ }
+      const ev = new CustomEvent("eduoding:progress-updated", { detail: payload });
+      window.dispatchEvent(ev);
     } catch (e) {
-      console.error("toggle complete failed", e);
+      try {
+        window.postMessage({ type: "eduoding:progress-updated", payload }, window.location.origin);
+      } catch {}
+    }
+
+    // BroadcastChannel for other tabs
+    if (bcRef.current) {
+      try {
+        bcRef.current.postMessage({ type: "eduoding:progress-updated", payload });
+      } catch {}
     }
   };
 
+  // Toggle completed on server and update UI, then notify
+  const toggleCompleted = async (lessonIdParam, completed) => {
+    try {
+      const totalLessons = videos?.length || 0;
+      // adjust route/body according to your backend
+      const res = await API.post(`/progress/${courseId}/lesson`, {
+        lessonId: lessonIdParam,
+        completed,
+        totalLessons,
+      });
 
-  const markComplete = async (lessonId) => {
-    await toggleCompleted(lessonId, true);
+      const newCompleted = res.data?.completedLessonIds ?? res.data?.completedLessonIds ?? [];
+      // fallback: if backend doesn't return ids but returns percent, still update local list
+      if (Array.isArray(newCompleted) && newCompleted.length >= 0) {
+        setCompletedIds(newCompleted.map((id) => String(id)));
+      } else {
+        // optimistic: toggle locally
+        setCompletedIds((prev) => {
+          const s = new Set(prev.map(String));
+          if (completed) s.add(String(lessonIdParam));
+          else s.delete(String(lessonIdParam));
+          return Array.from(s);
+        });
+      }
+
+      // notify listeners (dashboard) with helpful details
+      notifyProgressUpdated({
+        courseId: String(courseId),
+        lessonId: String(lessonIdParam),
+        completed,
+        completedLessonIds: res.data?.completedLessonIds ?? undefined,
+        completedPercent: res.data?.completedPercent ?? undefined,
+      });
+    } catch (e) {
+      console.error("toggle complete failed", e);
+      alert("Failed to update progress");
+    }
+  };
+
+  const markComplete = async (lessonIdParam) => {
+    await toggleCompleted(lessonIdParam, true);
   };
 
   const goPrev = () => {
@@ -116,8 +176,7 @@ export default function LessonPage() {
   const goNext = () => {
     if (!currentVideo) return;
     const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
-    if (idx < videos.length - 1)
-      navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
+    if (idx < videos.length - 1) navigate(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
   };
 
   if (loading)
@@ -145,7 +204,7 @@ export default function LessonPage() {
           <ul>
             {videos.map((v, i) => {
               const active = String(v._id) === String(currentVideo._id);
-              const checked = completedIds.includes(String(v._id));
+              const checked = completedIds.map(String).includes(String(v._id));
               return (
                 <li key={v._id} className={active ? "active" : ""}>
                   <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -203,7 +262,6 @@ export default function LessonPage() {
               </button>
 
               <div className="quiz-actions">
-                {/* Always show Take Quiz, but disable / explain if quiz missing or not logged in */}
                 {hasQuiz === null ? (
                   <span className="quiz-checking">Checking quiz…</span>
                 ) : (
