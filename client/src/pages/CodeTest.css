@@ -2,11 +2,16 @@
 :root {
   --card-bg: #ffffff;
   --muted: #6b7280;
-  --accent: #3b82f6;
-  --success: #ecfdf5;
-  --danger: #fff5f5;
+  --accent: #057a75;
+  --accent-hover: #04655f;
+  --success-bg: #ecfdf5;
+  --success-border: #c6f6d5;
+  --danger-bg: #fff5f5;
+  --danger-border: #ffd6d6;
+  --shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
 }
 
+/* ---------- Layout Container ---------- */
 .code-test-wrap {
   max-width: 900px;
   margin: 24px auto;
@@ -14,12 +19,13 @@
   font-family: "Poppins", system-ui, sans-serif;
   background: var(--card-bg);
   border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--shadow);
 }
 
 .code-test-wrap h2 {
   font-size: 26px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  color: #0f172a;
 }
 
 .small-meta {
@@ -28,10 +34,12 @@
   margin-bottom: 12px;
 }
 
+/* ---------- Labels & Inputs ---------- */
 .code-test-wrap label {
   display: block;
   margin-bottom: 6px;
   font-weight: 600;
+  color: #1e293b;
 }
 
 .code-test-wrap select,
@@ -41,25 +49,29 @@
   box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid #e2e8f0;
   background: var(--card-bg);
+  transition: border 0.2s ease, box-shadow 0.2s ease;
 }
 
+.code-test-wrap select:focus,
+.code-test-wrap input:focus,
+.code-test-wrap textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(5, 122, 117, 0.15);
+  outline: none;
+}
+
+/* ---------- No Challenge Box ---------- */
 .no-challenge {
   margin-top: 14px;
   padding: 18px;
   background: #f8fafc;
   border-radius: 10px;
-  border: 1px solid #edf2f7;
+  border: 1px solid #e5e7eb;
 }
 
-.code-test-submit {
-  margin-top: 12px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
+/* ---------- Buttons ---------- */
 button {
   padding: 10px 14px;
   border-radius: 8px;
@@ -68,6 +80,15 @@ button {
   border: none;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+button:active {
+  transform: scale(0.98);
 }
 
 button[disabled] {
@@ -81,20 +102,109 @@ button[disabled] {
   border: 1px solid #e5e7eb;
 }
 
+/* ---------- Submit Button Row ---------- */
+.code-test-submit {
+  margin-top: 14px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ---------- Result Output Box ---------- */
 .result-box {
-  margin-top: 12px;
-  padding: 12px;
-  border-radius: 8px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
   background: #fff;
-  border: 1px solid #eee;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  transition: all 0.2s ease-in-out;
 }
 
 .result-box.passed {
-  background: #ecfdf5;
-  border-color: #c6f6d5;
+  background: var(--success-bg);
+  border-color: var(--success-border);
 }
 
 .result-box.failed {
-  background: #fff5f5;
-  border-color: #ffd6d6;
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+
+/* ---------- VS Code Output Console ---------- */
+.output-console {
+  margin-top: 18px;
+  background: #1e1e1e;
+  border-radius: 8px;
+  overflow: hidden;
+  color: #f3f3f3;
+  font-family: "JetBrains Mono", monospace;
+  box-shadow: inset 0 0 0 1px #2f2f2f;
+}
+
+.console-header {
+  background: #2d2d2d;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+  font-size: 14px;
+}
+
+.console-header:hover {
+  background: #353535;
+}
+
+.console-body {
+  padding: 12px 14px;
+  max-height: 220px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.console-output {
+  color: #a7f3d0;
+  margin: 0;
+}
+
+.console-error {
+  color: #fca5a5;
+  margin: 0;
+}
+
+.console-hint {
+  color: #9ca3af;
+  font-style: italic;
+  margin: 0;
+}
+
+.console-meta {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #d1d5db;
+  border-top: 1px solid #374151;
+  padding-top: 6px;
+  text-align: right;
+  letter-spacing: 0.3px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 640px) {
+  .code-test-wrap {
+    padding: 16px;
+  }
+
+  .code-test-submit {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .console-body {
+    max-height: 180px;
+  }
 }

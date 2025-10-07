@@ -6,9 +6,10 @@ import { useNavigate } from "react-router-dom";
 import Editor from "@monaco-editor/react";
 
 /**
- * CodeTest page with Monaco editor integration.
- * Props:
- *   - initialCourseId (optional) -> pre-select a course if provided
+ * Eduoding CodeTest Page
+ * - Practice samples (auto loaded)
+ * - Real Judge0 backend run
+ * - VS Code-style output console with runtime info
  */
 
 const LOCAL_LANGS = [
@@ -18,245 +19,163 @@ const LOCAL_LANGS = [
   { id: 62, name: "java", monaco: "java" },
 ];
 
-function resolveMonacoLang(langOrId) {
-  if (!langOrId && langOrId !== 0) return "plaintext";
-  if (typeof langOrId === "number" || /^\d+$/.test(String(langOrId))) {
-    const num = Number(langOrId);
-    const found = LOCAL_LANGS.find((l) => l.id === num);
-    if (found) return found.monaco;
-    return "plaintext";
-  }
-  const key = String(langOrId).toLowerCase();
-  const found = LOCAL_LANGS.find((l) => key.includes(String(l.id)) || key.includes(l.name.split(" ")[0]));
-  if (found) return found.monaco;
-  if (key.includes("js") || key.includes("javascript") || key.includes("node")) return "javascript";
-  if (key.includes("py")) return "python";
-  if (key.includes("bash") || key.includes("sh") || key.includes("shell")) return "shell";
-  if (key.includes("java")) return "java";
-  return "plaintext";
+const PRACTICE_SAMPLES = {
+  63: {
+    title: "Print Hello Eduoding (Node.js)",
+    boilerplate: `// Print exactly "Hello Eduoding" to stdout\nconsole.log('Hello Eduoding');`,
+    expected: "Hello Eduoding",
+    hint: "Use console.log()",
+  },
+  71: {
+    title: "Print AI Ready (Python)",
+    boilerplate: `# Print exactly "AI Ready" to stdout\nprint("AI Ready")`,
+    expected: "AI Ready",
+    hint: "Use print()",
+  },
+  46: {
+    title: "Print Cloud Ready (bash)",
+    boilerplate: `#!/bin/bash\necho "Cloud Ready"`,
+    expected: "Cloud Ready",
+    hint: "Use echo",
+  },
+  62: {
+    title: "Print Design Ready (Java)",
+    boilerplate: `public class Main {\n  public static void main(String[] args) {\n    System.out.println("Design Ready");\n  }\n}`,
+    expected: "Design Ready",
+    hint: "Use System.out.println",
+  },
+};
+
+function resolveMonacoLang(langId) {
+  const found = LOCAL_LANGS.find((l) => l.id === Number(langId));
+  return found ? found.monaco : "plaintext";
 }
 
 export default function CodeTest({ initialCourseId = null }) {
   const [selectedCourse, setSelectedCourse] = useState(initialCourseId);
   const [courses, setCourses] = useState([]);
-  const [codeQuestion, setCodeQuestion] = useState(null);
-  const [code, setCode] = useState("");
-  const [language, setLanguage] = useState(null); // judge0 id or string
+  const [language, setLanguage] = useState(63);
+  const [code, setCode] = useState(PRACTICE_SAMPLES[63].boilerplate);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState(null);
-
+  const [output, setOutput] = useState(null);
+  const [showConsole, setShowConsole] = useState(true);
   const navigate = useNavigate();
 
+  // Load courses
   useEffect(() => {
     (async () => {
       try {
         const res = await API.get("/courses");
-        const serverCourses = Array.isArray(res.data) ? res.data : res.data?.courses || [];
+        const list = Array.isArray(res.data) ? res.data : res.data?.courses || [];
         setCourses(
-          serverCourses.map((c) => ({
+          list.map((c) => ({
             id: String(c._id ?? c.id ?? c.courseId ?? c.slug ?? c.title),
-            title: c.title || c.name || c._id,
-            raw: c,
+            title: c.title || c.name || "Untitled Course",
           }))
         );
-      } catch (err) {
-        // fallback list if server not available
+      } catch {
         setCourses([
           { id: "1", title: "Full Stack Web Development (MERN)" },
           { id: "2", title: "Data Science & AI" },
-          { id: "3", title: "Cloud & DevOps" },
-          { id: "4", title: "Cybersecurity & Ethical Hacking" },
-          { id: "5", title: "UI/UX Design" },
         ]);
       }
     })();
   }, []);
 
-  // when course changes -> fetch quiz and populate editor content
+  // Auto-update code when language changes
   useEffect(() => {
-    if (!selectedCourse) return setCodeQuestion(null);
-    (async () => {
-      try {
-        const res = await API.get(`/quiz/${selectedCourse}`);
-        const quiz = res.data;
-        const codeQ =
-          (quiz && Array.isArray(quiz.questions) && quiz.questions.find((q) => q.type === "code")) || null;
-        setCodeQuestion(codeQ);
-        if (codeQ) {
-          setCode(codeQ.boilerplate ?? codeQ.initial ?? codeQ.template ?? "");
-          setLanguage(codeQ.languageId ?? codeQ.language ?? null);
-        } else {
-          setCode("");
-          setLanguage(null);
-        }
-        setResult(null);
-      } catch (err) {
-        console.warn("No quiz for course:", err);
-        setCodeQuestion(null);
-        setCode("");
-        setLanguage(null);
-        setResult(null);
-      }
-    })();
-  }, [selectedCourse]);
+    const sample = PRACTICE_SAMPLES[language];
+    if (sample) setCode(sample.boilerplate);
+  }, [language]);
 
-  const handleSubmit = useCallback(async () => {
-    if (!selectedCourse) return alert("Select a course");
-    if (!codeQuestion) return alert("No code challenge for selected course");
+  const runPractice = useCallback(async () => {
     setRunning(true);
-    setResult(null);
-
+    setOutput(null);
     try {
-      const res = await API.post(`/code-test/${selectedCourse}/submit`, {
-        code,
-        language,
-      });
-      setResult(res.data);
-      // notify Dashboard / other UI to refresh user points/badges
-      window.dispatchEvent(new CustomEvent("eduoding:progress-updated", { detail: { courseId: selectedCourse } }));
+      const res = await API.post("/judge0/run", { code, language });
+      setOutput(res.data);
     } catch (err) {
-      console.error("Code test submit failed:", err);
-      alert(err?.response?.data?.message || err.message || "Submission failed");
+      setOutput({ error: err?.response?.data?.message || err.message || "Execution failed" });
     } finally {
       setRunning(false);
+      setShowConsole(true);
     }
-  }, [selectedCourse, codeQuestion, code, language]);
+  }, [code, language]);
 
-  const monacoLang = resolveMonacoLang(language ?? (codeQuestion?.languageId ?? codeQuestion?.language ?? null));
+  const monacoLang = resolveMonacoLang(language);
 
   return (
     <div className="code-test-wrap">
-      <h2>Code Test</h2>
-      <p className="small-meta">
-        Pick a course and solve its code challenge. First successful pass awards points & a badge.
-      </p>
+      <h2>💻 Code Practice & Test</h2>
+      <p className="small-meta">Run your code instantly and view output below — just like VS Code terminal.</p>
 
-      <div style={{ marginTop: 12 }}>
-        <label>Course</label>
-        <select
-          value={selectedCourse || ""}
-          onChange={(e) => {
-            const v = e.target.value || null;
-            setSelectedCourse(v);
-          }}
-        >
-          <option value="">-- choose course --</option>
-          {courses.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.title}
-            </option>
-          ))}
-        </select>
+      {/* Language & Control Bar */}
+      <div className="top-bar">
+        <div className="lang-select">
+          <label>Language</label>
+          <select value={language} onChange={(e) => setLanguage(Number(e.target.value))}>
+            {LOCAL_LANGS.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="top-buttons">
+          <button onClick={runPractice} disabled={running}>
+            {running ? "Running…" : "▶ Run"}
+          </button>
+          <button onClick={() => setCode(PRACTICE_SAMPLES[language]?.boilerplate || "")}>Reset</button>
+        </div>
       </div>
 
-      {selectedCourse && !codeQuestion && (
-        <div className="no-challenge">
-          <p>No code challenge found for this course.</p>
-          <button onClick={() => navigate(`/course/${selectedCourse}`)}>Open Course</button>
+      {/* Code Editor */}
+      <Editor
+        height="360px"
+        language={monacoLang}
+        value={code}
+        onChange={(val) => setCode(val ?? "")}
+        options={{
+          minimap: { enabled: false },
+          fontSize: 14,
+          automaticLayout: true,
+          wordWrap: "on",
+          scrollBeyondLastLine: false,
+        }}
+      />
+
+      {/* Collapsible Output Console */}
+      <div className="output-console">
+        <div className="console-header" onClick={() => setShowConsole((v) => !v)}>
+          <strong>🧮 Output Console</strong>
+          <span>{showConsole ? "▼" : "▲"}</span>
         </div>
-      )}
 
-      {codeQuestion && (
-        <>
-          <div style={{ marginTop: 14 }}>
-            <h3 style={{ marginBottom: 6 }}>{codeQuestion.question || "Code challenge"}</h3>
-            <p className="small-meta">{codeQuestion.hint || ""}</p>
-
-            <div style={{ marginTop: 10, marginBottom: 8, display: "flex", gap: 12, alignItems: "center" }}>
-              <div style={{ flex: 1 }}>
-                <label>Language (auto)</label>
-                <select
-                  value={language ?? ""}
-                  onChange={(e) => {
-                    const val = e.target.value || null;
-                    setLanguage(val);
-                  }}
-                >
-                  <option value="">-- auto --</option>
-                  {LOCAL_LANGS.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ width: 220 }}>
-                <label>Monaco mode</label>
-                <input
-                  readOnly
-                  style={{
-                    width: "100%",
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e5e7eb",
-                    background: "#fff",
-                  }}
-                  value={monacoLang}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginTop: 10 }}>
-              <Editor
-                height="340px"
-                defaultLanguage={monacoLang}
-                language={monacoLang}
-                value={code}
-                onChange={(val) => setCode(val ?? "")}
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 13,
-                  formatOnPaste: true,
-                  formatOnType: true,
-                  wordWrap: "on",
-                  automaticLayout: true,
-                }}
-              />
-            </div>
-
-            <div className="code-test-submit" style={{ marginTop: 12 }}>
-              <button onClick={handleSubmit} disabled={running}>
-                {running ? "Running…" : "Run & Submit"}
-              </button>
-              <button
-                onClick={() => {
-                  setCode(codeQuestion.boilerplate ?? "");
-                  setResult(null);
-                }}
-                className="reset-btn"
-              >
-                Reset to Template
-              </button>
-            </div>
-
-            {result && (
-              <div className={`result-box ${result.passed ? "passed" : "failed"}`}>
-                <strong>{result.passed ? "✅ Passed" : "❌ Failed"}</strong>
-
-                <div style={{ marginTop: 8 }}>
-                  <div className="small-meta">
-                    <strong>Expected:</strong> <code>{result.expected}</code>
+        {showConsole && (
+          <div className="console-body">
+            {output ? (
+              output.error ? (
+                <pre className="console-error">{output.error}</pre>
+              ) : (
+                <>
+                  <pre className="console-output">{output.output}</pre>
+                  <div className="console-meta">
+                    Time: {output.time ?? "—"}s | Memory: {output.memory ?? "—"}KB
                   </div>
-                  <div className="small-meta" style={{ marginTop: 6 }}>
-                    <strong>Got:</strong> <code>{result.got}</code>
-                  </div>
-
-                  <div style={{ marginTop: 8 }}>
-                    {result.awarded?.firstPass ? (
-                      <div>
-                        Points awarded: <strong>{result.awarded.points}</strong> — Badge: <strong>{result.awarded.badge}</strong>
-                      </div>
-                    ) : (
-                      <div>{result.passed ? "You already passed earlier — no extra points." : "No points awarded."}</div>
-                    )}
-                  </div>
-                </div>
-              </div>
+                </>
+              )
+            ) : (
+              <p className="console-hint">💡 Press “Run” to execute your code and see output here.</p>
             )}
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      {/* Optional: show sample hint */}
+      <div style={{ marginTop: 16, fontSize: 13, color: "#6b7280" }}>
+        <strong>Hint:</strong> {PRACTICE_SAMPLES[language]?.hint}
+      </div>
     </div>
   );
 }
