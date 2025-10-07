@@ -295,7 +295,7 @@ export default function Dashboard() {
 
         <nav>
           <ul>
-  {["courses", "notes", "progress", "settings", "code-test"].map((tab) => (
+  {["courses", "notes", "progress", "code-test", "settings"].map((tab) => (
     <li
       key={tab}
       className={`sidebar-item ${activeTab === tab ? "active" : ""}`}
@@ -314,7 +314,7 @@ export default function Dashboard() {
       {tab === "notes" && "📝 "}
       {tab === "progress" && "📊 "}
       
-{tab === "code-test" && "💻 "}
+      {tab === "code-test" && "💻 "}
       {tab === "settings" && "⚙ "}
       
       <span className="item-text">
