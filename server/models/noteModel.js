@@ -9,12 +9,11 @@ const noteSchema = new mongoose.Schema(
       required: true,
     },
     courseId: {
-      type: String, // or ObjectId if you later add courses collection
+      type: String,
       required: false,
     },
     lessonId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Video",
+      type: String, // use String for flexible ids (works with ObjectId as string too)
       required: false,
     },
     content: {

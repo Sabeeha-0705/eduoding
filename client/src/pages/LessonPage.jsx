@@ -1,7 +1,8 @@
 // client/src/pages/LessonPage.jsx
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useMemo, useState, useRef } from "react";
-import API from "../api";
+import API from "../api"; // public axios (videos, progress)
+import { api } from "../api"; // authenticated axios MUST exist and send token
 import "./LessonPage.css";
 
 export default function LessonPage() {
@@ -12,6 +13,7 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
+  const [noteId, setNoteId] = useState(null); // backend note id if exists
   const [hasQuiz, setHasQuiz] = useState(null);
   const [completedIds, setCompletedIds] = useState([]);
   const [updating, setUpdating] = useState(false);
@@ -22,11 +24,17 @@ export default function LessonPage() {
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
-  // Setup BroadcastChannel (multi-tab sync)
+  // BroadcastChannel for multi-tab sync
   useEffect(() => {
     if ("BroadcastChannel" in window) {
       try {
         bcRef.current = new BroadcastChannel("eduoding");
+        bcRef.current.onmessage = (m) => {
+          if (m?.data?.type === "notes-updated") {
+            // when other tab updates note, re-load local note
+            loadLocalOrBackendNote();
+          }
+        };
       } catch (e) {
         bcRef.current = null;
       }
@@ -84,17 +92,97 @@ export default function LessonPage() {
     return videos[0];
   }, [videos, lessonId]);
 
-  useEffect(() => {
+  // load note for current lesson: try backend then fallback to localStorage
+  const loadLocalOrBackendNote = async () => {
     if (!currentVideo) return setNote("");
     const key = `note-${courseId}-${currentVideo._id}`;
-    setNote(localStorage.getItem(key) || "");
-  }, [courseId, currentVideo?._id]);
 
-  const saveNote = () => {
-    if (!currentVideo) return;
+    // try backend (authenticated)
+    try {
+      const token = getToken();
+      if (token && api) {
+        const res = await api.get("/notes"); // returns user's notes
+        const notes = Array.isArray(res.data) ? res.data : [];
+        const my = notes.find(
+          (n) =>
+            String(n.lessonId || "") === String(currentVideo._id) &&
+            (String(n.courseId || "") === String(courseId) || !n.courseId)
+        );
+        if (my) {
+          setNote(my.content || "");
+          setNoteId(my._id || null);
+          // mirror to localStorage
+          localStorage.setItem(key, my.content || "");
+          return;
+        }
+      }
+    } catch (e) {
+      // backend fetch failed -> fallback to localStorage
+      // console.warn("notes backend fetch failed", e);
+    }
+
+    // fallback
+    const saved = localStorage.getItem(key) || "";
+    setNote(saved);
+    setNoteId(null);
+  };
+
+  useEffect(() => {
+    loadLocalOrBackendNote();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentVideo?._id, courseId]);
+
+
+  const saveNote = async () => {
+    if (!currentVideo) return alert("Select a lesson first.");
     const key = `note-${courseId}-${currentVideo._id}`;
-    localStorage.setItem(key, note);
-    alert("✅ Note saved!");
+    const payload = {
+      content: note,
+      courseId,
+      lessonId: currentVideo._id,
+    };
+
+    setUpdating(true);
+    try {
+      // If we already have noteId, try PUT else POST
+      let res;
+      if (noteId && api) {
+        try {
+          res = await api.put(`/notes/${noteId}`, payload);
+        } catch (err) {
+          // some backends may not have PUT: fallback to POST
+          res = await api.post("/notes", payload);
+        }
+      } else {
+        // create
+        if (!api) throw new Error("Authenticated axios instance `api` not found");
+        res = await api.post("/notes", payload);
+      }
+
+      const savedNote = res.data;
+      setNoteId(savedNote._id || savedNote.id || null);
+      localStorage.setItem(key, savedNote.content || note || "");
+      alert("✅ Note saved to server!");
+
+      // notify other tabs/components
+      try {
+        const ev = new CustomEvent("eduoding:notes-updated", { detail: savedNote });
+        window.dispatchEvent(ev);
+      } catch {}
+
+      if (bcRef.current) {
+        try {
+          bcRef.current.postMessage({ type: "notes-updated", payload: savedNote });
+        } catch {}
+      }
+    } catch (err) {
+      console.error("Save note failed:", err);
+      // fallback to localStorage
+      localStorage.setItem(key, note);
+      alert("Saved locally (offline). Will sync when network available.");
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const toEmbed = (url) => {
@@ -105,7 +193,7 @@ export default function LessonPage() {
     return url;
   };
 
-  // 🔔 Notify other parts (Dashboard) that progress changed
+  // progress helpers (unchanged)
   const notifyProgressUpdated = (payload = {}) => {
     try {
       const ev = new CustomEvent("eduoding:progress-updated", { detail: payload });
@@ -123,9 +211,8 @@ export default function LessonPage() {
     }
   };
 
-  // 🔄 Toggle completed on server and update UI
   const toggleCompleted = async (lessonIdParam, completed) => {
-    if (updating) return; // prevent spam
+    if (updating) return;
     setUpdating(true);
 
     clearTimeout(debounceRef.current);
@@ -148,15 +235,13 @@ export default function LessonPage() {
           completedLessonIds: newCompleted,
           completedPercent: res.data?.completedPercent ?? undefined,
         });
-
-        console.log(`✅ Progress updated for lesson ${lessonIdParam}`);
       } catch (e) {
         console.error("toggle complete failed", e);
         alert("Failed to update progress.");
       } finally {
         setUpdating(false);
       }
-    }, 300); // debounce delay
+    }, 300);
   };
 
   const markComplete = async (lessonIdParam) => {
@@ -227,10 +312,10 @@ export default function LessonPage() {
           <h1>{currentVideo?.title}</h1>
 
           <div className="video-container">
-            {currentVideo.sourceType === "youtube" || currentVideo.youtubeUrl ? (
+            {currentVideo?.sourceType === "youtube" || currentVideo?.youtubeUrl ? (
               <iframe
-                src={`${toEmbed(currentVideo.youtubeUrl)}?enablejsapi=1`}
-                title={currentVideo.title}
+                src={`${toEmbed(currentVideo?.youtubeUrl)}?enablejsapi=1`}
+                title={currentVideo?.title}
                 frameBorder="0"
                 allowFullScreen
               />
@@ -242,7 +327,7 @@ export default function LessonPage() {
                   notifyProgressUpdated({ courseId, lessonId: currentVideo._id });
                 }}
               >
-                <source src={currentVideo.fileUrl} type="video/mp4" />
+                <source src={currentVideo?.fileUrl} type="video/mp4" />
               </video>
             )}
           </div>
@@ -260,8 +345,8 @@ export default function LessonPage() {
               placeholder="Write your notes here…"
             />
             <div className="notes-actions">
-              <button onClick={saveNote} className="save-note-btn">
-                Save Note
+              <button onClick={saveNote} className="save-note-btn" disabled={updating}>
+                {updating ? "Saving…" : "Save Note"}
               </button>
 
               <div className="quiz-actions">

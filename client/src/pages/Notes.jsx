@@ -1,15 +1,11 @@
 // client/src/pages/Notes.jsx
 import React, { useState, useEffect } from "react";
-import { api } from "../api";
+import { api } from "../api"; // authenticated axios (must send token)
 
 export default function Notes() {
   const [notes, setNotes] = useState([]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetchNotes();
-  }, []);
 
   const fetchNotes = async () => {
     try {
@@ -20,6 +16,32 @@ export default function Notes() {
     }
   };
 
+  useEffect(() => {
+    fetchNotes();
+
+    const onNotesUpdated = (e) => {
+      // e.detail may contain updated note
+      fetchNotes();
+    };
+    window.addEventListener("eduoding:notes-updated", onNotesUpdated);
+
+    // BroadcastChannel
+    let bc;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("eduoding");
+        bc.onmessage = (m) => {
+          if (m?.data?.type === "notes-updated") fetchNotes();
+        };
+      }
+    } catch {}
+
+    return () => {
+      window.removeEventListener("eduoding:notes-updated", onNotesUpdated);
+      if (bc) bc.close();
+    };
+  }, []);
+
   const addNote = async () => {
     if (!content.trim()) return;
     setLoading(true);
@@ -27,6 +49,18 @@ export default function Notes() {
       const res = await api.post("/notes", { content });
       setNotes([res.data, ...notes]);
       setContent("");
+      // notify other components
+      try {
+        const ev = new CustomEvent("eduoding:notes-updated", { detail: res.data });
+        window.dispatchEvent(ev);
+      } catch {}
+      try {
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("eduoding");
+          bc.postMessage({ type: "notes-updated", payload: res.data });
+          bc.close();
+        }
+      } catch {}
     } catch (err) {
       alert(err.response?.data?.message || "Failed to save note");
     } finally {
@@ -39,6 +73,11 @@ export default function Notes() {
     try {
       await api.delete(`/notes/${id}`);
       setNotes(notes.filter((n) => n._id !== id));
+      // notify
+      try {
+        const ev = new CustomEvent("eduoding:notes-updated", { detail: { id } });
+        window.dispatchEvent(ev);
+      } catch {}
     } catch {
       alert("Failed to delete note");
     }
@@ -79,12 +118,28 @@ export default function Notes() {
                   </small>
                 )}
               </div>
-              <button
-                onClick={() => deleteNote(note._id)}
-                className="text-red-500 hover:text-red-700"
-              >
-                Delete
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => {
+                    // open lesson if lessonId exists
+                    if (note.lessonId) {
+                      window.location.href = `/course/${note.courseId || ""}/lesson/${note.lessonId}`;
+                    } else {
+                      // otherwise just delete or do nothing
+                      alert("No linked lesson for this note.");
+                    }
+                  }}
+                  className="text-blue-600 hover:underline"
+                >
+                  Open Lesson
+                </button>
+                <button
+                  onClick={() => deleteNote(note._id)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           ))}
         </ul>
