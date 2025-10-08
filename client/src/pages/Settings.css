@@ -126,3 +126,90 @@ body {
 .form-actions { display:flex; gap: 10px; align-items:center; margin-top:10px; }
 
 .msg { margin-left: 10px; font-weight: 600; }
+/* ---------- Fix: Theme buttons visible + Dark active style ---------- */
+/* ensure theme buttons have a visible shape on light bg */
+.theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;        /* prevents tiny empty box */
+  height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #ffffff;    /* subtle white so it shows on light bg */
+  box-shadow: 0 4px 12px rgba(16,24,40,0.04);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+
+/* hovered/inactive look */
+.theme-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(16,24,40,0.06);
+}
+
+/* active theme button — use pine-green for consistency */
+.theme-btn.active {
+  background: linear-gradient(90deg, var(--pine-green), #0b8c87);
+  color: #fff;
+  border-color: var(--pine-green);
+  box-shadow: 0 10px 26px rgba(5,122,117,0.14);
+}
+
+/* make sure the 'dark' label is visible (if you use an icon-only button) */
+.theme-btn:empty {
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+}
+
+/* ---------- Fix: Reset button (secondary) styling ---------- */
+/* Reset button uses plain .btn in your markup — style it as a secondary action */
+.btn {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+
+/* explicit secondary style so Reset looks intentional (soft gradient) */
+.btn.secondary,
+.btn.reset {
+  background: linear-gradient(90deg, rgba(75,97,230,0.08), rgba(46,160,255,0.06));
+  color: var(--text);
+  border: 1px solid rgba(99,102,241,0.12);
+  font-weight: 600;
+  box-shadow: 0 6px 18px rgba(16,24,40,0.04);
+}
+
+/* fallback: if Reset has no class, style the immediate sibling of .btn.primary */
+.btn.primary + .btn {
+  /* when markup is: [Save(.primary)] [Reset(.btn)] — make Reset look like secondary */
+  background: linear-gradient(90deg, rgba(75,97,230,0.06), rgba(46,160,255,0.04));
+  border: 1px solid rgba(99,102,241,0.10);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* hover */
+.btn.secondary:hover,
+.btn.reset:hover,
+.btn.primary + .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(16,24,40,0.06);
+}
+
+/* ensure disabled styles are still readable */
+.btn:disabled,
+.btn.secondary:disabled,
+.btn.reset:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* ---------- small spacing tweak for theme row ---------- */
+.theme-row { display:flex; gap: 10px; align-items: center; margin-top:6px; }
