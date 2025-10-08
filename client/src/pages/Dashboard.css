@@ -1,7 +1,14 @@
-/* src/pages/Dashboard.css */
 /* Universal Reset */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: "Poppins", sans-serif; background: #f5f7fb; color: #333; }
+
+/* Pine-Green theme variables (used for action buttons) */
+:root {
+  --pine-green: #057A75;
+  --pine-green-dark: #045e59;
+  --pine-green-grad: linear-gradient(90deg, #057A75, #0b8c87);
+  --btn-radius: 10px;
+}
 
 /* layout */
 .dashboard-container { display: flex; min-height: 100vh; position: relative; }
@@ -74,6 +81,34 @@ nav ul { list-style: none; margin-top: 10px; }
 .header-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .header-row h2 { font-size: 24px; font-weight: 700; color: #1f2937; }
 .small-meta { color: #6b7280; font-size: 13px; }
+
+/* --- Pine green action buttons --- */
+.pine-btn,
+.small-btn.pine-btn,
+.tiny-btn.pine-btn {
+  background: var(--pine-green-grad);
+  color: #fff;
+  border: none;
+  border-radius: var(--btn-radius);
+  padding: 8px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(5,122,117,0.12);
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.pine-btn:hover,
+.small-btn.pine-btn:hover,
+.tiny-btn.pine-btn:hover {
+  background: linear-gradient(90deg, var(--pine-green-dark), #033f3c);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(4,86,82,0.14);
+}
+.pine-btn:disabled,
+.small-btn.pine-btn:disabled {
+  opacity: 0.9;
+  filter: none;
+  cursor: not-allowed;
+}
 
 /* courses */
 .courses-grid {

@@ -11,6 +11,10 @@
   --radius: 12px;
   --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial;
+  /* add custom btn outline colors for consistent theme */
+  --outline-bg: linear-gradient(90deg, #0b9a88, #0f7a66); /* teal/green-ish */
+  --outline-text: #ffffff;
+  --outline-border: rgba(11, 122, 102, 0.12);
 }
 
 /* page root */
@@ -59,6 +63,7 @@
   transition: all 0.18s ease;
 }
 
+/* header outline variant */
 .nav-btn.outline {
   color: var(--primary);
   border: 1px solid rgba(79, 70, 229, 0.25);
@@ -68,6 +73,7 @@
   background: rgba(79, 70, 229, 0.05);
 }
 
+/* header ghost variant */
 .nav-btn.ghost {
   color: var(--muted);
   border: 1px solid rgba(0, 0, 0, 0.05);
@@ -118,6 +124,7 @@
   font-weight: 700;
   text-decoration: none;
   min-width: 120px;
+  transition: transform .16s ease, box-shadow .16s ease, opacity .12s ease;
 }
 
 /* Gradient primary button */
@@ -135,6 +142,7 @@
   transform: translateY(-2px);
 }
 
+/* Secondary transparent button */
 .btn.secondary {
   border: 1px solid rgba(0, 0, 0, 0.08);
   color: var(--muted);
@@ -145,6 +153,40 @@
   border-color: rgba(0, 0, 0, 0.15);
 }
 
+/* ===== NEW: Outline button (used by "Browse Courses") =====
+   - Makes the outline button a solid gradient filled button for emphasis
+   - Keeps accessibility: white text and sufficient contrast
+*/
+.btn.outline,
+a.btn.outline {
+  color: var(--outline-text);
+  background: var(--outline-bg);
+  border: 1px solid var(--outline-border);
+  box-shadow: 0 10px 24px rgba(11, 122, 102, 0.12);
+  padding: 12px 22px;
+  text-decoration: none;
+  display: inline-block;
+  border-radius: 14px;
+  font-weight: 700;
+  min-width: 140px;
+}
+.btn.outline:hover,
+a.btn.outline:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.03);
+  box-shadow: 0 14px 34px rgba(11, 122, 102, 0.16);
+}
+
+/* small subtle variant if you want border-only but colored text:
+   Use class .btn.outline.ghost if needed in markup */
+.btn.outline.ghost {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid rgba(79, 70, 229, 0.15);
+  box-shadow: none;
+}
+
+/* trusted text below CTA */
 .trusted {
   color: var(--muted);
   margin-top: 14px;

@@ -1,4 +1,3 @@
-// client/src/pages/Settings.jsx
 import React, { useEffect, useState, useRef } from "react";
 import API from "../api";
 import "./Settings.css"; // ensure this exists
@@ -47,6 +46,11 @@ export default function Settings() {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
+
+    // notify other parts of app that theme changed
+    try {
+      window.dispatchEvent(new CustomEvent("eduoding:theme-changed", { detail: { theme } }));
+    } catch {}
   }, [theme]);
 
   useEffect(() => {

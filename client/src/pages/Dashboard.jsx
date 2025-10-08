@@ -285,7 +285,7 @@ export default function Dashboard() {
         <button aria-label="Toggle navigation" className="hamburger" onClick={() => setSidebarOpen((s) => !s)}>☰</button>
         <div className="mobile-title">Eduoding</div>
         <div className="mobile-actions">
-          <button className="tiny-btn" onClick={() => navigate("/settings")}>⚙</button>
+          <button className="tiny-btn pine-btn" onClick={() => navigate("/settings")}>⚙</button>
         </div>
       </header>
 
@@ -358,15 +358,27 @@ export default function Dashboard() {
           <div className="page-inner">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2>Welcome, {user?.username || user?.email}</h2>
-              <div>
-                <button onClick={refreshProgress} className="small-btn" disabled={refreshingProgress}>
+              <div className="header-actions">
+                <button
+                  onClick={async () => {
+                    await refreshProgress();
+                    // broadcast to other tabs (optional)
+                    try { window.postMessage({ type: "eduoding:progress-updated" }, "*"); } catch {}
+                    try { if (window.BroadcastChannel) new BroadcastChannel("eduoding").postMessage({ type: "eduoding:progress-updated" }); } catch {}
+                  }}
+                  className="small-btn pine-btn"
+                  disabled={refreshingProgress}
+                >
                   {refreshingProgress ? "Refreshing…" : "Refresh Progress"}
                 </button>
-                <button style={{ marginLeft: 8 }} className="small-btn" onClick={() => navigate("/leaderboard")}>
+
+                <button
+                  style={{ marginLeft: 8 }}
+                  className="small-btn pine-btn"
+                  onClick={() => navigate("/leaderboard")}
+                >
                   Leaderboard
                 </button>
-                
-
               </div>
             </div>
 
@@ -446,7 +458,7 @@ export default function Dashboard() {
                 <div className="settings-card">
                   <p>Update profile info, change password, and notification preferences here.</p>
                   <div style={{ marginTop: 12 }}>
-                    <button className="small-btn" onClick={() => navigate("/settings")}>Open Settings Page</button>
+                    <button className="small-btn pine-btn" onClick={() => navigate("/settings")}>Open Settings Page</button>
                   </div>
                   <hr style={{ margin: "16px 0" }} />
                   <div>
