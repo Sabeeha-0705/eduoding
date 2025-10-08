@@ -1,7 +1,7 @@
 // client/src/pages/Settings.jsx
 import React, { useEffect, useState, useRef } from "react";
 import API from "../api";
-import "./Settings.css"; // add this file (provided below)
+import "./Settings.css"; // ensure this exists
 
 export default function Settings() {
   const [user, setUser] = useState(null);
@@ -18,9 +18,7 @@ export default function Settings() {
   const [avatarPreview, setAvatarPreview] = useState("");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  // toast visibility
   const toastRef = useRef(null);
-  // store previous objectURL so we can revoke it
   const objectUrlRef = useRef(null);
 
   useEffect(() => {
@@ -34,7 +32,8 @@ export default function Settings() {
         setUser(u);
         setUsername(u.username || "");
         setName(u.name || "");
-        setAvatarPreview(u.avatarUrl || "");
+        // prefer avatarUrl (server)
+        setAvatarPreview(u.avatarUrl || u.avatar || "");
       } catch (err) {
         console.error("Load profile error:", err);
         setError(err?.response?.data?.message || "Failed to load profile");
@@ -50,7 +49,6 @@ export default function Settings() {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  // revoke objectURL on unmount
   useEffect(() => {
     return () => {
       if (objectUrlRef.current) {
@@ -82,6 +80,8 @@ export default function Settings() {
       const res = await API.put("/users/profile", { username: trimmedUsername, name: trimmedName });
       const updatedUser = res.data.user || res.data;
       setUser(updatedUser);
+      // notify other parts of app to refresh
+      window.dispatchEvent(new CustomEvent("eduoding:user-updated", { detail: updatedUser }));
       showToast("Profile saved!");
     } catch (err) {
       console.error("Save profile error:", err);
@@ -133,6 +133,8 @@ export default function Settings() {
       const data = res.data || {};
       const updatedUser = data.user || data;
       setUser(updatedUser);
+
+      // prefer server-returned avatarUrl, fallback to preview
       const newAvatar =
         data.avatarUrl ||
         (data.user && data.user.avatarUrl) ||
@@ -145,6 +147,9 @@ export default function Settings() {
         URL.revokeObjectURL(objectUrlRef.current);
         objectUrlRef.current = null;
       }
+
+      // IMPORTANT: notify other components (leaderboard, sidebar) to refresh
+      window.dispatchEvent(new CustomEvent("eduoding:user-updated", { detail: updatedUser }));
 
       showToast("Avatar uploaded!");
     } catch (err) {
@@ -161,7 +166,7 @@ export default function Settings() {
       objectUrlRef.current = null;
     }
     setAvatarFile(null);
-    setAvatarPreview(user?.avatarUrl || "");
+    setAvatarPreview(user?.avatarUrl || user?.avatar || "");
     setError("");
   };
 

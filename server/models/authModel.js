@@ -34,7 +34,11 @@ const userSchema = new mongoose.Schema(
     otpExpires: { type: Date, default: null },
 
     // role for permissions
-    role: { type: String, enum: ["user", "uploader", "admin"], default: "user" },
+    role: {
+      type: String,
+      enum: ["user", "uploader", "admin"],
+      default: "user",
+    },
 
     // did user request uploader?
     requestedUploader: { type: Boolean, default: false },

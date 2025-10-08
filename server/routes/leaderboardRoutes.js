@@ -8,7 +8,8 @@ const router = express.Router();
 // Public leaderboard (no auth required) - top 100 by points
 router.get("/", async (req, res) => {
   try {
-    const users = await User.find({}, "username email points badges role")
+    // include avatarUrl so frontend can render user's uploaded avatar
+    const users = await User.find({}, "username email points badges role avatarUrl")
       .sort({ points: -1 })
       .limit(100)
       .lean();
@@ -22,7 +23,10 @@ router.get("/", async (req, res) => {
 // Optional: personal stats (requires auth)
 router.get("/me", protect, async (req, res) => {
   try {
-    const u = await User.findById(req.user.id, "username email points badges quizHistory certificates role").lean();
+    const u = await User.findById(
+      req.user.id,
+      "username email points badges quizHistory certificates role avatarUrl"
+    ).lean();
     if (!u) return res.status(404).json({ message: "User not found" });
     return res.json(u);
   } catch (err) {

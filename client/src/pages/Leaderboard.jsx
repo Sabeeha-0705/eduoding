@@ -1,5 +1,5 @@
 // client/src/pages/Leaderboard.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import API from "../api";
 import "./Leaderboard.css";
 
@@ -8,28 +8,41 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
+  const fetchLeaderboard = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await API.get("/leaderboard");
+      setUsers(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Leaderboard load failed:", err);
+      setUsers([]);
+      setLoadError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
-    const load = async () => {
-      try {
-        setLoading(true);
-        setLoadError(null);
-        const res = await API.get("/leaderboard");
-        if (!mounted) return;
-        setUsers(Array.isArray(res.data) ? res.data : []);
-      } catch (err) {
-        console.error("Leaderboard load failed:", err);
-        if (mounted) {
-          setUsers([]);
-          setLoadError(err);
-        }
-      } finally {
-        if (mounted) setLoading(false);
-      }
+    (async () => {
+      if (!mounted) return;
+      await fetchLeaderboard();
+    })();
+    return () => {
+      mounted = false;
     };
-    load();
-    return () => (mounted = false);
-  }, []);
+  }, [fetchLeaderboard]);
+
+  // listen for global user-updated event (triggered after avatar upload / profile save)
+  useEffect(() => {
+    const handler = (e) => {
+      // simply refetch leaderboard so updated avatar is shown
+      fetchLeaderboard();
+    };
+    window.addEventListener("eduoding:user-updated", handler);
+    return () => window.removeEventListener("eduoding:user-updated", handler);
+  }, [fetchLeaderboard]);
 
   if (loading)
     return (
@@ -80,8 +93,8 @@ export default function Leaderboard() {
                     >
                       <img
                         src={
-                          u.avatar ||
                           u.avatarUrl ||
+                          u.avatar ||
                           "/assets/default-avatar.png"
                         }
                         alt={u.username || u.email}
@@ -92,6 +105,10 @@ export default function Leaderboard() {
                           objectFit: "cover",
                           border: "1px solid #ddd",
                         }}
+                        onError={(e) => {
+                          // fallback to default avatar if broken url
+                          e.currentTarget.src = "/assets/default-avatar.png";
+                        }}
                       />
                       <span style={{ fontWeight: 600 }}>
                         {u.username || u.email || "Anonymous"}
@@ -101,9 +118,7 @@ export default function Leaderboard() {
                   <td>{Number(u.points || 0)}</td>
                   <td>
                     {Array.isArray(u.badges) && u.badges.length ? (
-                      <span>
-                        🏅 {u.badges.join(", ")}
-                      </span>
+                      <span>🏅 {u.badges.join(", ")}</span>
                     ) : (
                       "—"
                     )}
