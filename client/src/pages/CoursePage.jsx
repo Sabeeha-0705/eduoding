@@ -1,4 +1,4 @@
-// src/pages/CoursePage.jsx
+// client/src/pages/CoursePage.jsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import API from "../api";
@@ -35,20 +35,40 @@ export default function CoursePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // lessons only for this course
-        const res = await API.get(`/lessons?courseId=${id}`);
-        setLessons(res.data || []);
+        // *** IMPORTANT: fetch videos from backend route that actually exists ***
+        // backend exposes: GET /api/courses/:id/videos  (protected)
+        const res = await API.get(`/courses/${id}/videos`);
+        // res.data should be an array of video objects
+        const serverVideos = Array.isArray(res.data) ? res.data : [];
 
-        // course details
+        // Normalise video shape if your backend fields differ a bit
+        const normalized = serverVideos.map((v) => ({
+          _id: v._id || v.id,
+          title: v.title || v.name || v.videoTitle || "Untitled",
+          // backend may use youtubeUrl or fileUrl / videoUrl
+          youtubeUrl: v.youtubeUrl || v.videoUrl || (v.url && (v.url.includes("youtube") ? v.url : undefined)),
+          fileUrl: v.fileUrl || v.videoUrl || (v.url && !v.url.includes("youtube") ? v.url : undefined),
+          sourceType: v.sourceType || (v.youtubeUrl ? "youtube" : "upload"),
+          raw: v,
+        }));
+
+        setLessons(normalized);
+
+        // course details (local fallback list)
         const selected = allCourses.find((c) => c.id === id);
-        setCourse(selected || null);
+        setCourse(selected || { id, title: `Course ${id}`, desc: "" });
 
         // progress for this course
         const progRes = await API.get("/progress");
-        const userProgress = progRes.data.find((p) => p.courseId === id);
+        const userProgressList = Array.isArray(progRes.data) ? progRes.data : [];
+        const userProgress = userProgressList.find((p) => String(p.courseId) === String(id) || String(p.courseId || "").endsWith(String(id)));
         setProgress(Number(userProgress?.completedPercent || 0));
       } catch (err) {
         console.error("Error fetching data:", err);
+        // fallback: empty lessons -> keep showing "No lessons available yet."
+        setLessons([]);
+        const selected = allCourses.find((c) => c.id === id);
+        setCourse(selected || { id, title: `Course ${id}`, desc: "" });
       }
     };
     fetchData();
@@ -95,7 +115,7 @@ export default function CoursePage() {
           <ul>
             {lessons.map((lesson, idx) => (
               <li key={lesson._id}>
-                <div className="lesson-row">
+                <div className="lesson-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>🎬 {idx + 1}. {lesson.title}</span>
 
                   {/* Open dedicated player page */}
@@ -104,13 +124,13 @@ export default function CoursePage() {
                   </Link>
                 </div>
 
-                {/* Optional mini preview (comment out if you don’t want embeds here) */}
-                <div className="lesson-preview">
-                  {lesson.type === "youtube" ? (
+                {/* Optional mini preview (youtube embed or video file) */}
+                <div className="lesson-preview" style={{ marginTop: 8 }}>
+                  {lesson.sourceType === "youtube" || (lesson.youtubeUrl && lesson.youtubeUrl.includes("youtube")) ? (
                     <iframe
                       width="100%"
                       height="250"
-                      src={toEmbed(lesson.videoUrl)}
+                      src={toEmbed(lesson.youtubeUrl || lesson.fileUrl)}
                       title={lesson.title}
                       frameBorder="0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -120,9 +140,9 @@ export default function CoursePage() {
                     <video width="100%" height="250" controls>
                       <source
                         src={
-                          lesson.videoUrl.startsWith("/uploads/")
-                            ? `${API_BASE}${lesson.videoUrl}`
-                            : lesson.videoUrl
+                          lesson.fileUrl && lesson.fileUrl.startsWith("/uploads/")
+                            ? `${API_BASE}${lesson.fileUrl}`
+                            : lesson.fileUrl || lesson.youtubeUrl || ""
                         }
                         type="video/mp4"
                       />
