@@ -320,11 +320,11 @@ export default function Dashboard() {
                 role="button"
                 tabIndex={0}
               >
-                {tab === "Courses" && "📘 "}
-                {tab === "Notes" && "📝 "}
-                {tab === "Progress" && "📊 "}
-                {tab === "Code-Test" && "💻 "}
-                {tab === "Settings" && "⚙ "}
+                {tab === "courses" && "📘 "}
+                {tab === "notes" && "📝 "}
+                {tab === "progress" && "📊 "}
+                {tab === "code-test" && "💻 "}
+                {tab === "settings" && "⚙ "}
                 <span className="item-text">{tab === "code-test" ? "Code Test" : tab}</span>
               </li>
             ))}
