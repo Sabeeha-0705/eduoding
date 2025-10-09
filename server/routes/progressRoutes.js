@@ -1,10 +1,10 @@
 // server/routes/progressRoutes.js
 import express from "express";
 import Progress from "../models/progressModel.js";
-import Lesson from "../models/lessonModel.js"; // may be empty in some installs
+import Lesson from "../models/lessonModel.js"; // may be undefined in some installs
 import Video from "../models/videoModel.js"; // fallback if you store lessons as videos
 import protect from "../middleware/authMiddleware.js";
-import { addPointsAndBadge } from "../utils/rewardSystem.js"; // NEW
+import { addPointsAndBadge } from "../utils/rewardSystem.js"; // optional - guard below
 
 const router = express.Router();
 
@@ -14,7 +14,7 @@ const router = express.Router();
  */
 router.get("/", protect, async (req, res) => {
   try {
-    const list = await Progress.find({ userId: req.user.id }).sort({ updatedAt: -1 });
+    const list = await Progress.find({ userId: req.user._id }).sort({ updatedAt: -1 });
     return res.json(list);
   } catch (err) {
     console.error("GET /progress error:", err);
@@ -29,7 +29,7 @@ router.get("/", protect, async (req, res) => {
 router.get("/:courseId", protect, async (req, res) => {
   try {
     const { courseId } = req.params;
-    let prog = await Progress.findOne({ userId: req.user.id, courseId });
+    let prog = await Progress.findOne({ userId: req.user._id, courseId });
     if (!prog) {
       prog = {
         courseId,
@@ -55,7 +55,7 @@ router.post("/", protect, async (req, res) => {
     if (!courseId) return res.status(400).json({ message: "courseId required" });
 
     const upd = await Progress.findOneAndUpdate(
-      { userId: req.user.id, courseId },
+      { userId: req.user._id, courseId },
       { $set: { completedPercent: Number(completedPercent) || 0 } },
       { upsert: true, new: true }
     );
@@ -79,30 +79,27 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
     if (!lessonId) return res.status(400).json({ message: "lessonId required" });
 
     // find or create progress doc
-    let prog = await Progress.findOne({ userId: req.user.id, courseId });
+    let prog = await Progress.findOne({ userId: req.user._id, courseId });
     if (!prog) {
       prog = await Progress.create({
-        userId: req.user.id,
+        userId: req.user._id,
         courseId,
         completedLessonIds: [],
         completedPercent: 0,
       });
     }
 
-    // prepare before/after counts for reward logic
+    // before/after sets
     const beforeSet = new Set((prog.completedLessonIds || []).map((id) => String(id)));
     const beforeCount = beforeSet.size;
 
-    // update set of completed IDs
     if (completed) beforeSet.add(String(lessonId));
     else beforeSet.delete(String(lessonId));
+
     const updatedCompleted = Array.from(beforeSet);
     const afterCount = updatedCompleted.length;
 
     // determine total lessons:
-    // 1) try real Lesson model count
-    // 2) if not present/0, try Video model
-    // 3) fallback to req.body.totalLessons or 0
     let totalLessons = 0;
     try {
       if (Lesson && typeof Lesson.countDocuments === "function") {
@@ -135,31 +132,30 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
     prog.completedPercent = completedPercent;
     await prog.save();
 
-    // Reward logic:
-    // - If user newly completed a lesson (afterCount > beforeCount and 'completed' true) => +10 points
-    // - If user reached 100% (completedPercent === 100) and previously <100 => +50 pts + badge
+    // Reward logic: optional and non-fatal
     try {
-      if (completed && afterCount > beforeCount) {
-        await addPointsAndBadge(req.user.id, 10, null);
-      }
-
-      const previouslyPercent = totalLessons > 0 ? Math.round((beforeCount / totalLessons) * 100) : 0;
-      if (completedPercent === 100 && previouslyPercent < 100) {
-        await addPointsAndBadge(req.user.id, 50, "🏆 Course Master");
+      if (typeof addPointsAndBadge === "function") {
+        if (completed && afterCount > beforeCount) {
+          await addPointsAndBadge(req.user._id, 10, null);
+        }
+        const previouslyPercent = totalLessons > 0 ? Math.round((beforeCount / totalLessons) * 100) : 0;
+        if (completedPercent === 100 && previouslyPercent < 100) {
+          await addPointsAndBadge(req.user._id, 50, "🏆 Course Master");
+        }
       }
     } catch (rewardErr) {
       console.warn("Rewards update failed (non-fatal):", rewardErr);
     }
 
     console.log(
-      `Progress update: user=${req.user.id} course=${courseId} ${updatedCompleted.length}/${totalLessons} -> ${completedPercent}%`
+      `Progress update: user=${String(req.user._id)} course=${courseId} ${updatedCompleted.length}/${totalLessons} -> ${completedPercent}%`
     );
 
-    // Cleanup: delete progress if nothing completed
+    // Cleanup: delete progress if empty (optional)
     if (updatedCompleted.length === 0) {
       try {
-        await Progress.deleteOne({ userId: req.user.id, courseId });
-        console.log(`🧹 Deleted empty progress record for course ${courseId}`);
+        await Progress.deleteOne({ userId: req.user._id, courseId });
+        console.log(`Deleted empty progress record for course ${courseId}`);
         return res.json({
           courseId,
           completedLessonIds: [],
@@ -175,7 +171,7 @@ router.post("/:courseId/lesson", protect, async (req, res) => {
       }
     }
 
-    // Normal response when there are completed lessons
+    // Normal response
     return res.json({
       courseId,
       completedLessonIds: updatedCompleted,

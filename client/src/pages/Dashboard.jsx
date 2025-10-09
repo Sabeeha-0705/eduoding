@@ -1,4 +1,3 @@
-// client/src/pages/Dashboard.jsx
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../api";
@@ -6,9 +5,9 @@ import "./Dashboard.css";
 
 /*
   Dashboard.jsx - improved and small fixes
-  - Reuses BroadcastChannel instance (avoid creating new channel on every refresh)
-  - Safer mountedRef checks to avoid setState after unmount
-  - Keeps behavior same but more robust and a few comments
+  - Uses cache-busting for progress requests (ts + no-store) to avoid 304 / cached responses
+  - Reuses BroadcastChannel instance
+  - Safer mountedRef checks
 */
 
 export default function Dashboard() {
@@ -77,6 +76,26 @@ export default function Dashboard() {
     }
   }, [navigate]);
 
+  // refreshProgress: centralized so it can be reused by events/buttons
+  const refreshProgress = useCallback(async () => {
+    try {
+      setRefreshingProgress(true);
+      // cache-busting: timestamp param + no-store header
+      const progRes = await API.get(`/progress?ts=${Date.now()}`, {
+        headers: { "Cache-Control": "no-store" },
+      });
+      const list = progRes.data || [];
+      if (mountedRef.current) {
+        setProgressData(list);
+        setProgressMap(normalizeProgressList(list));
+      }
+    } catch (err) {
+      console.warn("Refresh progress failed:", err);
+    } finally {
+      if (mountedRef.current) setRefreshingProgress(false);
+    }
+  }, []);
+
   // Full initial fetch: user, notes, courses, progress
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -128,9 +147,11 @@ export default function Dashboard() {
         setCourses(null);
       }
 
-      // progress
+      // progress (use cache-busting to avoid stale 304)
       try {
-        const progRes = await API.get("/progress");
+        const progRes = await API.get(`/progress?ts=${Date.now()}`, {
+          headers: { "Cache-Control": "no-store" },
+        });
         if (!mountedRef.current) return;
         const list = progRes.data || [];
         setProgressData(list);
@@ -164,6 +185,7 @@ export default function Dashboard() {
         bcRef.current.onmessage = (m) => {
           try {
             if (m?.data?.type === "eduoding:progress-updated") {
+              // refreshProgress uses cache-bust internally
               refreshProgress();
               fetchUser();
             }
@@ -206,7 +228,7 @@ export default function Dashboard() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchAll, fetchUser]); // fetchAll already memoized
+  }, [fetchAll, fetchUser, refreshProgress]); // include refreshProgress
 
   const logout = () => {
     localStorage.removeItem("authToken");
@@ -249,23 +271,6 @@ export default function Dashboard() {
     if (digitKey) return Math.round(Number(progressMap[digitKey].completedPercent) || 0);
 
     return 0;
-  };
-
-  // refreshProgress used everywhere (button, events)
-  const refreshProgress = async () => {
-    try {
-      setRefreshingProgress(true);
-      const progRes = await API.get("/progress");
-      const list = progRes.data || [];
-      if (mountedRef.current) {
-        setProgressData(list);
-        setProgressMap(normalizeProgressList(list));
-      }
-    } catch (err) {
-      console.warn("Refresh progress failed:", err);
-    } finally {
-      if (mountedRef.current) setRefreshingProgress(false);
-    }
   };
 
   const fallbackCourses = [
