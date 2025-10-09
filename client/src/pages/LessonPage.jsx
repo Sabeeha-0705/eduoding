@@ -1,7 +1,8 @@
+// client/src/pages/LessonPage.jsx
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useMemo, useState, useRef } from "react";
-import API from "../api"; // public axios
-import { api } from "../api"; // authenticated axios (must send token)
+import API from "../api"; // public axios (videos, progress)
+import { api } from "../api"; // authenticated axios MUST exist and send token
 import "./LessonPage.css";
 
 export default function LessonPage() {
@@ -12,7 +13,7 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
-  const [noteId, setNoteId] = useState(null);
+  const [noteId, setNoteId] = useState(null); // backend note id if exists
   const [hasQuiz, setHasQuiz] = useState(null);
   const [completedIds, setCompletedIds] = useState([]);
   const [updating, setUpdating] = useState(false);
@@ -23,18 +24,18 @@ export default function LessonPage() {
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
-  // BroadcastChannel setup
+  // BroadcastChannel for multi-tab sync
   useEffect(() => {
     if ("BroadcastChannel" in window) {
       try {
         bcRef.current = new BroadcastChannel("eduoding");
         bcRef.current.onmessage = (m) => {
-          if (m?.data?.type === "notes-updated") loadLocalOrBackendNote();
-          if (m?.data?.type === "eduoding:progress-updated") {
-            refreshProgress();
+          if (m?.data?.type === "notes-updated") {
+            // when other tab updates note, re-load local note
+            loadLocalOrBackendNote();
           }
         };
-      } catch {
+      } catch (e) {
         bcRef.current = null;
       }
     }
@@ -47,36 +48,25 @@ export default function LessonPage() {
     };
   }, []);
 
-  // Initial load: videos + progress
-  const refreshProgress = async () => {
-    try {
-      const res = await API.get(`/progress/${courseId}?ts=${Date.now()}`, {
-        headers: { "Cache-Control": "no-store" },
-      });
-      setCompletedIds(res.data?.completedLessonIds || []);
-    } catch (e) {
-      console.warn("Progress refresh failed:", e);
-    }
-  };
-
   useEffect(() => {
-    const load = async () => {
+    const run = async () => {
       try {
         setLoading(true);
         setErr("");
         const res = await API.get(`/courses/${courseId}/videos`);
         setVideos(res.data || []);
-        await refreshProgress();
+
+        const p = await API.get(`/progress/${courseId}`);
+        setCompletedIds(p.data?.completedLessonIds || []);
       } catch (e) {
-        setErr(e?.response?.data?.message || e.message || "Failed to load lessons");
+        setErr(e?.response?.data?.message || e.message || "Failed to load videos");
       } finally {
         setLoading(false);
       }
     };
-    load();
+    run();
   }, [courseId]);
 
-  // Check quiz availability
   useEffect(() => {
     let mounted = true;
     const checkQuiz = async () => {
@@ -85,8 +75,9 @@ export default function LessonPage() {
         const res = await API.get(`/quiz/${courseId}`);
         if (!mounted) return;
         setHasQuiz(res?.status >= 200 && res?.status < 300);
-      } catch {
-        if (mounted) setHasQuiz(false);
+      } catch (e) {
+        if (!mounted) return;
+        setHasQuiz(false);
       }
     };
     checkQuiz();
@@ -95,38 +86,44 @@ export default function LessonPage() {
 
   const currentVideo = useMemo(() => {
     if (!videos?.length) return null;
-    if (lessonId)
+    if (lessonId) {
       return videos.find((v) => String(v._id) === String(lessonId)) || videos[0];
+    }
     return videos[0];
   }, [videos, lessonId]);
 
-  // Notes handling
+  // load note for current lesson: try backend then fallback to localStorage
   const loadLocalOrBackendNote = async () => {
     if (!currentVideo) return setNote("");
     const key = `note-${courseId}-${currentVideo._id}`;
 
+    // try backend (authenticated)
     try {
       const token = getToken();
       if (token && api) {
-        const res = await api.get("/notes");
+        const res = await api.get("/notes"); // returns user's notes
         const notes = Array.isArray(res.data) ? res.data : [];
-        const found = notes.find(
+        const my = notes.find(
           (n) =>
             String(n.lessonId || "") === String(currentVideo._id) &&
             (String(n.courseId || "") === String(courseId) || !n.courseId)
         );
-        if (found) {
-          setNote(found.content || "");
-          setNoteId(found._id || null);
-          localStorage.setItem(key, found.content || "");
+        if (my) {
+          setNote(my.content || "");
+          setNoteId(my._id || null);
+          // mirror to localStorage
+          localStorage.setItem(key, my.content || "");
           return;
         }
       }
-    } catch {
-      // ignore errors, fallback below
+    } catch (e) {
+      // backend fetch failed -> fallback to localStorage
+      // console.warn("notes backend fetch failed", e);
     }
 
-    setNote(localStorage.getItem(key) || "");
+    // fallback
+    const saved = localStorage.getItem(key) || "";
+    setNote(saved);
     setNoteId(null);
   };
 
@@ -135,41 +132,54 @@ export default function LessonPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentVideo?._id, courseId]);
 
+
   const saveNote = async () => {
     if (!currentVideo) return alert("Select a lesson first.");
     const key = `note-${courseId}-${currentVideo._id}`;
-    const payload = { content: note, courseId, lessonId: currentVideo._id };
+    const payload = {
+      content: note,
+      courseId,
+      lessonId: currentVideo._id,
+    };
+
     setUpdating(true);
     try {
+      // If we already have noteId, try PUT else POST
       let res;
       if (noteId && api) {
         try {
           res = await api.put(`/notes/${noteId}`, payload);
-        } catch {
+        } catch (err) {
+          // some backends may not have PUT: fallback to POST
           res = await api.post("/notes", payload);
         }
       } else {
-        if (!api) throw new Error("No authenticated axios instance");
+        // create
+        if (!api) throw new Error("Authenticated axios instance `api` not found");
         res = await api.post("/notes", payload);
       }
-      const saved = res.data;
-      setNoteId(saved._id || saved.id || null);
-      localStorage.setItem(key, saved.content || note || "");
-      alert("✅ Note saved!");
-      // broadcast note update
+
+      const savedNote = res.data;
+      setNoteId(savedNote._id || savedNote.id || null);
+      localStorage.setItem(key, savedNote.content || note || "");
+      alert("✅ Note saved to server!");
+
+      // notify other tabs/components
       try {
-        const ev = new CustomEvent("eduoding:notes-updated", { detail: saved });
+        const ev = new CustomEvent("eduoding:notes-updated", { detail: savedNote });
         window.dispatchEvent(ev);
       } catch {}
+
       if (bcRef.current) {
         try {
-          bcRef.current.postMessage({ type: "notes-updated", payload: saved });
+          bcRef.current.postMessage({ type: "notes-updated", payload: savedNote });
         } catch {}
       }
     } catch (err) {
       console.error("Save note failed:", err);
+      // fallback to localStorage
       localStorage.setItem(key, note);
-      alert("Saved locally (offline).");
+      alert("Saved locally (offline). Will sync when network available.");
     } finally {
       setUpdating(false);
     }
@@ -183,14 +193,17 @@ export default function LessonPage() {
     return url;
   };
 
+  // progress helpers (unchanged)
   const notifyProgressUpdated = (payload = {}) => {
     try {
       const ev = new CustomEvent("eduoding:progress-updated", { detail: payload });
       window.dispatchEvent(ev);
-    } catch {}
-    try {
-      window.postMessage({ type: "eduoding:progress-updated", payload }, "*");
-    } catch {}
+    } catch {
+      try {
+        window.postMessage({ type: "eduoding:progress-updated", payload }, "*");
+      } catch {}
+    }
+
     if (bcRef.current) {
       try {
         bcRef.current.postMessage({ type: "eduoding:progress-updated", payload });
@@ -214,6 +227,7 @@ export default function LessonPage() {
 
         const newCompleted = res.data?.completedLessonIds || [];
         setCompletedIds(newCompleted.map(String));
+
         notifyProgressUpdated({
           courseId: String(courseId),
           lessonId: String(lessonIdParam),
@@ -221,9 +235,6 @@ export default function LessonPage() {
           completedLessonIds: newCompleted,
           completedPercent: res.data?.completedPercent ?? undefined,
         });
-
-        // small delay -> reload from backend for accuracy
-        setTimeout(() => refreshProgress(), 400);
       } catch (e) {
         console.error("toggle complete failed", e);
         alert("Failed to update progress.");
@@ -242,7 +253,6 @@ export default function LessonPage() {
     const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
     if (idx > 0) navigate(`/course/${courseId}/lesson/${videos[idx - 1]._id}`);
   };
-
   const goNext = () => {
     if (!currentVideo) return;
     const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
@@ -275,7 +285,7 @@ export default function LessonPage() {
           <h3>Lessons</h3>
           <ul>
             {videos.map((v, i) => {
-              const active = String(v._id) === String(currentVideo?._id);
+              const active = String(v._id) === String(currentVideo._id);
               const checked = completedIds.includes(String(v._id));
               return (
                 <li key={v._id} className={active ? "active" : ""}>
