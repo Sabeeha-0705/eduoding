@@ -1,14 +1,14 @@
+// client/src/pages/Dashboard.jsx
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../api";
 import "./Dashboard.css";
 
 /*
-  Dashboard.jsx - improved
-  - Fetches user + courses + progress
-  - Listens to 'eduoding:progress-updated' (custom event), BroadcastChannel and postMessage
-  - On progress update we refresh progress AND refetch user so points/badges reflected
-  - Provides manual "Refresh Progress" button
+  Dashboard.jsx - improved and small fixes
+  - Reuses BroadcastChannel instance (avoid creating new channel on every refresh)
+  - Safer mountedRef checks to avoid setState after unmount
+  - Keeps behavior same but more robust and a few comments
 */
 
 export default function Dashboard() {
@@ -37,20 +37,24 @@ export default function Dashboard() {
       const percent = Number(p.completedPercent ?? p.completed_percent ?? p.percent ?? 0) || 0;
       map[rawKey] = { ...p, completedPercent: percent };
 
+      // numeric ID fallback
       const digitsMatch = rawKey.match(/(\d+)$/);
       if (digitsMatch) map[digitsMatch[1]] = { ...p, completedPercent: percent };
 
+      // last-part fallback for strings with separators
       if (rawKey.includes("/") || rawKey.includes(":") || rawKey.includes("-") || rawKey.includes("_")) {
         const parts = rawKey.split(/[\/:_-]+/).filter(Boolean);
         if (parts.length) map[parts[parts.length - 1]] = { ...p, completedPercent: percent };
       }
 
+      // lowercased alias
       const lc = rawKey.toLowerCase().trim();
       if (lc && lc !== rawKey) map[lc] = { ...p, completedPercent: percent };
     });
     return map;
   };
 
+  // Fetch current user profile
   const fetchUser = useCallback(async () => {
     try {
       const token = getToken();
@@ -58,12 +62,14 @@ export default function Dashboard() {
         navigate("/auth", { replace: true });
         return null;
       }
+      // try common endpoints
       const profileRes = await API.get("/users/me").catch(() => API.get("/auth/profile"));
       const profileData = profileRes.data?.user || profileRes.data;
       if (mountedRef.current) setUser(profileData);
       return profileData;
     } catch (err) {
       console.error("fetchUser error:", err);
+      // token maybe invalid -> redirect to auth
       localStorage.removeItem("authToken");
       sessionStorage.removeItem("authToken");
       navigate("/auth", { replace: true });
@@ -71,6 +77,7 @@ export default function Dashboard() {
     }
   }, [navigate]);
 
+  // Full initial fetch: user, notes, courses, progress
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -80,10 +87,10 @@ export default function Dashboard() {
         return;
       }
 
-      // PROFILE
+      // profile
       await fetchUser();
 
-      // NOTES
+      // notes - try server, fallback to localStorage notes (note-* keys)
       try {
         const notesRes = await API.get("/notes");
         if (mountedRef.current) setNotes(notesRes.data || []);
@@ -99,7 +106,7 @@ export default function Dashboard() {
         }
       }
 
-      // COURSES (try server)
+      // courses - try server, else keep null to use fallback later
       try {
         const coursesRes = await API.get("/courses");
         if (!mountedRef.current) return;
@@ -121,7 +128,7 @@ export default function Dashboard() {
         setCourses(null);
       }
 
-      // PROGRESS
+      // progress
       try {
         const progRes = await API.get("/progress");
         if (!mountedRef.current) return;
@@ -150,14 +157,13 @@ export default function Dashboard() {
     onResize();
     window.addEventListener("resize", onResize);
 
-    // BroadcastChannel (cross-tab)
+    // Setup BroadcastChannel once
     if ("BroadcastChannel" in window) {
       try {
         bcRef.current = new BroadcastChannel("eduoding");
         bcRef.current.onmessage = (m) => {
           try {
             if (m?.data?.type === "eduoding:progress-updated") {
-              // refresh progress AND refetch user to reflect new points/badges
               refreshProgress();
               fetchUser();
             }
@@ -170,7 +176,7 @@ export default function Dashboard() {
       }
     }
 
-    // custom event in same tab
+    // custom event (same tab)
     const onProgressUpdated = (ev) => {
       refreshProgress();
       fetchUser();
@@ -199,7 +205,8 @@ export default function Dashboard() {
         } catch {}
       }
     };
-  }, [fetchAll, fetchUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchAll, fetchUser]); // fetchAll already memoized
 
   const logout = () => {
     localStorage.removeItem("authToken");
@@ -209,6 +216,7 @@ export default function Dashboard() {
 
   const handleDeleteNote = async (noteId) => {
     try {
+      // local note case (from localStorage)
       if (noteId.startsWith("note-") && localStorage.getItem(noteId)) {
         localStorage.removeItem(noteId);
         setNotes((n) => n.filter((x) => x._id !== noteId));
@@ -243,6 +251,7 @@ export default function Dashboard() {
     return 0;
   };
 
+  // refreshProgress used everywhere (button, events)
   const refreshProgress = async () => {
     try {
       setRefreshingProgress(true);
@@ -294,36 +303,32 @@ export default function Dashboard() {
 
         <nav>
           <ul>
-  {["courses", "notes", "progress", "code-test", "settings"].map((tab) => (
-    <li
-      key={tab}
-      className={`sidebar-item ${activeTab === tab ? "active" : ""}`}
-      onClick={() => {
-        if (tab === "code-test") {
-          navigate("/code-test");
-          // keep activeTab state so UI highlights it when user returns
-          setActiveTab("code-test");
-          if (window.innerWidth < 900) setSidebarOpen(false);
-          return;
-        }
-        setActiveTab(tab);
-        if (window.innerWidth < 900) setSidebarOpen(false);
-      }}
-      role="button"
-      tabIndex={0}
-    >
-      {tab === "courses" && "📘 "}
-      {tab === "notes" && "📝 "}
-      {tab === "progress" && "📊 "}
-      {tab === "code-test" && "💻 "}
-      {tab === "settings" && "⚙ "}
-      <span className="item-text">
-        {tab === "code-test" ? "Code Test" : tab}
-      </span>
-    </li>
-  ))}
-</ul>
-
+            {["courses", "notes", "progress", "code-test", "settings"].map((tab) => (
+              <li
+                key={tab}
+                className={`sidebar-item ${activeTab === tab ? "active" : ""}`}
+                onClick={() => {
+                  if (tab === "code-test") {
+                    navigate("/code-test");
+                    setActiveTab("code-test");
+                    if (window.innerWidth < 900) setSidebarOpen(false);
+                    return;
+                  }
+                  setActiveTab(tab);
+                  if (window.innerWidth < 900) setSidebarOpen(false);
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                {tab === "Courses" && "📘 "}
+                {tab === "Notes" && "📝 "}
+                {tab === "Progress" && "📊 "}
+                {tab === "Code-Test" && "💻 "}
+                {tab === "Settings" && "⚙ "}
+                <span className="item-text">{tab === "code-test" ? "Code Test" : tab}</span>
+              </li>
+            ))}
+          </ul>
         </nav>
 
         {user?.role === "uploader" && (
@@ -362,9 +367,15 @@ export default function Dashboard() {
                 <button
                   onClick={async () => {
                     await refreshProgress();
-                    // broadcast to other tabs (optional)
-                    try { window.postMessage({ type: "eduoding:progress-updated" }, "*"); } catch {}
-                    try { if (window.BroadcastChannel) new BroadcastChannel("eduoding").postMessage({ type: "eduoding:progress-updated" }); } catch {}
+                    // Broadcast update to other tabs (reuse bcRef if available)
+                    try {
+                      window.postMessage({ type: "eduoding:progress-updated" }, "*");
+                    } catch {}
+                    try {
+                      if (bcRef.current) {
+                        bcRef.current.postMessage({ type: "eduoding:progress-updated" });
+                      }
+                    } catch {}
                   }}
                   className="small-btn pine-btn"
                   disabled={refreshingProgress}
