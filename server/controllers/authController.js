@@ -32,7 +32,7 @@ function sendOtpInBackground(email, otp, subject = "Eduoding OTP Verification") 
 
 // -------------------------------
 // Register
-export const registerUser = async (req, res) => {
+const registerUser = async (req, res) => {
   try {
     const { username, email: rawEmail, password, requestedUploader } = req.body;
     const email = (rawEmail || "").toLowerCase().trim();
@@ -108,7 +108,7 @@ export const registerUser = async (req, res) => {
 
 // -------------------------------
 // Verify OTP
-export const verifyOTP = async (req, res) => {
+const verifyOTP = async (req, res) => {
   try {
     const email = (req.body.email || "").toLowerCase().trim();
     const otp = (req.body.otp || "").toString().trim();
@@ -147,7 +147,7 @@ export const verifyOTP = async (req, res) => {
 
 // -------------------------------
 // Login
-export const loginUser = async (req, res) => {
+const loginUser = async (req, res) => {
   try {
     const { email: rawEmail, password } = req.body;
     const email = (rawEmail || "").toLowerCase().trim();
@@ -174,7 +174,7 @@ export const loginUser = async (req, res) => {
 
 // -------------------------------
 // Forgot Password
-export const forgotPassword = async (req, res) => {
+const forgotPassword = async (req, res) => {
   try {
     const { email: rawEmail } = req.body;
     const email = (rawEmail || "").toLowerCase().trim();
@@ -204,7 +204,7 @@ export const forgotPassword = async (req, res) => {
 
 // -------------------------------
 // Reset Password
-export const resetPassword = async (req, res) => {
+const resetPassword = async (req, res) => {
   try {
     const { email: rawEmail, otp, newPassword } = req.body;
     const email = (rawEmail || "").toLowerCase().trim();
@@ -249,7 +249,7 @@ export const resetPassword = async (req, res) => {
 
 // -------------------------------
 // Google Login
-export const googleLogin = async (req, res) => {
+const googleLogin = async (req, res) => {
   try {
     const { token } = req.body;
     if (!token) return res.status(400).json({ message: "Token required" });
@@ -294,9 +294,9 @@ export const googleLogin = async (req, res) => {
 
 // -------------------------------
 // Update Profile
-// - Prefer using `protect` middleware so req.user is present.
-// - If req.user is not present, fallback to verifying Authorization Bearer token.
-export const updateProfile = async (req, res) => {
+// Prefer using `protect` middleware so req.user is present.
+// If req.user is not present, fallback to verifying Authorization Bearer token.
+const updateProfile = async (req, res) => {
   try {
     let userId = req.user?.id || req.user?._id || null;
 
@@ -350,7 +350,7 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// Named exports (remove default export to avoid confusion)
+// Named exports only (no default)
 export {
   registerUser,
   verifyOTP,

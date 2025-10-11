@@ -24,14 +24,45 @@ router.post("/reset-password", resetPassword);
 
 // 🔹 Profile Routes (Protected)
 router.get("/profile", protect, (req, res) => {
-  res.json({ user: req.user });
+  try {
+    const safeUser = { ...req.user.toObject() };
+    delete safeUser.password;
+    delete safeUser.otp;
+    delete safeUser.otpExpires;
+    res.json({ user: safeUser });
+  } catch (err) {
+    console.error("Profile fetch error:", err);
+    res.status(500).json({ message: "Error fetching profile" });
+  }
 });
 
-// ✅ Allow users to update name, username, theme, etc.
+// ✅ Update name, username, theme, etc.
 router.patch("/profile", protect, updateProfile);
 
 // 🔹 Avatar Upload (Protected)
-const upload = multer({ dest: "server/uploads/" });
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "server/uploads/");
+  },
+  filename: function (req, file, cb) {
+    // Prevent collisions by adding timestamp
+    const uniqueName = `${Date.now()}-${file.originalname}`;
+    cb(null, uniqueName);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files allowed"), false);
+    }
+    cb(null, true);
+  },
+});
+
+// 🔹 Upload Avatar
 router.post("/avatar", protect, upload.single("avatar"), async (req, res) => {
   try {
     if (!req.file) {
@@ -39,14 +70,18 @@ router.post("/avatar", protect, upload.single("avatar"), async (req, res) => {
     }
 
     const fileUrl = `/uploads/${req.file.filename}`;
-    // Optionally, save avatar path to user
     req.user.avatar = fileUrl;
     await req.user.save();
+
+    const safeUser = req.user.toObject();
+    delete safeUser.password;
+    delete safeUser.otp;
+    delete safeUser.otpExpires;
 
     res.json({
       message: "Avatar uploaded successfully",
       avatarUrl: fileUrl,
-      user: req.user,
+      user: safeUser,
     });
   } catch (err) {
     console.error("Avatar upload error:", err);
