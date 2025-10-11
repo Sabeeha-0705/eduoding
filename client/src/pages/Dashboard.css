@@ -87,7 +87,7 @@ nav ul { list-style: none; margin-top: 10px; }
 .small-btn.pine-btn,
 .tiny-btn.pine-btn {
   background: var(--pine-green-grad);
-  color: #fff;
+  color: #ef4ba3;
   border: none;
   border-radius: var(--btn-radius);
   padding: 8px 14px;
