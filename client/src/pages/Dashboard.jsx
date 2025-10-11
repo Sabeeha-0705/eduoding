@@ -4,13 +4,6 @@ import { useNavigate } from "react-router-dom";
 import API from "../api";
 import "./Dashboard.css";
 
-/*
-  Dashboard.jsx - improved and small fixes
-  - Reuses BroadcastChannel instance (avoid creating new channel on every refresh)
-  - Safer mountedRef checks to avoid setState after unmount
-  - Shows lastRefreshedAt timestamp and disables refresh button while running
-*/
-
 export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState("courses");
@@ -21,7 +14,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
-  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
 
   const navigate = useNavigate();
   const bcRef = useRef(null);
@@ -42,20 +34,19 @@ export default function Dashboard() {
       const digitsMatch = rawKey.match(/(\d+)$/);
       if (digitsMatch) map[digitsMatch[1]] = { ...p, completedPercent: percent };
 
-      // last-part fallback for strings with separators
+      // last-part fallback
       if (rawKey.includes("/") || rawKey.includes(":") || rawKey.includes("-") || rawKey.includes("_")) {
         const parts = rawKey.split(/[\/:_-]+/).filter(Boolean);
         if (parts.length) map[parts[parts.length - 1]] = { ...p, completedPercent: percent };
       }
 
-      // lowercased alias
       const lc = rawKey.toLowerCase().trim();
       if (lc && lc !== rawKey) map[lc] = { ...p, completedPercent: percent };
     });
     return map;
   };
 
-  // Fetch current user profile
+  // Fetch current user
   const fetchUser = useCallback(async () => {
     try {
       const token = getToken();
@@ -63,14 +54,12 @@ export default function Dashboard() {
         navigate("/auth", { replace: true });
         return null;
       }
-      // try common endpoints
       const profileRes = await API.get("/users/me").catch(() => API.get("/auth/profile"));
       const profileData = profileRes.data?.user || profileRes.data;
       if (mountedRef.current) setUser(profileData);
       return profileData;
     } catch (err) {
       console.error("fetchUser error:", err);
-      // token maybe invalid -> redirect to auth
       localStorage.removeItem("authToken");
       sessionStorage.removeItem("authToken");
       navigate("/auth", { replace: true });
@@ -78,7 +67,7 @@ export default function Dashboard() {
     }
   }, [navigate]);
 
-  // Full initial fetch: user, notes, courses, progress
+  // Initial fetch
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -88,10 +77,9 @@ export default function Dashboard() {
         return;
       }
 
-      // profile
       await fetchUser();
 
-      // notes - try server, fallback to localStorage notes (note-* keys)
+      // Notes
       try {
         const notesRes = await API.get("/notes");
         if (mountedRef.current) setNotes(notesRes.data || []);
@@ -107,7 +95,7 @@ export default function Dashboard() {
         }
       }
 
-      // courses - try server, else keep null to use fallback later
+      // Courses
       try {
         const coursesRes = await API.get("/courses");
         if (!mountedRef.current) return;
@@ -129,14 +117,13 @@ export default function Dashboard() {
         setCourses(null);
       }
 
-      // progress
+      // Progress
       try {
         const progRes = await API.get("/progress");
         if (!mountedRef.current) return;
         const list = progRes.data || [];
         setProgressData(list);
         setProgressMap(normalizeProgressList(list));
-        setLastRefreshedAt(new Date().toISOString());
       } catch (err) {
         console.warn("Progress fetch failed:", err);
         if (mountedRef.current) {
@@ -159,57 +146,35 @@ export default function Dashboard() {
     onResize();
     window.addEventListener("resize", onResize);
 
-    // Setup BroadcastChannel once
     if ("BroadcastChannel" in window) {
       try {
         bcRef.current = new BroadcastChannel("eduoding");
         bcRef.current.onmessage = (m) => {
-          try {
-            if (m?.data?.type === "eduoding:progress-updated") {
-              // don't broadcast again from here (we're a receiver)
-              refreshProgress({ broadcast: false });
-              fetchUser();
-            }
-          } catch (e) {
-            /* ignore */
+          if (m?.data?.type === "eduoding:progress-updated") {
+            refreshProgress({ broadcast: false });
+            fetchUser();
           }
         };
-      } catch (e) {
+      } catch {
         bcRef.current = null;
       }
     }
 
-    // custom event (same tab)
-    const onProgressUpdated = (ev) => {
-      refreshProgress({ broadcast: false });
-      fetchUser();
-    };
-    window.addEventListener("eduoding:progress-updated", onProgressUpdated);
-
-    // postMessage fallback
     const onPostMsg = (msg) => {
-      try {
-        if (msg?.data?.type === "eduoding:progress-updated") {
-          refreshProgress({ broadcast: false });
-          fetchUser();
-        }
-      } catch {}
+      if (msg?.data?.type === "eduoding:progress-updated") {
+        refreshProgress({ broadcast: false });
+        fetchUser();
+      }
     };
     window.addEventListener("message", onPostMsg);
 
     return () => {
       mountedRef.current = false;
       window.removeEventListener("resize", onResize);
-      window.removeEventListener("eduoding:progress-updated", onProgressUpdated);
       window.removeEventListener("message", onPostMsg);
-      if (bcRef.current) {
-        try {
-          bcRef.current.close();
-        } catch {}
-      }
+      if (bcRef.current) bcRef.current.close();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchAll, fetchUser]); // fetchAll already memoized
+  }, [fetchAll, fetchUser]);
 
   const logout = () => {
     localStorage.removeItem("authToken");
@@ -219,7 +184,6 @@ export default function Dashboard() {
 
   const handleDeleteNote = async (noteId) => {
     try {
-      // local note case (from localStorage)
       if (noteId.startsWith("note-") && localStorage.getItem(noteId)) {
         localStorage.removeItem(noteId);
         setNotes((n) => n.filter((x) => x._id !== noteId));
@@ -228,7 +192,6 @@ export default function Dashboard() {
       await API.delete(`/notes/${noteId}`);
       setNotes((n) => n.filter((x) => x._id !== noteId));
     } catch (err) {
-      console.error("Delete note failed:", err?.message || err);
       alert("Failed to delete note");
     }
   };
@@ -241,21 +204,12 @@ export default function Dashboard() {
     const keys = Object.keys(progressMap);
     const ends = keys.find((k) => k.endsWith(cid));
     if (ends) return Math.round(Number(progressMap[ends].completedPercent) || 0);
-
     const inc = keys.find((k) => k.includes(cid));
     if (inc) return Math.round(Number(progressMap[inc].completedPercent) || 0);
-
-    const digitKey = keys.find((k) => {
-      const m = k.match(/(\d+)$/);
-      return m && m[1] === cid;
-    });
-    if (digitKey) return Math.round(Number(progressMap[digitKey].completedPercent) || 0);
-
     return 0;
   };
 
-  // refreshProgress used everywhere (button, events)
-  // accepts opts.broadcast: whether this call should broadcast to other tabs
+  // ✅ Fixed refreshProgress (no blank, no flicker)
   const refreshProgress = async (opts = { broadcast: true }) => {
     if (refreshingProgress) return;
     try {
@@ -263,20 +217,14 @@ export default function Dashboard() {
       const progRes = await API.get("/progress");
       const list = progRes.data || [];
       if (mountedRef.current) {
-        setProgressData(list);
-        setProgressMap(normalizeProgressList(list));
-        setLastRefreshedAt(new Date().toISOString());
+        setProgressData((prev) => (list.length ? list : prev));
+        setProgressMap((prev) => (list.length ? normalizeProgressList(list) : prev));
       }
 
-      // Broadcast update to other tabs so they can refresh (only when requested)
       if (opts.broadcast) {
         try {
-          window.postMessage({ type: "eduoding:progress-updated", ts: Date.now() }, "*");
-        } catch {}
-        try {
-          if (bcRef.current) {
-            bcRef.current.postMessage({ type: "eduoding:progress-updated", ts: Date.now() });
-          }
+          window.postMessage({ type: "eduoding:progress-updated" }, "*");
+          bcRef.current?.postMessage({ type: "eduoding:progress-updated" });
         } catch {}
       }
     } catch (err) {
@@ -309,16 +257,12 @@ export default function Dashboard() {
   return (
     <div className="dashboard-container">
       <header className="mobile-header">
-        <button aria-label="Toggle navigation" className="hamburger" onClick={() => setSidebarOpen((s) => !s)}>☰</button>
+        <button className="hamburger" onClick={() => setSidebarOpen((s) => !s)}>☰</button>
         <div className="mobile-title">Eduoding</div>
-        <div className="mobile-actions">
-          <button className="tiny-btn pine-btn" onClick={() => navigate("/settings")}>⚙</button>
-        </div>
       </header>
 
       <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}>
         <div className="logo">Eduoding</div>
-
         <nav>
           <ul>
             {["courses", "notes", "progress", "code-test", "settings"].map((tab) => (
@@ -335,44 +279,27 @@ export default function Dashboard() {
                   setActiveTab(tab);
                   if (window.innerWidth < 900) setSidebarOpen(false);
                 }}
-                role="button"
-                tabIndex={0}
               >
                 {tab === "courses" && "📘 "}
                 {tab === "notes" && "📝 "}
                 {tab === "progress" && "📊 "}
                 {tab === "code-test" && "💻 "}
                 {tab === "settings" && "⚙ "}
-                <span className="item-text">{tab === "code-test" ? "Code Test" : tab}</span>
+                <span>{tab === "code-test" ? "Code Test" : tab}</span>
               </li>
             ))}
           </ul>
         </nav>
 
-        {user?.role === "uploader" && (
-          <div className="sidebar-quick">
-            <button onClick={() => navigate("/uploader/upload")} className="uploader-btn">➕ Upload Video</button>
-            <button onClick={() => navigate("/uploader/dashboard")} className="uploader-btn outline">📁 My Uploads</button>
-          </div>
-        )}
-
-        {user?.role === "admin" && (
-          <button onClick={() => navigate("/admin/requests")} className="admin-btn">Admin Panel</button>
-        )}
-
         <div style={{ marginTop: "auto", padding: 12 }}>
-          <div className="role-badge">Role: <strong>{user?.role || "user"}</strong></div>
-
-          <div style={{ marginTop: 10 }}>
-            <div><strong>Points:</strong> {user?.points ?? 0}</div>
-            <div style={{ marginTop: 6 }}>
-              <strong>Badges:</strong> {(user?.badges && user.badges.length) ? user.badges.join(", ") : "—"}
-            </div>
+          <div><strong>Role:</strong> {user?.role || "user"}</div>
+          <div style={{ marginTop: 8 }}>
+            <strong>Points:</strong> {user?.points ?? 0}
           </div>
-
-          <div style={{ marginTop: 10 }}>
-            <button className="logout-btn" onClick={logout}>Logout</button>
+          <div style={{ marginTop: 8 }}>
+            <strong>Badges:</strong> {(user?.badges && user.badges.length) ? user.badges.join(", ") : "—"}
           </div>
+          <button className="logout-btn" onClick={logout}>Logout</button>
         </div>
       </aside>
 
@@ -381,32 +308,21 @@ export default function Dashboard() {
           <div className="page-inner">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2>Welcome, {user?.username || user?.email}</h2>
-              <div className="header-actions" style={{ display: "flex", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center" }}>
-                  <button
-                    onClick={async () => {
-                      await refreshProgress({ broadcast: true });
-                    }}
-                    className="small-btn pine-btn"
-                    disabled={refreshingProgress}
-                  >
-                    {refreshingProgress ? "Refreshing…" : "Refresh Progress"}
-                  </button>
-
-                  <button
-                    style={{ marginLeft: 8 }}
-                    className="small-btn pine-btn"
-                    onClick={() => navigate("/leaderboard")}
-                  >
-                    Leaderboard
-                  </button>
-                </div>
-
-                {lastRefreshedAt && (
-                  <div style={{ marginLeft: 12, color: "#666", fontSize: 13 }}>
-                    Last: {new Date(lastRefreshedAt).toLocaleTimeString()}
-                  </div>
-                )}
+              <div>
+                <button
+                  onClick={() => refreshProgress({ broadcast: true })}
+                  className="small-btn pine-btn"
+                  disabled={refreshingProgress}
+                >
+                  {refreshingProgress ? "Refreshing…" : "Refresh Progress"}
+                </button>
+                <button
+                  style={{ marginLeft: 8 }}
+                  className="small-btn pine-btn"
+                  onClick={() => navigate("/leaderboard")}
+                >
+                  Leaderboard
+                </button>
               </div>
             </div>
 
@@ -420,7 +336,7 @@ export default function Dashboard() {
                       <div key={course.id} className="course-card">
                         <h3>{course.title}</h3>
                         <p>{course.desc}</p>
-                        <div className="progress-bar" aria-label={`Progress for ${course.title}`}>
+                        <div className="progress-bar">
                           <div className="progress" style={{ width: `${progress}%` }} />
                         </div>
                         <p className="progress-text">{progress}% Completed</p>
@@ -432,72 +348,6 @@ export default function Dashboard() {
                   })}
                 </div>
               </>
-            )}
-
-            {activeTab === "notes" && (
-              <>
-                <h3>📝 Your Notes</h3>
-                {notes.length > 0 ? (
-                  <ul className="notes-list">
-                    {notes.map((note) => (
-                      <li key={note._id}>
-                        <div>
-                          <p>{note.content || note.text}</p>
-                          <small>{note.createdAt ? new Date(note.createdAt).toLocaleString() : note._id}</small>
-                        </div>
-                        <div>
-                          <button className="small-btn" onClick={() => handleDeleteNote(note._id)}>Delete</button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="empty-card">
-                    <p>No notes yet — take notes while watching lessons.</p>
-                    <button onClick={() => setActiveTab("courses")}>Go to Courses</button>
-                  </div>
-                )}
-              </>
-            )}
-
-            {activeTab === "progress" && (
-              <div>
-                <h3>📊 Progress</h3>
-                {progressData.length === 0 ? (
-                  <div className="empty-card">
-                    <p>No progress tracked yet. Join a course and complete lessons to see progress.</p>
-                    <button className="join-btn" onClick={() => setActiveTab("courses")}>Browse Courses</button>
-                  </div>
-                ) : (
-                  <ul>
-                    {progressData.map((p) => (
-                      <li key={p._id || `${p.courseId}`}>
-                        Course: {String(p.courseId)} — {Math.round(Number(p.completedPercent) || 0)}% completed
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {activeTab === "settings" && (
-              <div>
-                <h3>⚙ Settings</h3>
-                <div className="settings-card">
-                  <p>Update profile info, change password, and notification preferences here.</p>
-                  <div style={{ marginTop: 12 }}>
-                    <button className="small-btn pine-btn" onClick={() => navigate("/settings")}>Open Settings Page</button>
-                  </div>
-                  <hr style={{ margin: "16px 0" }} />
-                  <div>
-                    <h4>Account</h4>
-                    <p>Email: <strong>{user?.email}</strong></p>
-                    <p>Role: <strong>{user?.role || "user"}</strong></p>
-                    <p>Points: <strong>{user?.points ?? 0}</strong></p>
-                    <p>Badges: <strong>{(user?.badges && user.badges.length) ? user.badges.join(", ") : "—"}</strong></p>
-                  </div>
-                </div>
-              </div>
             )}
           </div>
         ) : (
