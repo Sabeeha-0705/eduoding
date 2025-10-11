@@ -18,15 +18,29 @@ export default function ResetPassword() {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // resend OTP logic
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownSeconds = 30;
+
   const otpRef = useRef(null);
 
   useEffect(() => {
-    // If email was prefilled, focus OTP input for faster flow
+    // Auto focus OTP input if email exists
     if (initialEmail && otpRef.current) {
       otpRef.current.focus();
     }
   }, [initialEmail]);
 
+  // Decrease cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((t) => (t > 0 ? t - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  // Validate password strength
   const validatePassword = (pw) => {
     if (!pw || pw.length < 8) return "Password must be at least 8 characters";
     if (!/[A-Z]/.test(pw)) return "Password must include an uppercase letter";
@@ -36,52 +50,72 @@ export default function ResetPassword() {
     return null;
   };
 
+  // Handle reset password form
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMsg("");
 
-    if (!email.trim()) {
-      setMsg("Please provide your email");
-      return;
-    }
-    if (!otp.trim()) {
-      setMsg("Please enter the OTP sent to your email");
-      return;
-    }
+    if (!email.trim()) return setMsg("Please provide your email");
+    if (!otp.trim()) return setMsg("Please enter the OTP sent to your email");
     const pwdErr = validatePassword(newPassword);
-    if (pwdErr) {
-      setMsg(pwdErr);
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setMsg("Password and Confirm Password do not match");
-      return;
-    }
+    if (pwdErr) return setMsg(pwdErr);
+    if (newPassword !== confirmPassword)
+      return setMsg("Password and Confirm Password do not match");
 
     setLoading(true);
     try {
-      // Matches server: { email, otp, newPassword }
       const res = await api.post("/auth/reset-password", {
         email: email.trim().toLowerCase(),
         otp: otp.trim(),
         newPassword,
       });
 
-      const backendMsg = res?.data?.message || "Password reset successful";
+      const backendMsg = res?.data?.message || "✅ Password reset successful!";
       setMsg(backendMsg);
 
+      // optional dev OTP view
       if (res?.data?.otp) {
-        setMsg((prev) => `${prev}\n\n⚠️ Dev OTP: ${res.data.otp}`);
+        alert("⚠️ Dev OTP: " + res.data.otp);
       }
 
-      // Redirect to login after short delay
-      setTimeout(() => navigate("/auth"), 1200);
+      // redirect to login
+      setTimeout(() => navigate("/auth"), 1500);
     } catch (err) {
-      const emsg = err?.response?.data?.message || err?.message || "Error resetting password";
+      const emsg =
+        err?.response?.data?.message || err?.message || "Error resetting password";
       setMsg(emsg);
       console.error("reset-password error:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Resend OTP function
+  const handleResendOtp = async () => {
+    const cleaned = (email || "").trim().toLowerCase();
+    if (!cleaned) return setMsg("Enter your email to resend OTP");
+
+    if (resendCooldown > 0)
+      return setMsg(`Please wait ${resendCooldown}s before requesting again.`);
+
+    setResendCooldown(cooldownSeconds);
+    setMsg("Sending new OTP...");
+
+    try {
+      const res = await api.post("/auth/forgot-password", { email: cleaned });
+      const backendMessage =
+        res?.data?.message || "A new OTP has been sent to your email.";
+      setMsg(backendMessage);
+
+      if (res?.data?.otp) {
+        alert("⚠️ Dev OTP: " + res.data.otp);
+        console.info("DEV OTP:", res.data.otp);
+      }
+    } catch (err) {
+      const emsg =
+        err?.response?.data?.message || err?.message || "Error sending OTP";
+      setMsg(emsg);
+      setResendCooldown(0); // allow retry
     }
   };
 
@@ -90,6 +124,7 @@ export default function ResetPassword() {
       <div className="auth-card">
         <h2>Reset Password</h2>
         <form onSubmit={handleSubmit}>
+          {/* Email */}
           <input
             type="email"
             placeholder="Email"
@@ -100,18 +135,38 @@ export default function ResetPassword() {
             aria-label="Email"
           />
 
-          <input
-            ref={otpRef}
-            type="text"
-            placeholder="Enter OTP"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            required
-            autoComplete="one-time-code"
-            aria-label="OTP"
-          />
+          {/* OTP + Resend */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              ref={otpRef}
+              type="text"
+              placeholder="Enter OTP"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              required
+              autoComplete="one-time-code"
+              aria-label="OTP"
+              style={{ flex: 1 }}
+            />
+            <button
+              type="button"
+              onClick={handleResendOtp}
+              disabled={resendCooldown > 0}
+              style={{
+                background: resendCooldown > 0 ? "#bbb" : "#6c63ff",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                padding: "8px 12px",
+                cursor: resendCooldown > 0 ? "not-allowed" : "pointer",
+              }}
+            >
+              {resendCooldown > 0 ? `Resend (${resendCooldown}s)` : "Resend OTP"}
+            </button>
+          </div>
 
-          <div style={{ position: "relative" }}>
+          {/* Password */}
+          <div style={{ position: "relative", marginTop: 10 }}>
             <input
               type={showPassword ? "text" : "password"}
               placeholder="New Password"
@@ -122,25 +177,22 @@ export default function ResetPassword() {
               autoComplete="new-password"
               aria-label="New password"
             />
-            <button
-              type="button"
+            <span
               onClick={() => setShowPassword((s) => !s)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
               style={{
                 position: "absolute",
-                right: "6px",
+                right: "10px",
                 top: "50%",
                 transform: "translateY(-50%)",
-                background: "transparent",
-                border: "none",
                 cursor: "pointer",
-                fontSize: 14,
+                fontSize: "14px",
               }}
             >
               {showPassword ? "🙈" : "👁️"}
-            </button>
+            </span>
           </div>
 
+          {/* Confirm Password */}
           <input
             type={showPassword ? "text" : "password"}
             placeholder="Confirm Password"
@@ -152,7 +204,7 @@ export default function ResetPassword() {
             aria-label="Confirm password"
           />
 
-          <p style={{ fontSize: "12px", color: "#666", marginTop: "5px" }}>
+          <p style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
             Password must have 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special
             character.
           </p>
