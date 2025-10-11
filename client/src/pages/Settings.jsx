@@ -1,6 +1,7 @@
+// client/src/pages/Settings.jsx
 import React, { useEffect, useState, useRef } from "react";
 import API from "../api";
-import "./Settings.css"; // ensure this exists
+import "./Settings.css";
 
 export default function Settings() {
   const [user, setUser] = useState(null);
@@ -12,7 +13,6 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // avatar states
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -20,18 +20,18 @@ export default function Settings() {
   const toastRef = useRef(null);
   const objectUrlRef = useRef(null);
 
+  // 🔹 Load profile
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
       try {
-        const res = await API.get("/users/me");
+        const res = await API.get("/auth/profile");
         if (!mounted) return;
-        const u = res.data;
+        const u = res.data.user || res.data;
         setUser(u);
         setUsername(u.username || "");
         setName(u.name || "");
-        // prefer avatarUrl (server)
         setAvatarPreview(u.avatarUrl || u.avatar || "");
       } catch (err) {
         console.error("Load profile error:", err);
@@ -43,16 +43,16 @@ export default function Settings() {
     return () => (mounted = false);
   }, []);
 
+  // 🔹 Apply theme locally
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
-
-    // notify other parts of app that theme changed
     try {
       window.dispatchEvent(new CustomEvent("eduoding:theme-changed", { detail: { theme } }));
     } catch {}
   }, [theme]);
 
+  // 🔹 Cleanup object URL when unmounted
   useEffect(() => {
     return () => {
       if (objectUrlRef.current) {
@@ -62,29 +62,34 @@ export default function Settings() {
     };
   }, []);
 
+  // 🔹 Toast helper
   const showToast = (text, type = "info", ms = 2500) => {
     setMsg(text);
-    if (toastRef.current) {
-      clearTimeout(toastRef.current);
-    }
+    if (toastRef.current) clearTimeout(toastRef.current);
     toastRef.current = setTimeout(() => setMsg(""), ms);
   };
 
+  // 🔹 Save profile (name & username)
   const saveProfile = async (e) => {
     e.preventDefault();
     setError("");
-    const trimmedUsername = (username || "").trim();
-    const trimmedName = (name || "").trim();
+    const trimmedUsername = username.trim();
+    const trimmedName = name.trim();
+
     if (trimmedUsername.length < 3) {
       setError("Username must be at least 3 characters.");
       return;
     }
+
     setSaving(true);
     try {
-      const res = await API.put("/users/profile", { username: trimmedUsername, name: trimmedName });
+      const res = await API.patch("/auth/profile", {
+        username: trimmedUsername,
+        name: trimmedName,
+        theme,
+      });
       const updatedUser = res.data.user || res.data;
       setUser(updatedUser);
-      // notify other parts of app to refresh
       window.dispatchEvent(new CustomEvent("eduoding:user-updated", { detail: updatedUser }));
       showToast("Profile saved!");
     } catch (err) {
@@ -95,6 +100,7 @@ export default function Settings() {
     }
   };
 
+  // 🔹 Avatar change
   const handleAvatarChange = (e) => {
     setError("");
     const f = e.target.files?.[0];
@@ -110,16 +116,14 @@ export default function Settings() {
       return;
     }
 
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     const url = URL.createObjectURL(f);
     objectUrlRef.current = url;
     setAvatarFile(f);
     setAvatarPreview(url);
   };
 
+  // 🔹 Upload avatar
   const uploadAvatar = async () => {
     if (!avatarFile) {
       setError("Select an image first.");
@@ -130,7 +134,7 @@ export default function Settings() {
     try {
       const fd = new FormData();
       fd.append("avatar", avatarFile);
-      const res = await API.post("/users/avatar", fd, {
+      const res = await API.post("/auth/avatar", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -138,7 +142,6 @@ export default function Settings() {
       const updatedUser = data.user || data;
       setUser(updatedUser);
 
-      // prefer server-returned avatarUrl, fallback to preview
       const newAvatar =
         data.avatarUrl ||
         (data.user && data.user.avatarUrl) ||
@@ -152,9 +155,7 @@ export default function Settings() {
         objectUrlRef.current = null;
       }
 
-      // IMPORTANT: notify other components (leaderboard, sidebar) to refresh
       window.dispatchEvent(new CustomEvent("eduoding:user-updated", { detail: updatedUser }));
-
       showToast("Avatar uploaded!");
     } catch (err) {
       console.error("Avatar upload failed:", err);
@@ -187,6 +188,7 @@ export default function Settings() {
           <p>Loading profile…</p>
         ) : (
           <>
+            {/* 🔹 Avatar */}
             <section className="settings-section">
               <h3>Avatar</h3>
               <div className="avatar-row">
@@ -212,7 +214,6 @@ export default function Settings() {
                     >
                       {uploadingAvatar ? "Uploading…" : "Upload Avatar"}
                     </button>
-
                     <button className="btn" onClick={handleCancelAvatar} disabled={uploadingAvatar}>
                       Cancel
                     </button>
@@ -222,6 +223,7 @@ export default function Settings() {
               </div>
             </section>
 
+            {/* 🔹 Theme */}
             <section className="settings-section">
               <h3>Theme</h3>
               <div className="theme-row">
@@ -240,6 +242,7 @@ export default function Settings() {
               </div>
             </section>
 
+            {/* 🔹 Profile */}
             <section className="settings-section">
               <h3>Profile</h3>
               <form onSubmit={saveProfile} className="profile-form">
@@ -290,7 +293,7 @@ export default function Settings() {
         )}
       </div>
 
-      {/* floating toast */}
+      {/* 🔹 Floating toast */}
       {msg && <div className="floating-toast">{msg}</div>}
     </div>
   );
