@@ -8,7 +8,7 @@ import "./Dashboard.css";
   Dashboard.jsx - improved and small fixes
   - Reuses BroadcastChannel instance (avoid creating new channel on every refresh)
   - Safer mountedRef checks to avoid setState after unmount
-  - Keeps behavior same but more robust and a few comments
+  - Shows lastRefreshedAt timestamp and disables refresh button while running
 */
 
 export default function Dashboard() {
@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
 
   const navigate = useNavigate();
   const bcRef = useRef(null);
@@ -135,6 +136,7 @@ export default function Dashboard() {
         const list = progRes.data || [];
         setProgressData(list);
         setProgressMap(normalizeProgressList(list));
+        setLastRefreshedAt(new Date().toISOString());
       } catch (err) {
         console.warn("Progress fetch failed:", err);
         if (mountedRef.current) {
@@ -164,7 +166,8 @@ export default function Dashboard() {
         bcRef.current.onmessage = (m) => {
           try {
             if (m?.data?.type === "eduoding:progress-updated") {
-              refreshProgress();
+              // don't broadcast again from here (we're a receiver)
+              refreshProgress({ broadcast: false });
               fetchUser();
             }
           } catch (e) {
@@ -178,7 +181,7 @@ export default function Dashboard() {
 
     // custom event (same tab)
     const onProgressUpdated = (ev) => {
-      refreshProgress();
+      refreshProgress({ broadcast: false });
       fetchUser();
     };
     window.addEventListener("eduoding:progress-updated", onProgressUpdated);
@@ -187,7 +190,7 @@ export default function Dashboard() {
     const onPostMsg = (msg) => {
       try {
         if (msg?.data?.type === "eduoding:progress-updated") {
-          refreshProgress();
+          refreshProgress({ broadcast: false });
           fetchUser();
         }
       } catch {}
@@ -252,7 +255,9 @@ export default function Dashboard() {
   };
 
   // refreshProgress used everywhere (button, events)
-  const refreshProgress = async () => {
+  // accepts opts.broadcast: whether this call should broadcast to other tabs
+  const refreshProgress = async (opts = { broadcast: true }) => {
+    if (refreshingProgress) return;
     try {
       setRefreshingProgress(true);
       const progRes = await API.get("/progress");
@@ -260,6 +265,19 @@ export default function Dashboard() {
       if (mountedRef.current) {
         setProgressData(list);
         setProgressMap(normalizeProgressList(list));
+        setLastRefreshedAt(new Date().toISOString());
+      }
+
+      // Broadcast update to other tabs so they can refresh (only when requested)
+      if (opts.broadcast) {
+        try {
+          window.postMessage({ type: "eduoding:progress-updated", ts: Date.now() }, "*");
+        } catch {}
+        try {
+          if (bcRef.current) {
+            bcRef.current.postMessage({ type: "eduoding:progress-updated", ts: Date.now() });
+          }
+        } catch {}
       }
     } catch (err) {
       console.warn("Refresh progress failed:", err);
@@ -363,33 +381,32 @@ export default function Dashboard() {
           <div className="page-inner">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2>Welcome, {user?.username || user?.email}</h2>
-              <div className="header-actions">
-                <button
-                  onClick={async () => {
-                    await refreshProgress();
-                    // Broadcast update to other tabs (reuse bcRef if available)
-                    try {
-                      window.postMessage({ type: "eduoding:progress-updated" }, "*");
-                    } catch {}
-                    try {
-                      if (bcRef.current) {
-                        bcRef.current.postMessage({ type: "eduoding:progress-updated" });
-                      }
-                    } catch {}
-                  }}
-                  className="small-btn pine-btn"
-                  disabled={refreshingProgress}
-                >
-                  {refreshingProgress ? "Refreshing…" : "Refresh Progress"}
-                </button>
+              <div className="header-actions" style={{ display: "flex", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <button
+                    onClick={async () => {
+                      await refreshProgress({ broadcast: true });
+                    }}
+                    className="small-btn pine-btn"
+                    disabled={refreshingProgress}
+                  >
+                    {refreshingProgress ? "Refreshing…" : "Refresh Progress"}
+                  </button>
 
-                <button
-                  style={{ marginLeft: 8 }}
-                  className="small-btn pine-btn"
-                  onClick={() => navigate("/leaderboard")}
-                >
-                  Leaderboard
-                </button>
+                  <button
+                    style={{ marginLeft: 8 }}
+                    className="small-btn pine-btn"
+                    onClick={() => navigate("/leaderboard")}
+                  >
+                    Leaderboard
+                  </button>
+                </div>
+
+                {lastRefreshedAt && (
+                  <div style={{ marginLeft: 12, color: "#666", fontSize: 13 }}>
+                    Last: {new Date(lastRefreshedAt).toLocaleTimeString()}
+                  </div>
+                )}
               </div>
             </div>
 
