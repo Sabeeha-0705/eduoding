@@ -35,17 +35,13 @@ export default function CoursePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // *** IMPORTANT: fetch videos from backend route that actually exists ***
-        // backend exposes: GET /api/courses/:id/videos  (protected)
+        // fetch videos from backend route
         const res = await API.get(`/courses/${id}/videos`);
-        // res.data should be an array of video objects
         const serverVideos = Array.isArray(res.data) ? res.data : [];
 
-        // Normalise video shape if your backend fields differ a bit
         const normalized = serverVideos.map((v) => ({
           _id: v._id || v.id,
           title: v.title || v.name || v.videoTitle || "Untitled",
-          // backend may use youtubeUrl or fileUrl / videoUrl
           youtubeUrl: v.youtubeUrl || v.videoUrl || (v.url && (v.url.includes("youtube") ? v.url : undefined)),
           fileUrl: v.fileUrl || v.videoUrl || (v.url && !v.url.includes("youtube") ? v.url : undefined),
           sourceType: v.sourceType || (v.youtubeUrl ? "youtube" : "upload"),
@@ -61,11 +57,13 @@ export default function CoursePage() {
         // progress for this course
         const progRes = await API.get("/progress");
         const userProgressList = Array.isArray(progRes.data) ? progRes.data : [];
-        const userProgress = userProgressList.find((p) => String(p.courseId) === String(id) || String(p.courseId || "").endsWith(String(id)));
+        const userProgress = userProgressList.find((p) =>
+          String(p.courseId) === String(id) ||
+          String(p.courseId || "").endsWith(String(id))
+        );
         setProgress(Number(userProgress?.completedPercent || 0));
       } catch (err) {
         console.error("Error fetching data:", err);
-        // fallback: empty lessons -> keep showing "No lessons available yet."
         setLessons([]);
         const selected = allCourses.find((c) => c.id === id);
         setCourse(selected || { id, title: `Course ${id}`, desc: "" });
@@ -74,8 +72,10 @@ export default function CoursePage() {
     fetchData();
   }, [id]);
 
+  // kept for future (if you want an editable slider again)
   const handleProgressChange = async (e) => {
     const newValue = Number(e.target.value);
+    // NOTE: Not used now because slider is disabled/readOnly.
     setProgress(newValue);
     try {
       await API.post("/progress", { courseId: id, completedPercent: newValue });
@@ -95,15 +95,22 @@ export default function CoursePage() {
       <h1>{course.title}</h1>
       <p>{course.desc}</p>
 
-      {/* Progress Control */}
+      {/* Progress Control (read-only) */}
       <div className="progress-control">
         <label>Progress: {progress}%</label>
+
+        {/* Make slider disabled/readOnly so user cannot drag it manually.
+            It still updates from server via setProgress(...) above. */}
         <input
           type="range"
           min="0"
           max="100"
           value={progress}
-          onChange={handleProgressChange}
+          readOnly
+          disabled
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress}
         />
       </div>
 
