@@ -4,9 +4,7 @@ import { api } from "../api";
 import { useNavigate } from "react-router-dom";
 import "./Auth.css";
 
-const EMAIL_RE =
-  // simple email validation, good enough for client-side check
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -16,7 +14,6 @@ export default function ForgotPassword() {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    // autofocus for accessibility
     if (inputRef.current) inputRef.current.focus();
   }, []);
 
@@ -39,27 +36,24 @@ export default function ForgotPassword() {
     try {
       const res = await api.post("/auth/forgot-password", { email: cleaned });
 
-      // backend message (friendly)
       const backendMessage = res.data?.message;
-      let devOtp = res.data?.otp; // server may return otp in dev mode
+      const devOtp = res.data?.otp; // server may return otp in dev mode
 
-      // Show message to user
       setMsg(backendMessage || "✅ Reset OTP sent to your email (if delivery succeeds).");
 
-      // If backend returned OTP (dev mode), show it below for convenience
       if (devOtp) {
-        setMsg((prev) =>
-          `${prev}\n\n⚠️ Dev OTP: ${devOtp} (email delivery may be disabled in dev)`
-        );
+        // helpful for local dev/testing only
+        setMsg((prev) => `${prev}\n\n⚠️ Dev OTP: ${devOtp}`);
+        console.info("DEV OTP:", devOtp);
       }
 
       // Navigate to Reset page and pass email in state so ResetPassword can pre-fill
       navigate("/reset-password", { state: { email: cleaned } });
     } catch (err) {
-      // Prefer server message, fallback to generic
       const errorMessage =
         err?.response?.data?.message || err?.message || "Error sending reset OTP";
       setMsg(errorMessage);
+      console.error("forgot-password error:", err);
     } finally {
       setSending(false);
     }

@@ -13,6 +13,7 @@ export default function ResetPassword() {
   const [email, setEmail] = useState(initialEmail);
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,6 +53,10 @@ export default function ResetPassword() {
       setMsg(pwdErr);
       return;
     }
+    if (newPassword !== confirmPassword) {
+      setMsg("Password and Confirm Password do not match");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -62,11 +67,9 @@ export default function ResetPassword() {
         newPassword,
       });
 
-      // Show backend message (or fallback)
       const backendMsg = res?.data?.message || "Password reset successful";
       setMsg(backendMsg);
 
-      // If server returns otp (dev mode), show it (helpful for local dev)
       if (res?.data?.otp) {
         setMsg((prev) => `${prev}\n\n⚠️ Dev OTP: ${res.data.otp}`);
       }
@@ -76,6 +79,7 @@ export default function ResetPassword() {
     } catch (err) {
       const emsg = err?.response?.data?.message || err?.message || "Error resetting password";
       setMsg(emsg);
+      console.error("reset-password error:", err);
     } finally {
       setLoading(false);
     }
@@ -136,6 +140,17 @@ export default function ResetPassword() {
               {showPassword ? "🙈" : "👁️"}
             </button>
           </div>
+
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            style={{ marginTop: 8, width: "100%" }}
+            autoComplete="new-password"
+            aria-label="Confirm password"
+          />
 
           <p style={{ fontSize: "12px", color: "#666", marginTop: "5px" }}>
             Password must have 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special
