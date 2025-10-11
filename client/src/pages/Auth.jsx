@@ -1,12 +1,11 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { GoogleLogin } from "@react-oauth/google";
-// use default import (safer / matches api.js default export)
 import API from "../api";
 import bg from "../assets/bg.png";
 import "./Auth.css";
 import { useNavigate } from "react-router-dom";
 
-/* Small client-side JWT payload decoder (base64url -> JSON). UI-only. */
+/* Small client-side JWT payload decoder (UI-only) */
 const decodeJwt = (token) => {
   try {
     const payload = token.split(".")[1];
@@ -38,6 +37,14 @@ function AuthPage() {
   const [requestedUploader, setRequestedUploader] = useState(false);
 
   const navigate = useNavigate();
+  const otpInputRef = useRef(null);
+
+  useEffect(() => {
+    // autofocus OTP input when otpStep true
+    if (otpStep && otpInputRef.current) {
+      otpInputRef.current.focus();
+    }
+  }, [otpStep]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -72,26 +79,36 @@ function AuthPage() {
         setOtpStep(true);
         setEmail(payload.email);
 
-        // 💡 Dev fallback: server can send { otp } if email send failed
+        // Dev fallback: server may return otp when email not delivered
         if (res.data.otp) {
           alert("⚠️ Dev OTP (since email failed): " + res.data.otp);
         }
       }
     } catch (err) {
-      // API now throws Error(msg) from interceptor, but backend body preserved on err.response
       setMsg(err.response?.data?.message || err.message || "Error");
     }
   };
 
+  // --- FIXED: handleForgot now triggers OTP step and sets email ---
   const handleForgot = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
+    const em = (data.email || "").toLowerCase().trim();
+    if (!em) return setMsg("Enter an email");
+
     try {
-      const res = await API.post("/auth/forgot-password", {
-        email: data.email.toLowerCase().trim(),
-      });
+      const res = await API.post("/auth/forgot-password", { email: em });
       setMsg(res.data.message || "Reset OTP sent to email!");
+      // show OTP input so user can enter OTP from mail
+      setEmail(em);
+      setOtpStep(true);
       setForgotMode(false);
+
+      // Dev fallback: if server returned otp in body (for dev), show it
+      if (res.data?.otp) {
+        // only for dev — remove in production
+        alert("Dev OTP (email fallback): " + res.data.otp);
+      }
     } catch (err) {
       setMsg(err.response?.data?.message || err.message || "Error in forgot password");
     }
@@ -105,9 +122,10 @@ function AuthPage() {
         email,
         otp: data.otp,
       });
-      setMsg(res.data.message);
-      setOtpStep(false);
-      setIsLogin(true);
+      setMsg(res.data.message || "OTP verified — you can now set a new password.");
+      // After verify, navigate to reset-password route OR show inline reset UI.
+      // Simple approach: navigate to a reset-password page with state
+      navigate("/reset-password", { state: { email } });
     } catch (err) {
       setMsg(err.response?.data?.message || err.message || "OTP verification failed");
     }
@@ -161,7 +179,7 @@ function AuthPage() {
             <form onSubmit={handleForgot}>
               <input type="email" name="email" placeholder="Enter your email" required />
               <button type="submit" className="btn-primary">
-                Send Reset Link
+                Send Reset OTP
               </button>
               <button
                 type="button"
@@ -173,10 +191,30 @@ function AuthPage() {
             </form>
           ) : otpStep ? (
             <form onSubmit={handleOtpVerify}>
-              <input type="text" name="otp" placeholder="Enter OTP" required />
-              <button type="submit" className="btn-primary">
-                Verify OTP
-              </button>
+              <input
+                ref={otpInputRef}
+                type="text"
+                name="otp"
+                placeholder="Enter OTP"
+                required
+                autoComplete="one-time-code"
+              />
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button type="submit" className="btn-primary">
+                  Verify OTP
+                </button>
+                <button
+                  type="button"
+                  className="switch-btn"
+                  onClick={() => {
+                    // allow user to go back to login/signup
+                    setOtpStep(false);
+                    setMsg("");
+                  }}
+                >
+                  Back
+                </button>
+              </div>
             </form>
           ) : (
             <>
@@ -306,7 +344,10 @@ function AuthPage() {
               {isLogin && (
                 <p
                   className="forgot-password"
-                  onClick={() => setForgotMode(true)}
+                  onClick={() => {
+                    setForgotMode(true);
+                    setMsg("");
+                  }}
                 >
                   Forgot Password?
                 </p>

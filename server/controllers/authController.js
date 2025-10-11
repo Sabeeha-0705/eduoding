@@ -1,4 +1,3 @@
-// server/controllers/authController.js
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/authModel.js";
 import jwt from "jsonwebtoken";
@@ -8,28 +7,26 @@ import { sendOTP } from "../utils/sendEmail.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const generateToken = (user) => {
-  return jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, {
+// Helper: Generate JWT
+const generateToken = (user) =>
+  jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, {
     expiresIn: "1h",
   });
-};
-// password strength regex (frontend should use same)
+
+// Password strength rule
 const PW_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
 
-// helper: send OTP in background (fire-and-forget)
-function sendOtpInBackground(email, otp, subject) {
-  // don't await — just fire-and-log
+// Helper: Send OTP async
+function sendOtpInBackground(email, otp, subject = "Eduoding OTP Verification") {
   sendOTP(email, otp, subject)
-    .then((r) => {
-      console.log(`✅ OTP email sent to ${email}`, r && r.info ? r.info : r);
-    })
-    .catch((err) => {
-      console.error(`❌ OTP email failed to ${email}:`, err && err.message ? err.message : err);
-    });
+    .then(() => console.log(`✅ OTP email sent to ${email}`))
+    .catch((err) =>
+      console.error(`❌ OTP email failed to ${email}:`, err.message || err)
+    );
 }
 
 // -------------------------------
-// inside authController.js - registerUser (modified to avoid awaiting sendOTP)
+// Register
 export const registerUser = async (req, res) => {
   try {
     const { username, email: rawEmail, password, requestedUploader } = req.body;
@@ -46,33 +43,22 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // check existing
     let existing = await User.findOne({ email });
     if (existing) {
-      // if existing but not verified - allow resend OTP instead of blocking
       if (!existing.isVerified) {
-        // generate new otp & update
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpExpires = Date.now() + 5 * 60 * 1000;
         existing.otp = otp;
-        existing.otpExpires = otpExpires;
+        existing.otpExpires = Date.now() + 5 * 60 * 1000;
         await existing.save();
-
-        // fire-and-forget send
         sendOtpInBackground(email, otp);
-
-        // If in dev and you want the OTP in response, enable env SHOW_OTP_IN_RESPONSE="true"
         if (process.env.SHOW_OTP_IN_RESPONSE === "true") {
           return res.json({ message: "OTP resent (dev).", otp });
         }
         return res.json({ message: "OTP resent. Please verify." });
       }
-
-      // if already verified, reject signup as duplicate
       return res.status(409).json({ message: "User already exists" });
     }
 
-    // create new user
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -92,44 +78,42 @@ export const registerUser = async (req, res) => {
     });
 
     await user.save();
-
-    // send OTP in background (do not block response)
     sendOtpInBackground(email, otp);
 
-    // optionally notify admins (fire-and-forget)
     if (user.requestedUploader) {
       notifyAdminsAboutUploaderRequest(user).catch((e) =>
-        console.error("notifyAdmins error:", e && e.message ? e.message : e)
+        console.error("notifyAdmins error:", e.message || e)
       );
     }
 
-    // For dev, optionally include OTP in response
     if (process.env.SHOW_OTP_IN_RESPONSE === "true") {
       return res.status(201).json({ message: "User created. OTP will be sent.", otp });
     }
 
     res.status(201).json({ message: "User created. OTP will be sent to your email." });
   } catch (err) {
-    console.error("registerUser error:", err && err.message ? err.message : err);
+    console.error("registerUser error:", err.message || err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
 // -------------------------------
-// OTP Verification - FIXED
+// Verify OTP
 export const verifyOTP = async (req, res) => {
   try {
     const email = (req.body.email || "").toLowerCase().trim();
-    const otp = (req.body.otp || "").toString().trim();   // <-- important: read otp
-    if (!email || !otp) {
-      return res.status(400).json({ message: "email and otp required" });
-    }
+    const otp = (req.body.otp || "").toString().trim();
+
+    if (!email || !otp) return res.status(400).json({ message: "email and otp required" });
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    // compare strings and check expiry
-    if (!user.otp || user.otp.toString() !== otp || (user.otpExpires && user.otpExpires < Date.now())) {
+    if (
+      !user.otp ||
+      user.otp.toString() !== otp.toString() ||
+      (user.otpExpires && user.otpExpires < Date.now())
+    ) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
@@ -141,7 +125,7 @@ export const verifyOTP = async (req, res) => {
     const token = generateToken(user);
     res.json({ message: "Email verified successfully!", token, user });
   } catch (err) {
-    console.error("verifyOTP error:", err && err.message ? err.message : err);
+    console.error("verifyOTP error:", err.message || err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
@@ -153,9 +137,9 @@ export const loginUser = async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
-    if (!user.isVerified) {
+    if (!user.isVerified)
       return res.status(400).json({ message: "Please verify your email first" });
-    }
+
     const isMatch = await bcrypt.compare(password, user.password || "");
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
@@ -173,6 +157,9 @@ export const forgotPassword = async (req, res) => {
   try {
     const { email: rawEmail } = req.body;
     const email = (rawEmail || "").toLowerCase().trim();
+
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
@@ -181,10 +168,8 @@ export const forgotPassword = async (req, res) => {
     user.otpExpires = Date.now() + 5 * 60 * 1000;
     await user.save();
 
-    // send reset OTP in background (avoid blocking)
     sendOtpInBackground(email, resetOtp, "Password Reset OTP");
 
-    // dev option to return OTP in response
     if (process.env.SHOW_OTP_IN_RESPONSE === "true") {
       return res.json({ message: "Reset OTP generated (dev).", otp: resetOtp });
     }
@@ -197,15 +182,31 @@ export const forgotPassword = async (req, res) => {
 };
 
 // -------------------------------
-// Reset Password
+// Reset Password (updated)
 export const resetPassword = async (req, res) => {
   try {
     const { email: rawEmail, otp, newPassword } = req.body;
     const email = (rawEmail || "").toLowerCase().trim();
+
+    if (!email || !otp || !newPassword)
+      return res.status(400).json({ message: "email, otp, and newPassword required" });
+
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User not found" });
-    if (!user.otp || user.otp !== otp || user.otpExpires < Date.now()) {
+
+    if (
+      !user.otp ||
+      user.otp.toString() !== otp.toString() ||
+      (user.otpExpires && user.otpExpires < Date.now())
+    ) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    if (!PW_REGEX.test(newPassword)) {
+      return res.status(400).json({
+        message:
+          "Weak password: must include 1 uppercase, 1 lowercase, 1 number, and 1 special character",
+      });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -214,6 +215,7 @@ export const resetPassword = async (req, res) => {
     user.otpExpires = null;
     await user.save();
 
+    console.log(`✅ Password reset successful for ${email}`);
     res.json({ message: "✅ Password reset successful!" });
   } catch (err) {
     console.error("resetPassword error:", err.message || err);
