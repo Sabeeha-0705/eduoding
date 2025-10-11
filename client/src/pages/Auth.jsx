@@ -1,7 +1,8 @@
+// src/pages/Auth.jsx
 import { useState, useRef, useEffect } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import API from "../api";
-import bg from "../assets/bg.png";
+import bg from "../assets/bg.png"; // optional import (works in dev/bundled builds)
 import "./Auth.css";
 import { useNavigate } from "react-router-dom";
 
@@ -46,6 +47,11 @@ function AuthPage() {
     }
   }, [otpStep]);
 
+  // choose a safe URL for background:
+  // - prefer imported bg (bundled path)
+  // - fallback to public path '/assets/bg.png' (place file in public/assets)
+  const bgUrl = typeof bg === "string" && bg ? bg : "/assets/bg.png";
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -89,7 +95,7 @@ function AuthPage() {
     }
   };
 
-  // --- FIXED: handleForgot now triggers OTP step and sets email ---
+  // --- handle forgot password -> show OTP step and set email ---
   const handleForgot = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
@@ -99,14 +105,11 @@ function AuthPage() {
     try {
       const res = await API.post("/auth/forgot-password", { email: em });
       setMsg(res.data.message || "Reset OTP sent to email!");
-      // show OTP input so user can enter OTP from mail
       setEmail(em);
       setOtpStep(true);
       setForgotMode(false);
 
-      // Dev fallback: if server returned otp in body (for dev), show it
       if (res.data?.otp) {
-        // only for dev — remove in production
         alert("Dev OTP (email fallback): " + res.data.otp);
       }
     } catch (err) {
@@ -123,8 +126,7 @@ function AuthPage() {
         otp: data.otp,
       });
       setMsg(res.data.message || "OTP verified — you can now set a new password.");
-      // After verify, navigate to reset-password route OR show inline reset UI.
-      // Simple approach: navigate to a reset-password page with state
+      // navigate to reset-password page and prefill email
       navigate("/reset-password", { state: { email } });
     } catch (err) {
       setMsg(err.response?.data?.message || err.message || "OTP verification failed");
@@ -153,8 +155,12 @@ function AuthPage() {
   return (
     <div
       className="auth-wrapper"
+      // use backgroundImage (more explicit)
       style={{
-        background: `url(${bg}) no-repeat center center fixed`,
+        backgroundImage: `url(${bgUrl})`,
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "center center",
+        backgroundAttachment: "fixed",
         backgroundSize: "cover",
         minHeight: "100vh",
         display: "flex",
@@ -207,7 +213,6 @@ function AuthPage() {
                   type="button"
                   className="switch-btn"
                   onClick={() => {
-                    // allow user to go back to login/signup
                     setOtpStep(false);
                     setMsg("");
                   }}
