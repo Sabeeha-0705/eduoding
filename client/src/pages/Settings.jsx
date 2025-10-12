@@ -31,7 +31,7 @@ export default function Settings() {
         const u = res.data.user || res.data;
         setUser(u);
         setUsername(u.username || "");
-        setName(u.name || ""); // ✅ ensure name shown on first load
+        setName(u.name || "");
         setAvatarPreview(u.avatarUrl || u.avatar || "");
       } catch (err) {
         console.error("Load profile error:", err);
@@ -83,22 +83,21 @@ export default function Settings() {
 
     setSaving(true);
     try {
-      // ✅ PATCH matches backend route
+      // PATCH to auth/profile (protected)
       const res = await API.patch("/auth/profile", {
         username: trimmedUsername,
         name: trimmedName,
         theme,
       });
 
-      // ✅ Handle both formats of response
       const updatedUser = res.data.user || res.data;
 
-      // ✅ Sync updated values to form
+      // IMPORTANT: update both user object and form fields so UI reflects saved data
       setUser(updatedUser);
       setUsername(updatedUser.username || "");
-      setName(updatedUser.name || ""); // <- ensures name stays visible
+      setName(updatedUser.name || "");
 
-      // ✅ Inform other components (sidebar/leaderboard)
+      // notify other parts of app to refresh
       window.dispatchEvent(new CustomEvent("eduoding:user-updated", { detail: updatedUser }));
       showToast("Profile saved!");
     } catch (err) {
@@ -184,7 +183,6 @@ export default function Settings() {
     setError("");
   };
 
-  // ✅ Detect if any field changed
   const changed =
     user &&
     (username.trim() !== (user.username || "").trim() || name.trim() !== (user.name || "").trim());
@@ -303,6 +301,7 @@ export default function Settings() {
         )}
       </div>
 
+      {/* 🔹 Floating toast */}
       {msg && <div className="floating-toast">{msg}</div>}
     </div>
   );
