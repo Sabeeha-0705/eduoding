@@ -72,6 +72,7 @@ export default function Settings() {
   };
 
   // 🔹 Save profile (name & username)
+  // IMPORTANT: after PATCH we immediately re-fetch the profile to ensure the UI always shows what is actually saved on the server.
   const saveProfile = async (e) => {
     e.preventDefault();
     setError("");
@@ -85,30 +86,28 @@ export default function Settings() {
 
     setSaving(true);
     try {
+      // 1) Send update
       const res = await API.patch("/auth/profile", {
         username: trimmedUsername,
         name: trimmedName,
         theme,
       });
 
-      // debug: inspect exactly what backend returns
-      console.log("PATCH /auth/profile response:", res);
+      // 2) Re-fetch the fresh profile from server to avoid partial/empty response issues
+      const refetch = await API.get("/auth/profile");
+      const freshUser = refetch.data.user || refetch.data || {};
 
-      const updatedUser = res.data.user || res.data || {};
+      // 3) Update UI state with guaranteed server values
+      setUser(freshUser);
+      setUsername(freshUser.username || trimmedUsername);
+      setName(typeof freshUser.name !== "undefined" ? freshUser.name : trimmedName);
 
-      // Ensure UI reflects the real saved values (prevents clearing issue)
-      setUser(updatedUser);
-      setUsername(updatedUser.username || trimmedUsername);
-      setName(typeof updatedUser.name !== "undefined" ? updatedUser.name : trimmedName);
+      // 4) Notify other parts of the app
+      window.dispatchEvent(new CustomEvent("eduoding:user-updated", { detail: freshUser }));
 
-      // notify other parts of app to refresh
-      window.dispatchEvent(
-        new CustomEvent("eduoding:user-updated", { detail: updatedUser })
-      );
-
-      // show server message when available
+      // 5) Show message from server (if any) or fallback
       const serverMsg = res.data?.message || "Profile saved!";
-      showToast(serverMsg);
+      showToast(serverMsg, "success");
     } catch (err) {
       console.error("Save profile error:", err);
       setError(err?.response?.data?.message || "Save failed");
@@ -156,6 +155,7 @@ export default function Settings() {
       });
 
       const data = res.data || {};
+      // prefer server user or data
       const updatedUser = data.user || data;
       setUser(updatedUser);
 
@@ -172,9 +172,7 @@ export default function Settings() {
         objectUrlRef.current = null;
       }
 
-      window.dispatchEvent(
-        new CustomEvent("eduoding:user-updated", { detail: updatedUser })
-      );
+      window.dispatchEvent(new CustomEvent("eduoding:user-updated", { detail: updatedUser }));
       showToast("Avatar uploaded!");
     } catch (err) {
       console.error("Avatar upload failed:", err);
@@ -196,8 +194,7 @@ export default function Settings() {
 
   const changed =
     user &&
-    (username.trim() !== (user.username || "").trim() ||
-      name.trim() !== (user.name || "").trim());
+    (username.trim() !== (user.username || "").trim() || name.trim() !== (user.name || "").trim());
 
   return (
     <div className="settings-root">
