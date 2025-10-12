@@ -91,22 +91,24 @@ export default function Settings() {
         theme,
       });
 
-      const updatedUser = res.data.user || res.data;
+      // debug: inspect exactly what backend returns
+      console.log("PATCH /auth/profile response:", res);
 
-      // ✅ Ensure UI reflects the real saved values (prevents clearing issue)
+      const updatedUser = res.data.user || res.data || {};
+
+      // Ensure UI reflects the real saved values (prevents clearing issue)
       setUser(updatedUser);
       setUsername(updatedUser.username || trimmedUsername);
-      setName(
-        typeof updatedUser.name !== "undefined"
-          ? updatedUser.name
-          : trimmedName
-      );
+      setName(typeof updatedUser.name !== "undefined" ? updatedUser.name : trimmedName);
 
       // notify other parts of app to refresh
       window.dispatchEvent(
         new CustomEvent("eduoding:user-updated", { detail: updatedUser })
       );
-      showToast("Profile saved!");
+
+      // show server message when available
+      const serverMsg = res.data?.message || "Profile saved!";
+      showToast(serverMsg);
     } catch (err) {
       console.error("Save profile error:", err);
       setError(err?.response?.data?.message || "Save failed");
@@ -215,9 +217,7 @@ export default function Settings() {
                     <img
                       src={avatarPreview}
                       alt="avatar preview"
-                      onError={(e) =>
-                        (e.currentTarget.style.display = "none")
-                      }
+                      onError={(e) => (e.currentTarget.style.display = "none")}
                     />
                   ) : (
                     <div className="avatar-empty">No avatar</div>
@@ -234,11 +234,7 @@ export default function Settings() {
                     >
                       {uploadingAvatar ? "Uploading…" : "Upload Avatar"}
                     </button>
-                    <button
-                      className="btn"
-                      onClick={handleCancelAvatar}
-                      disabled={uploadingAvatar}
-                    >
+                    <button className="btn" onClick={handleCancelAvatar} disabled={uploadingAvatar}>
                       Cancel
                     </button>
                   </div>
@@ -252,17 +248,13 @@ export default function Settings() {
               <h3>Theme</h3>
               <div className="theme-row">
                 <button
-                  className={`theme-btn ${
-                    theme === "light" ? "active" : ""
-                  }`}
+                  className={`theme-btn ${theme === "light" ? "active" : ""}`}
                   onClick={() => setTheme("light")}
                 >
                   Light
                 </button>
                 <button
-                  className={`theme-btn ${
-                    theme === "dark" ? "active" : ""
-                  }`}
+                  className={`theme-btn ${theme === "dark" ? "active" : ""}`}
                   onClick={() => setTheme("dark")}
                 >
                   Dark
@@ -283,19 +275,10 @@ export default function Settings() {
                 />
 
                 <label>Name</label>
-                <input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="input"
-                />
+                <input id="name" value={name} onChange={(e) => setName(e.target.value)} className="input" />
 
                 <div className="form-actions">
-                  <button
-                    type="submit"
-                    className="btn primary"
-                    disabled={!changed || saving}
-                  >
+                  <button type="submit" className="btn primary" disabled={!changed || saving}>
                     {saving ? "Saving…" : "Save"}
                   </button>
                   <button
