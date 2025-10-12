@@ -26,7 +26,10 @@ function sendOtpInBackground(email, otp, subject = "Eduoding OTP Verification") 
       }
     })
     .catch((err) =>
-      console.error(`❌ OTP email failed to ${email}:`, err && err.message ? err.message : err)
+      console.error(
+        `❌ OTP email failed to ${email}:`,
+        err && err.message ? err.message : err
+      )
     );
 }
 
@@ -38,7 +41,9 @@ const registerUser = async (req, res) => {
     const email = (rawEmail || "").toLowerCase().trim();
 
     if (!username || !email || !password) {
-      return res.status(400).json({ message: "username, email and password required" });
+      return res
+        .status(400)
+        .json({ message: "username, email and password required" });
     }
 
     if (!PW_REGEX.test(password)) {
@@ -80,7 +85,8 @@ const registerUser = async (req, res) => {
       isVerified: false,
       provider: "local",
       role: "user",
-      requestedUploader: requestedUploader === true || requestedUploader === "true",
+      requestedUploader:
+        requestedUploader === true || requestedUploader === "true",
     });
 
     await user.save();
@@ -96,10 +102,14 @@ const registerUser = async (req, res) => {
     }
 
     if (process.env.SHOW_OTP_IN_RESPONSE === "true") {
-      return res.status(201).json({ message: "User created. OTP will be sent.", otp });
+      return res
+        .status(201)
+        .json({ message: "User created. OTP will be sent.", otp });
     }
 
-    res.status(201).json({ message: "User created. OTP will be sent to your email." });
+    res
+      .status(201)
+      .json({ message: "User created. OTP will be sent to your email." });
   } catch (err) {
     console.error("registerUser error:", err && err.message ? err.message : err);
     res.status(500).json({ message: err.message || "Server error" });
@@ -113,7 +123,8 @@ const verifyOTP = async (req, res) => {
     const email = (req.body.email || "").toLowerCase().trim();
     const otp = (req.body.otp || "").toString().trim();
 
-    if (!email || !otp) return res.status(400).json({ message: "email and otp required" });
+    if (!email || !otp)
+      return res.status(400).json({ message: "email and otp required" });
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
@@ -154,7 +165,8 @@ const loginUser = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
-    if (!user.isVerified) return res.status(400).json({ message: "Please verify your email first" });
+    if (!user.isVerified)
+      return res.status(400).json({ message: "Please verify your email first" });
 
     const isMatch = await bcrypt.compare(password, user.password || "");
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
@@ -197,7 +209,10 @@ const forgotPassword = async (req, res) => {
 
     res.json({ message: "Reset OTP sent to your email (if delivery succeeds)." });
   } catch (err) {
-    console.error("forgotPassword error:", err && err.message ? err.message : err);
+    console.error(
+      "forgotPassword error:",
+      err && err.message ? err.message : err
+    );
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
@@ -210,7 +225,9 @@ const resetPassword = async (req, res) => {
     const email = (rawEmail || "").toLowerCase().trim();
 
     if (!email || !otp || !newPassword)
-      return res.status(400).json({ message: "email, otp, and newPassword required" });
+      return res
+        .status(400)
+        .json({ message: "email, otp, and newPassword required" });
 
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -325,6 +342,7 @@ const updateProfile = async (req, res) => {
 
     // Persist name (critical)
     if (typeof name !== "undefined") {
+      // store empty string if explicitly null/empty, otherwise trimmed value
       user.name = name === null ? "" : String(name).trim();
     }
 
@@ -338,12 +356,10 @@ const updateProfile = async (req, res) => {
 
     await user.save();
 
-    const safeUser = user.toObject();
-    delete safeUser.password;
-    delete safeUser.otp;
-    delete safeUser.otpExpires;
+    // FETCH FRESH user from DB to ensure latest stored values are returned
+    const freshUser = await User.findById(user._id).select("-password -otp -otpExpires").lean();
 
-    res.json({ message: "Profile updated", user: safeUser });
+    res.json({ message: "Profile updated", user: freshUser });
   } catch (err) {
     console.error("updateProfile error:", err && err.message ? err.message : err);
     res.status(500).json({ message: err.message || "Server error" });

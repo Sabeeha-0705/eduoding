@@ -48,7 +48,9 @@ export default function Settings() {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
     try {
-      window.dispatchEvent(new CustomEvent("eduoding:theme-changed", { detail: { theme } }));
+      window.dispatchEvent(
+        new CustomEvent("eduoding:theme-changed", { detail: { theme } })
+      );
     } catch {}
   }, [theme]);
 
@@ -83,7 +85,6 @@ export default function Settings() {
 
     setSaving(true);
     try {
-      // PATCH to auth/profile (protected)
       const res = await API.patch("/auth/profile", {
         username: trimmedUsername,
         name: trimmedName,
@@ -92,13 +93,19 @@ export default function Settings() {
 
       const updatedUser = res.data.user || res.data;
 
-      // IMPORTANT: update both user object and form fields so UI reflects saved data
+      // ✅ Ensure UI reflects the real saved values (prevents clearing issue)
       setUser(updatedUser);
-      setUsername(updatedUser.username || "");
-      setName(updatedUser.name || "");
+      setUsername(updatedUser.username || trimmedUsername);
+      setName(
+        typeof updatedUser.name !== "undefined"
+          ? updatedUser.name
+          : trimmedName
+      );
 
       // notify other parts of app to refresh
-      window.dispatchEvent(new CustomEvent("eduoding:user-updated", { detail: updatedUser }));
+      window.dispatchEvent(
+        new CustomEvent("eduoding:user-updated", { detail: updatedUser })
+      );
       showToast("Profile saved!");
     } catch (err) {
       console.error("Save profile error:", err);
@@ -163,7 +170,9 @@ export default function Settings() {
         objectUrlRef.current = null;
       }
 
-      window.dispatchEvent(new CustomEvent("eduoding:user-updated", { detail: updatedUser }));
+      window.dispatchEvent(
+        new CustomEvent("eduoding:user-updated", { detail: updatedUser })
+      );
       showToast("Avatar uploaded!");
     } catch (err) {
       console.error("Avatar upload failed:", err);
@@ -185,7 +194,8 @@ export default function Settings() {
 
   const changed =
     user &&
-    (username.trim() !== (user.username || "").trim() || name.trim() !== (user.name || "").trim());
+    (username.trim() !== (user.username || "").trim() ||
+      name.trim() !== (user.name || "").trim());
 
   return (
     <div className="settings-root">
@@ -205,7 +215,9 @@ export default function Settings() {
                     <img
                       src={avatarPreview}
                       alt="avatar preview"
-                      onError={(e) => (e.currentTarget.style.display = "none")}
+                      onError={(e) =>
+                        (e.currentTarget.style.display = "none")
+                      }
                     />
                   ) : (
                     <div className="avatar-empty">No avatar</div>
@@ -222,7 +234,11 @@ export default function Settings() {
                     >
                       {uploadingAvatar ? "Uploading…" : "Upload Avatar"}
                     </button>
-                    <button className="btn" onClick={handleCancelAvatar} disabled={uploadingAvatar}>
+                    <button
+                      className="btn"
+                      onClick={handleCancelAvatar}
+                      disabled={uploadingAvatar}
+                    >
                       Cancel
                     </button>
                   </div>
@@ -236,13 +252,17 @@ export default function Settings() {
               <h3>Theme</h3>
               <div className="theme-row">
                 <button
-                  className={`theme-btn ${theme === "light" ? "active" : ""}`}
+                  className={`theme-btn ${
+                    theme === "light" ? "active" : ""
+                  }`}
                   onClick={() => setTheme("light")}
                 >
                   Light
                 </button>
                 <button
-                  className={`theme-btn ${theme === "dark" ? "active" : ""}`}
+                  className={`theme-btn ${
+                    theme === "dark" ? "active" : ""
+                  }`}
                   onClick={() => setTheme("dark")}
                 >
                   Dark
@@ -271,7 +291,11 @@ export default function Settings() {
                 />
 
                 <div className="form-actions">
-                  <button type="submit" className="btn primary" disabled={!changed || saving}>
+                  <button
+                    type="submit"
+                    className="btn primary"
+                    disabled={!changed || saving}
+                  >
                     {saving ? "Saving…" : "Save"}
                   </button>
                   <button
@@ -293,8 +317,12 @@ export default function Settings() {
               </form>
 
               <div className="profile-meta">
-                <p>Email: <strong>{user?.email || "—"}</strong></p>
-                <p>Role: <strong>{user?.role || "user"}</strong></p>
+                <p>
+                  Email: <strong>{user?.email || "—"}</strong>
+                </p>
+                <p>
+                  Role: <strong>{user?.role || "user"}</strong>
+                </p>
               </div>
             </section>
           </>
