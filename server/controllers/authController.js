@@ -5,6 +5,9 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { notifyAdminsAboutUploaderRequest } from "../utils/notify.js";
 import { sendOTP } from "../utils/sendEmail.js";
+import { uploadBufferToCloudinary } from "../utils/cloudinary.js"; // 👈 added
+import fs from "fs";
+import path from "path";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -143,7 +146,6 @@ const verifyOTP = async (req, res) => {
     await user.save();
 
     const token = generateToken(user);
-    // return token & user (safe)
     const safeUser = user.toObject();
     delete safeUser.password;
     delete safeUser.otp;
@@ -209,10 +211,7 @@ const forgotPassword = async (req, res) => {
 
     res.json({ message: "Reset OTP sent to your email (if delivery succeeds)." });
   } catch (err) {
-    console.error(
-      "forgotPassword error:",
-      err && err.message ? err.message : err
-    );
+    console.error("forgotPassword error:", err && err.message ? err.message : err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
@@ -311,13 +310,10 @@ const googleLogin = async (req, res) => {
 
 // -------------------------------
 // Update Profile
-// Prefer using `protect` middleware so req.user is present.
-// If req.user is not present, fallback to verifying Authorization Bearer token.
 const updateProfile = async (req, res) => {
   try {
     let userId = req.user?.id || req.user?._id || null;
 
-    // Fallback: check Authorization header if protect middleware not used
     if (!userId) {
       const authHeader = req.headers.authorization || "";
       const token = authHeader.split(" ")[1];
@@ -333,30 +329,14 @@ const updateProfile = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Allowed fields to update (whitelist)
     const { username, name, avatar, theme } = req.body;
 
-    if (typeof username !== "undefined" && username !== null) {
-      user.username = String(username).trim();
-    }
-
-    // Persist name (critical)
-    if (typeof name !== "undefined") {
-      // store empty string if explicitly null/empty, otherwise trimmed value
-      user.name = name === null ? "" : String(name).trim();
-    }
-
-    if (typeof avatar !== "undefined") {
-      user.avatar = avatar;
-    }
-
-    if (typeof theme !== "undefined") {
-      user.theme = theme;
-    }
+    if (typeof username !== "undefined") user.username = username.trim();
+    if (typeof name !== "undefined") user.name = name?.trim() || "";
+    if (typeof avatar !== "undefined") user.avatarUrl = avatar;
+    if (typeof theme !== "undefined") user.theme = theme;
 
     await user.save();
-
-    // FETCH FRESH user from DB to ensure latest stored values are returned
     const freshUser = await User.findById(user._id).select("-password -otp -otpExpires").lean();
 
     res.json({ message: "Profile updated", user: freshUser });
@@ -366,7 +346,45 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// Named exports only (no default)
+// -------------------------------
+// Upload Avatar (Cloudinary + fallback local)
+const uploadAvatarHandler = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    let avatarUrl;
+
+    if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+      const result = await uploadBufferToCloudinary(req.file.buffer, "eduoding/avatars", {
+        transformation: [{ width: 512, height: 512, crop: "limit" }],
+      });
+      avatarUrl = result.secure_url;
+    } else {
+      const uploadsDir = path.join(process.cwd(), "server", "uploads");
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      const filename = `${Date.now()}-${req.file.originalname.replace(/\s+/g, "_")}`;
+      const outPath = path.join(uploadsDir, filename);
+      fs.writeFileSync(outPath, req.file.buffer);
+      avatarUrl = `/uploads/${filename}`;
+    }
+
+    req.user.avatarUrl = avatarUrl;
+    await req.user.save();
+
+    const safeUser = req.user.toObject();
+    delete safeUser.password;
+    delete safeUser.otp;
+    delete safeUser.otpExpires;
+
+    res.json({ message: "Avatar uploaded successfully", avatarUrl, user: safeUser });
+  } catch (err) {
+    console.error("uploadAvatarHandler error:", err);
+    res.status(500).json({ message: "Avatar upload failed" });
+  }
+};
+
+// -------------------------------
+// Exports
 export {
   registerUser,
   verifyOTP,
@@ -375,4 +393,5 @@ export {
   resetPassword,
   googleLogin,
   updateProfile,
+  uploadAvatarHandler, // 👈 added
 };

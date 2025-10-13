@@ -3,10 +3,17 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
+    // Basic identity
     username: {
       type: String,
       required: [true, "Username is required"],
       trim: true,
+    },
+
+    name: {
+      type: String,
+      trim: true,
+      default: "",
     },
 
     email: {
@@ -18,13 +25,12 @@ const userSchema = new mongoose.Schema(
       match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"],
     },
 
-    // Keep minlength so DB enforces some length.
     password: {
       type: String,
       minlength: [8, "Password must be at least 8 characters long"],
     },
 
-    // Google / OAuth
+    // Google / OAuth login
     googleId: { type: String, default: null },
     provider: { type: String, enum: ["local", "google"], default: "local" },
 
@@ -33,22 +39,32 @@ const userSchema = new mongoose.Schema(
     otp: { type: String, default: null },
     otpExpires: { type: Date, default: null },
 
-    // role for permissions
+    // Role & permissions
     role: {
       type: String,
       enum: ["user", "uploader", "admin"],
       default: "user",
     },
-
-    // did user request uploader?
     requestedUploader: { type: Boolean, default: false },
-    avatarUrl: { type: String },
+
+    // Avatar (Cloudinary / local)
+    avatarUrl: {
+      type: String,
+      default: "",
+    },
+
+    // Theme settings (for profile color / dark-light)
+    theme: {
+      type: String,
+      enum: ["light", "dark", "system"],
+      default: "system",
+    },
 
     // --------- Gamification fields ----------
     points: { type: Number, default: 0 },
     badges: { type: [String], default: [] },
 
-    // optional: keep quiz history for reports
+    // Quiz performance history
     quizHistory: [
       {
         courseId: { type: String },
@@ -57,7 +73,7 @@ const userSchema = new mongoose.Schema(
       },
     ],
 
-    // optional certificate refs (if you keep them)
+    // Certificates (optional)
     certificates: [
       {
         courseId: String,
@@ -70,16 +86,18 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Optionally add a safe public payload method
+// Safe public payload method (used in frontend)
 userSchema.methods.publicProfile = function () {
   return {
     id: this._id,
     username: this.username,
+    name: this.name || "",
     email: this.email,
     role: this.role,
+    avatarUrl: this.avatarUrl || "",
     points: this.points || 0,
     badges: this.badges || [],
-    avatarUrl: this.avatarUrl,
+    theme: this.theme || "system",
   };
 };
 
