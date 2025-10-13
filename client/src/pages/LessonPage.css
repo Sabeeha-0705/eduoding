@@ -60,7 +60,7 @@
   max-height: 520px;
   border: none;
   border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .pager {
@@ -73,7 +73,7 @@
 .pager button {
   padding: 8px 12px;
   border: 1px solid #ddd;
-  background: #fff;
+  background: #0be52b;
   border-radius: 8px;
   cursor: pointer;
 }
@@ -88,16 +88,21 @@
 .save-note-btn {
   padding: 8px 12px;
   border-radius: 8px;
-  background: linear-gradient(90deg,#4b61e6,#1ea0ff);
+  background: linear-gradient(90deg, #4b61e6, #1ea0ff);
   color: white;
   border: none;
   cursor: pointer;
   font-weight: 600;
 }
 
-.quiz-actions { display: flex; gap: 8px; align-items:center; }
+.quiz-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 
-.take-quiz-btn, .view-cert-btn {
+.take-quiz-btn,
+.view-cert-btn {
   padding: 8px 12px;
   border-radius: 8px;
   border: none;
@@ -106,7 +111,7 @@
 }
 
 .take-quiz-btn {
-  background: linear-gradient(90deg,#ff7a7a,#ff4d4d);
+  background: linear-gradient(90deg, #ff7a7a, #ff4d4d);
   color: white;
 }
 
@@ -117,12 +122,17 @@
 }
 
 .view-cert-btn {
-  background: linear-gradient(90deg,#6c63ff,#4cafef);
+  background: linear-gradient(90deg, #6c63ff, #4cafef);
   color: #fff;
 }
 
-.quiz-checking { color: #6b7280; font-size: 0.95rem; }
+.quiz-checking {
+  color: #6b7280;
+  font-size: 0.95rem;
+}
 
 @media (max-width: 900px) {
-  .lesson-layout { grid-template-columns: 1fr; }
+  .lesson-layout {
+    grid-template-columns: 1fr;
+  }
 }
