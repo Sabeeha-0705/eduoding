@@ -1,82 +1,128 @@
 // server/controllers/lessonController.js
 import Lesson from "../models/lessonModel.js";
-import { uploadBufferToCloudinary } from "../utils/cloudinary.js"; // optional
+import { uploadBufferToCloudinary } from "../utils/cloudinary.js"; // optional helper
 import fs from "fs";
 import path from "path";
 
+/**
+ * Add a lesson
+ * Accepts:
+ * - title (required)
+ * - type (required) - "youtube" | "upload" | "text" (depends on your schema)
+ * - description (optional)
+ * - videoUrl (optional, for youtube/external links)
+ * - courseId (optional but recommended if you use courses)
+ * - file upload (req.file) -- supports multer memoryStorage or diskStorage
+ */
 export const addLesson = async (req, res) => {
   try {
-    // Logging to help debug empty collection
-    console.log("addLesson hit. req.body:", req.body, "hasFile:", !!req.file, "user:", req.user?._id);
+    console.log("addLesson called", {
+      body: req.body,
+      hasFile: !!req.file,
+      user: req.user?._id,
+    });
 
-    const { title: rawTitle, type, videoUrl: rawVideoUrl, courseId } = req.body;
-    const title = (rawTitle || "").trim();
-    const course = (courseId || "").trim();
+    const rawTitle = req.body.title || "";
+    const title = String(rawTitle).trim();
+    const type = String(req.body.type || "youtube").trim();
+    const description = typeof req.body.description !== "undefined" ? String(req.body.description).trim() : "";
+    const courseId = typeof req.body.courseId !== "undefined" ? String(req.body.courseId).trim() : undefined;
+    const rawVideoUrl = typeof req.body.videoUrl !== "undefined" ? String(req.body.videoUrl).trim() : "";
 
-    if (!title || !type || !course) {
-      return res.status(400).json({ message: "Title, type and courseId are required" });
+    // Basic validation
+    if (!title) {
+      return res.status(400).json({ message: "Title is required" });
     }
+    if (!type) {
+      return res.status(400).json({ message: "Type is required" });
+    }
+    // if you require courseId, uncomment next block:
+    // if (!courseId) return res.status(400).json({ message: "courseId is required" });
 
     let finalVideoUrl = "";
 
-    // If file uploaded (multer memoryStorage or disk)
+    // If a file was uploaded, prefer uploading to Cloudinary (if available) else save locally
     if (req.file) {
-      // If you use Cloudinary helper (buffer)
-      if (typeof uploadBufferToCloudinary === "function" && req.file.buffer) {
+      // If multer memoryStorage -> req.file.buffer exists
+      if (req.file.buffer && typeof uploadBufferToCloudinary === "function") {
         try {
           const folder = "eduoding/lessons";
+          // resource_type can be "video" or "auto" depending on file
           const result = await uploadBufferToCloudinary(req.file.buffer, folder, {
-            resource_type: "video", // if you upload video
+            resource_type: "auto",
           });
-          finalVideoUrl = result.secure_url || result.url;
+          finalVideoUrl = result?.secure_url || result?.url || "";
         } catch (uploadErr) {
-          console.error("Cloudinary upload failed:", uploadErr);
-          // fallback to local write below
+          console.warn("Cloudinary upload failed, falling back to local save:", uploadErr);
         }
       }
 
-      // fallback: save to local server uploads dir (if buffer present)
+      // Fallback local save (works for memory buffer and for disk saved file)
       if (!finalVideoUrl) {
         const uploadsDir = path.join(process.cwd(), "server", "uploads");
         fs.mkdirSync(uploadsDir, { recursive: true });
-        const filename = `${Date.now()}-${req.file.originalname.replace(/\s+/g, "_")}`;
+
+        // sanitize filename
+        const safeOriginal = (req.file.originalname || "upload").replace(/\s+/g, "_");
+        const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeOriginal}`;
         const outPath = path.join(uploadsDir, filename);
+
         if (req.file.buffer) {
           fs.writeFileSync(outPath, req.file.buffer);
         } else if (req.file.path) {
-          // multer diskStorage already saved it, use that path
-          fs.copyFileSync(req.file.path, outPath);
+          // if multer.diskStorage already wrote file
+          try {
+            fs.copyFileSync(req.file.path, outPath);
+          } catch (copyErr) {
+            console.error("Failed to copy uploaded file to uploads dir:", copyErr);
+            return res.status(500).json({ message: "Failed to save uploaded file" });
+          }
+        } else {
+          return res.status(400).json({ message: "Uploaded file missing content" });
         }
+
         finalVideoUrl = `/uploads/${filename}`;
       }
     } else if (rawVideoUrl) {
-      finalVideoUrl = rawVideoUrl.trim();
+      finalVideoUrl = rawVideoUrl;
     } else {
-      return res.status(400).json({ message: "Video file or videoUrl required" });
+      // If type is "text" or you accept lessons without video, you can allow no videoUrl.
+      // For strict video lessons, return error:
+      if (type === "upload" || type === "youtube") {
+        return res.status(400).json({ message: "Video file or videoUrl required for this lesson type" });
+      }
     }
 
-    // create lesson
-    const lesson = await Lesson.create({
+    const newLesson = {
       title,
       type,
-      videoUrl: finalVideoUrl,
-      courseId: course,
-      uploadedBy: req.user?._id || null,
-    });
+      description,
+    };
 
-    console.log("Lesson created:", lesson._id);
+    if (finalVideoUrl) newLesson.videoUrl = finalVideoUrl;
+    if (courseId) newLesson.courseId = courseId;
+    if (req.user?._id) newLesson.uploadedBy = req.user._id;
 
-    return res.status(201).json({ message: "Lesson added successfully", lesson });
+    const created = await Lesson.create(newLesson);
+
+    console.log("Lesson created:", created._id);
+
+    return res.status(201).json({ message: "Lesson added successfully", lesson: created });
   } catch (err) {
     console.error("addLesson error:", err);
     return res.status(500).json({ message: err.message || "Failed to add lesson" });
   }
 };
 
+/**
+ * Get lessons (optional filter by courseId)
+ * Query params:
+ * - ?courseId=...
+ */
 export const getLessons = async (req, res) => {
   try {
     const filter = {};
-    if (req.query.courseId) filter.courseId = req.query.courseId;
+    if (req.query.courseId) filter.courseId = String(req.query.courseId);
     const lessons = await Lesson.find(filter).populate("uploadedBy", "username email");
     return res.json(lessons);
   } catch (err) {
@@ -85,6 +131,9 @@ export const getLessons = async (req, res) => {
   }
 };
 
+/**
+ * Get single lesson by id
+ */
 export const getLessonById = async (req, res) => {
   try {
     const lesson = await Lesson.findById(req.params.id).populate("uploadedBy", "username email");
