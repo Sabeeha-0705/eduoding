@@ -4,13 +4,6 @@ import { useNavigate } from "react-router-dom";
 import API from "../api";
 import "./Dashboard.css";
 
-/*
-  Dashboard.jsx - improved and small fixes
-  - Reuses BroadcastChannel instance (avoid creating new channel on every refresh)
-  - Safer mountedRef checks to avoid setState after unmount
-  - Keeps behavior same but more robust and a few comments
-*/
-
 export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState("courses");
@@ -22,6 +15,9 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refreshingProgress, setRefreshingProgress] = useState(false);
 
+  // NEW: index of badge that should animate (or null)
+  const [newBadgeIndex, setNewBadgeIndex] = useState(null);
+
   const navigate = useNavigate();
   const bcRef = useRef(null);
   const mountedRef = useRef(true);
@@ -29,32 +25,18 @@ export default function Dashboard() {
   const getToken = () =>
     localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
 
+  // Normalize progress for multiple matching keys
   const normalizeProgressList = (list) => {
     const arr = Array.isArray(list) ? list : [];
     const map = {};
     arr.forEach((p) => {
-      const rawKey = String(p.courseId ?? p.course_id ?? p.course ?? "");
-      const percent = Number(p.completedPercent ?? p.completed_percent ?? p.percent ?? 0) || 0;
-      map[rawKey] = { ...p, completedPercent: percent };
-
-      // numeric ID fallback
-      const digitsMatch = rawKey.match(/(\d+)$/);
-      if (digitsMatch) map[digitsMatch[1]] = { ...p, completedPercent: percent };
-
-      // last-part fallback for strings with separators
-      if (rawKey.includes("/") || rawKey.includes(":") || rawKey.includes("-") || rawKey.includes("_")) {
-        const parts = rawKey.split(/[\/:_-]+/).filter(Boolean);
-        if (parts.length) map[parts[parts.length - 1]] = { ...p, completedPercent: percent };
-      }
-
-      // lowercased alias
-      const lc = rawKey.toLowerCase().trim();
-      if (lc && lc !== rawKey) map[lc] = { ...p, completedPercent: percent };
+      const key = String(p.courseId ?? p.course ?? "");
+      map[key] = { ...p, completedPercent: Number(p.completedPercent || 0) };
     });
     return map;
   };
 
-  // Fetch current user profile
+  // Fetch user
   const fetchUser = useCallback(async () => {
     try {
       const token = getToken();
@@ -62,14 +44,14 @@ export default function Dashboard() {
         navigate("/auth", { replace: true });
         return null;
       }
-      // try common endpoints
-      const profileRes = await API.get("/users/me").catch(() => API.get("/auth/profile"));
+      const profileRes = await API.get("/users/me").catch(() =>
+        API.get("/auth/profile")
+      );
       const profileData = profileRes.data?.user || profileRes.data;
       if (mountedRef.current) setUser(profileData);
       return profileData;
     } catch (err) {
       console.error("fetchUser error:", err);
-      // token maybe invalid -> redirect to auth
       localStorage.removeItem("authToken");
       sessionStorage.removeItem("authToken");
       navigate("/auth", { replace: true });
@@ -77,7 +59,7 @@ export default function Dashboard() {
     }
   }, [navigate]);
 
-  // Full initial fetch: user, notes, courses, progress
+  // Fetch all dashboard data
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -87,63 +69,47 @@ export default function Dashboard() {
         return;
       }
 
-      // profile
       await fetchUser();
 
-      // notes - try server, fallback to localStorage notes (note-* keys)
+      // Notes
       try {
         const notesRes = await API.get("/notes");
         if (mountedRef.current) setNotes(notesRes.data || []);
       } catch {
-        if (mountedRef.current) {
-          const localNotes = [];
-          Object.keys(localStorage).forEach((k) => {
-            if (k.startsWith("note-")) {
-              localNotes.push({ _id: k, content: localStorage.getItem(k), createdAt: null });
-            }
-          });
-          setNotes(localNotes);
-        }
+        setNotes([]);
       }
 
-      // courses - try server, else keep null to use fallback later
+      // Courses
       try {
         const coursesRes = await API.get("/courses");
-        if (!mountedRef.current) return;
         const serverCourses = Array.isArray(coursesRes.data)
           ? coursesRes.data
           : coursesRes.data?.courses || [];
-        if (serverCourses.length) {
-          setCourses(
-            serverCourses.map((c) => ({
-              id: String(c._id ?? c.id ?? c.courseId ?? c.slug ?? c.title),
-              title: c.title || c.name || `Course ${c._id}`,
-              desc: c.description || c.desc || "",
-            }))
-          );
-        } else {
-          setCourses(null);
-        }
+        setCourses(
+          serverCourses.map((c) => ({
+            id: String(c._id ?? c.id ?? c.courseId ?? c.slug ?? c.title),
+            title: c.title || c.name || `Course ${c._id}`,
+            desc: c.description || c.desc || "",
+          }))
+        );
       } catch {
         setCourses(null);
       }
 
-      // progress
+      // Progress
       try {
         const progRes = await API.get("/progress");
-        if (!mountedRef.current) return;
         const list = progRes.data || [];
-        setProgressData(list);
-        setProgressMap(normalizeProgressList(list));
-      } catch (err) {
-        console.warn("Progress fetch failed:", err);
         if (mountedRef.current) {
-          setProgressData([]);
-          setProgressMap({});
+          setProgressData(list);
+          setProgressMap(normalizeProgressList(list));
         }
+      } catch {
+        setProgressData([]);
+        setProgressMap({});
       }
     } catch (err) {
-      console.error("Dashboard fetchAll error:", err);
+      console.error("fetchAll error:", err);
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -157,56 +123,58 @@ export default function Dashboard() {
     onResize();
     window.addEventListener("resize", onResize);
 
-    // Setup BroadcastChannel once
-    if ("BroadcastChannel" in window) {
-      try {
-        bcRef.current = new BroadcastChannel("eduoding");
-        bcRef.current.onmessage = (m) => {
-          try {
-            if (m?.data?.type === "eduoding:progress-updated") {
-              refreshProgress();
-              fetchUser();
-            }
-          } catch (e) {
-            /* ignore */
-          }
-        };
-      } catch (e) {
-        bcRef.current = null;
-      }
-    }
-
-    // custom event (same tab)
-    const onProgressUpdated = (ev) => {
-      refreshProgress();
-      fetchUser();
-    };
-    window.addEventListener("eduoding:progress-updated", onProgressUpdated);
-
-    // postMessage fallback
-    const onPostMsg = (msg) => {
-      try {
-        if (msg?.data?.type === "eduoding:progress-updated") {
-          refreshProgress();
-          fetchUser();
-        }
-      } catch {}
-    };
-    window.addEventListener("message", onPostMsg);
-
     return () => {
       mountedRef.current = false;
       window.removeEventListener("resize", onResize);
-      window.removeEventListener("eduoding:progress-updated", onProgressUpdated);
-      window.removeEventListener("message", onPostMsg);
-      if (bcRef.current) {
-        try {
-          bcRef.current.close();
-        } catch {}
-      }
+      if (bcRef.current) bcRef.current.close?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchAll, fetchUser]); // fetchAll already memoized
+  }, [fetchAll]);
+
+  // Watch user.badges to decide new-badge animation once
+  useEffect(() => {
+    try {
+      if (!user) {
+        setNewBadgeIndex(null);
+        return;
+      }
+
+      const badges = Array.isArray(user.badges) ? user.badges : [];
+      if (badges.length === 0) {
+        setNewBadgeIndex(null);
+        return;
+      }
+
+      // Key in localStorage to remember last-seen badge
+      const LS_KEY = "eduoding:lastSeenBadge";
+
+      const lastSeen = typeof window !== "undefined" ? localStorage.getItem(LS_KEY) : null;
+      const latestBadge = badges[badges.length - 1];
+
+      // If latestBadge exists and differs from stored one, animate it once
+      if (latestBadge && lastSeen !== latestBadge) {
+        // set index to last badge
+        setNewBadgeIndex(badges.length - 1);
+
+        // after animation (1.4s from CSS), clear the animation state
+        const t = setTimeout(() => {
+          setNewBadgeIndex(null);
+          try {
+            if (typeof window !== "undefined") localStorage.setItem(LS_KEY, latestBadge);
+          } catch (e) {
+            /* ignore storage errors */
+          }
+        }, 1500); // slightly longer than CSS animation
+
+        return () => clearTimeout(t);
+      } else {
+        // no new badge or already seen
+        setNewBadgeIndex(null);
+      }
+    } catch (e) {
+      console.warn("badge localStorage check failed:", e);
+      setNewBadgeIndex(null);
+    }
+  }, [user]);
 
   const logout = () => {
     localStorage.removeItem("authToken");
@@ -216,42 +184,20 @@ export default function Dashboard() {
 
   const handleDeleteNote = async (noteId) => {
     try {
-      // local note case (from localStorage)
-      if (noteId.startsWith("note-") && localStorage.getItem(noteId)) {
-        localStorage.removeItem(noteId);
-        setNotes((n) => n.filter((x) => x._id !== noteId));
-        return;
-      }
       await API.delete(`/notes/${noteId}`);
       setNotes((n) => n.filter((x) => x._id !== noteId));
     } catch (err) {
-      console.error("Delete note failed:", err?.message || err);
+      console.error("Delete note failed:", err);
       alert("Failed to delete note");
     }
   };
 
   const getProgressForCourse = (courseId) => {
-    if (!progressMap || Object.keys(progressMap).length === 0) return 0;
+    if (!progressMap) return 0;
     const cid = String(courseId);
-    if (progressMap[cid]) return Math.round(Number(progressMap[cid].completedPercent) || 0);
-
-    const keys = Object.keys(progressMap);
-    const ends = keys.find((k) => k.endsWith(cid));
-    if (ends) return Math.round(Number(progressMap[ends].completedPercent) || 0);
-
-    const inc = keys.find((k) => k.includes(cid));
-    if (inc) return Math.round(Number(progressMap[inc].completedPercent) || 0);
-
-    const digitKey = keys.find((k) => {
-      const m = k.match(/(\d+)$/);
-      return m && m[1] === cid;
-    });
-    if (digitKey) return Math.round(Number(progressMap[digitKey].completedPercent) || 0);
-
-    return 0;
+    return Math.round(progressMap[cid]?.completedPercent || 0);
   };
 
-  // refreshProgress used everywhere (button, events)
   const refreshProgress = async () => {
     try {
       setRefreshingProgress(true);
@@ -264,21 +210,42 @@ export default function Dashboard() {
     } catch (err) {
       console.warn("Refresh progress failed:", err);
     } finally {
-      if (mountedRef.current) setRefreshingProgress(false);
+      setRefreshingProgress(false);
     }
   };
 
   const fallbackCourses = [
-    { id: "1", title: "Full Stack Web Development (MERN)", desc: "Learn MongoDB, Express, React, Node.js with real projects." },
-    { id: "2", title: "Data Science & AI", desc: "Master Python, Machine Learning, and AI applications." },
-    { id: "3", title: "Cloud & DevOps", desc: "Hands-on AWS, Docker, Kubernetes, CI/CD pipelines." },
-    { id: "4", title: "Cybersecurity & Ethical Hacking", desc: "Protect systems, learn penetration testing & network security." },
-    { id: "5", title: "UI/UX Design", desc: "Design modern apps using Figma, wireframes & prototypes." },
+    {
+      id: "1",
+      title: "Full Stack Web Development (MERN)",
+      desc: "Learn MongoDB, Express, React, Node.js with real projects.",
+    },
+    {
+      id: "2",
+      title: "Data Science & AI",
+      desc: "Master Python, Machine Learning, and AI applications.",
+    },
+    {
+      id: "3",
+      title: "Cloud & DevOps",
+      desc: "Hands-on AWS, Docker, Kubernetes, CI/CD pipelines.",
+    },
+    {
+      id: "4",
+      title: "Cybersecurity & Ethical Hacking",
+      desc: "Protect systems, learn penetration testing & network security.",
+    },
+    {
+      id: "5",
+      title: "UI/UX Design",
+      desc: "Design modern apps using Figma, wireframes & prototypes.",
+    },
   ];
 
-  const effectiveCourses = Array.isArray(courses) && courses.length ? courses : fallbackCourses;
+  const effectiveCourses =
+    Array.isArray(courses) && courses.length ? courses : fallbackCourses;
 
-  if (loading) {
+  if (loading)
     return (
       <div className="dashboard-container">
         <main className="main-content">
@@ -286,115 +253,168 @@ export default function Dashboard() {
         </main>
       </div>
     );
-  }
 
   return (
     <div className="dashboard-container">
       <header className="mobile-header">
-        <button aria-label="Toggle navigation" className="hamburger" onClick={() => setSidebarOpen((s) => !s)}>☰</button>
+        <button
+          className="hamburger"
+          onClick={() => setSidebarOpen((s) => !s)}
+          aria-label="Toggle navigation"
+        >
+          ☰
+        </button>
         <div className="mobile-title">Eduoding</div>
-        <div className="mobile-actions">
-          <button className="tiny-btn pine-btn" onClick={() => navigate("/settings")}>⚙</button>
-        </div>
+        <button
+          className="tiny-btn pine-btn"
+          onClick={() => navigate("/settings")}
+          aria-label="Open settings"
+        >
+          ⚙
+        </button>
       </header>
 
+      {/* SIDEBAR */}
       <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}>
         <div className="logo">Eduoding</div>
 
         <nav>
           <ul>
-            {["courses", "notes", "progress", "code-test", "settings"].map((tab) => (
-              <li
-                key={tab}
-                className={`sidebar-item ${activeTab === tab ? "active" : ""}`}
-                onClick={() => {
-                  if (tab === "code-test") {
-                    navigate("/code-test");
-                    setActiveTab("code-test");
-                    if (window.innerWidth < 900) setSidebarOpen(false);
-                    return;
-                  }
-                  setActiveTab(tab);
-                  if (window.innerWidth < 900) setSidebarOpen(false);
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                {tab === "courses" && "📘 "}
-                {tab === "notes" && "📝 "}
-                {tab === "progress" && "📊 "}
-                {tab === "code-test" && "💻 "}
-                {tab === "settings" && "⚙ "}
-                <span className="item-text">{tab === "code-test" ? "Code Test" : tab}</span>
-              </li>
-            ))}
+            {["courses", "notes", "progress", "code-test", "settings"].map(
+              (tab) => (
+                <li
+                  key={tab}
+                  role="button"
+                  tabIndex={0}
+                  className={`sidebar-item ${
+                    activeTab === tab ? "active" : ""
+                  }`}
+                  onClick={() => {
+                    if (tab === "code-test") {
+                      navigate("/code-test");
+                      setActiveTab("code-test");
+                      return;
+                    }
+                    setActiveTab(tab);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      if (tab === "code-test") {
+                        navigate("/code-test");
+                        setActiveTab("code-test");
+                        return;
+                      }
+                      setActiveTab(tab);
+                    }
+                  }}
+                >
+                  {tab === "courses" && "📘 "}
+                  {tab === "notes" && "📝 "}
+                  {tab === "progress" && "📊 "}
+                  {tab === "code-test" && "💻 "}
+                  {tab === "settings" && "⚙ "}
+                  <span>{tab === "code-test" ? "Code Test" : tab}</span>
+                </li>
+              )
+            )}
           </ul>
         </nav>
 
         {user?.role === "uploader" && (
           <div className="sidebar-quick">
-            <button onClick={() => navigate("/uploader/upload")} className="uploader-btn">➕ Upload Video</button>
-            <button onClick={() => navigate("/uploader/dashboard")} className="uploader-btn outline">📁 My Uploads</button>
+            <button
+              onClick={() => navigate("/uploader/upload")}
+              className="uploader-btn"
+              aria-label="Upload a video"
+            >
+              ➕ Upload Video
+            </button>
+            <button
+              onClick={() => navigate("/uploader/dashboard")}
+              className="uploader-btn outline"
+              aria-label="My uploads"
+            >
+              📁 My Uploads
+            </button>
           </div>
-        )}
-
-        {user?.role === "admin" && (
-          <button onClick={() => navigate("/admin/requests")} className="admin-btn">Admin Panel</button>
         )}
 
         <div style={{ marginTop: "auto", padding: 12 }}>
-          <div className="role-badge">Role: <strong>{user?.role || "user"}</strong></div>
+          <div className="role-badge">
+            Role: <strong>{user?.role || "user"}</strong>
+          </div>
 
-          <div style={{ marginTop: 10 }}>
-            <div><strong>Points:</strong> {user?.points ?? 0}</div>
-            <div style={{ marginTop: 6 }}>
-              <strong>Badges:</strong> {(user?.badges && user.badges.length) ? user.badges.join(", ") : "—"}
+          {/* 🏆 Gamification Summary */}
+          <div className="gamify-summary" aria-live="polite">
+            <p>
+              🔥 <strong>Streak:</strong> {user?.streakCount ?? 0} days
+            </p>
+            <p>
+              🌟 <strong>Longest Streak:</strong> {user?.longestStreak ?? 0}{" "}
+              days
+            </p>
+            <p>
+              💎 <strong>Points:</strong> {user?.points ?? 0}
+            </p>
+            <div>
+              <strong>🏅 Badges:</strong>{" "}
+              {user?.badges?.length ? (
+                <>
+                  {user.badges.map((b, i) => (
+                    <span
+                      key={i}
+                      className={`badge ${newBadgeIndex === i ? "new-badge" : ""}`}
+                      style={{ marginRight: 6 }}
+                      tabIndex={0}
+                      aria-label={`Badge: ${b}${newBadgeIndex === i ? " (new)" : ""}`}
+                    >
+                      {b}
+                    </span>
+                  ))}
+                </>
+              ) : (
+                "—"
+              )}
             </div>
           </div>
 
-          <div style={{ marginTop: 10 }}>
-            <button className="logout-btn" onClick={logout}>Logout</button>
-          </div>
+          <button className="logout-btn" onClick={logout} aria-label="Logout">
+            Logout
+          </button>
         </div>
       </aside>
 
+      {/* MAIN CONTENT */}
       <main className="main-content">
         {user ? (
           <div className="page-inner">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="dash-header">
               <h2>Welcome, {user?.username || user?.email}</h2>
-              <div className="header-actions">
+              <div>
                 <button
-                  onClick={async () => {
-                    await refreshProgress();
-                    // Broadcast update to other tabs (reuse bcRef if available)
-                    try {
-                      window.postMessage({ type: "eduoding:progress-updated" }, "*");
-                    } catch {}
-                    try {
-                      if (bcRef.current) {
-                        bcRef.current.postMessage({ type: "eduoding:progress-updated" });
-                      }
-                    } catch {}
-                  }}
+                  onClick={refreshProgress}
                   className="small-btn pine-btn"
                   disabled={refreshingProgress}
+                  aria-label="Refresh progress"
                 >
                   {refreshingProgress ? "Refreshing…" : "Refresh Progress"}
                 </button>
-
                 <button
-                  style={{ marginLeft: 8 }}
                   className="small-btn pine-btn"
+                  style={{ marginLeft: 8 }}
                   onClick={() => navigate("/leaderboard")}
+                  aria-label="Open leaderboard"
                 >
                   Leaderboard
                 </button>
               </div>
             </div>
 
+            {/* Courses Tab */}
             {activeTab === "courses" && (
               <>
+                <h3>📘 Your Courses</h3>
                 <p>Select a course and start learning 🚀</p>
                 <div className="courses-grid">
                   {effectiveCourses.map((course) => {
@@ -403,11 +423,18 @@ export default function Dashboard() {
                       <div key={course.id} className="course-card">
                         <h3>{course.title}</h3>
                         <p>{course.desc}</p>
-                        <div className="progress-bar" aria-label={`Progress for ${course.title}`}>
-                          <div className="progress" style={{ width: `${progress}%` }} />
+                        <div className="progress-bar" aria-hidden>
+                          <div
+                            className="progress"
+                            style={{ width: `${progress}%` }}
+                          />
                         </div>
                         <p className="progress-text">{progress}% Completed</p>
-                        <button className="join-btn" onClick={() => navigate(`/course/${course.id}`)}>
+                        <button
+                          className="join-btn"
+                          onClick={() => navigate(`/course/${course.id}`)}
+                          aria-label={`Open course ${course.title}`}
+                        >
                           {progress === 100 ? "Review Course" : "Continue"}
                         </button>
                       </div>
@@ -417,68 +444,82 @@ export default function Dashboard() {
               </>
             )}
 
+            {/* Notes */}
             {activeTab === "notes" && (
               <>
                 <h3>📝 Your Notes</h3>
-                {notes.length > 0 ? (
+                {notes.length ? (
                   <ul className="notes-list">
                     {notes.map((note) => (
                       <li key={note._id}>
-                        <div>
-                          <p>{note.content || note.text}</p>
-                          <small>{note.createdAt ? new Date(note.createdAt).toLocaleString() : note._id}</small>
-                        </div>
-                        <div>
-                          <button className="small-btn" onClick={() => handleDeleteNote(note._id)}>Delete</button>
-                        </div>
+                        <p>{note.content || note.text}</p>
+                        <button
+                          className="small-btn"
+                          onClick={() => handleDeleteNote(note._id)}
+                          aria-label="Delete note"
+                        >
+                          Delete
+                        </button>
                       </li>
                     ))}
                   </ul>
                 ) : (
                   <div className="empty-card">
                     <p>No notes yet — take notes while watching lessons.</p>
-                    <button onClick={() => setActiveTab("courses")}>Go to Courses</button>
+                    <button onClick={() => setActiveTab("courses")}>
+                      Go to Courses
+                    </button>
                   </div>
                 )}
               </>
             )}
 
+            {/* Progress */}
             {activeTab === "progress" && (
-              <div>
+              <>
                 <h3>📊 Progress</h3>
                 {progressData.length === 0 ? (
                   <div className="empty-card">
-                    <p>No progress tracked yet. Join a course and complete lessons to see progress.</p>
-                    <button className="join-btn" onClick={() => setActiveTab("courses")}>Browse Courses</button>
+                    <p>No progress yet. Join a course to track progress.</p>
                   </div>
                 ) : (
                   <ul>
                     {progressData.map((p) => (
                       <li key={p._id || `${p.courseId}`}>
-                        Course: {String(p.courseId)} — {Math.round(Number(p.completedPercent) || 0)}% completed
+                        Course {String(p.courseId)}: {Math.round(p.completedPercent)}%
                       </li>
                     ))}
                   </ul>
                 )}
-              </div>
+              </>
             )}
 
+            {/* Settings */}
             {activeTab === "settings" && (
               <div>
                 <h3>⚙ Settings</h3>
                 <div className="settings-card">
-                  <p>Update profile info, change password, and notification preferences here.</p>
-                  <div style={{ marginTop: 12 }}>
-                    <button className="small-btn pine-btn" onClick={() => navigate("/settings")}>Open Settings Page</button>
-                  </div>
-                  <hr style={{ margin: "16px 0" }} />
-                  <div>
-                    <h4>Account</h4>
-                    <p>Email: <strong>{user?.email}</strong></p>
-                    <p>Role: <strong>{user?.role || "user"}</strong></p>
-                    <p>Points: <strong>{user?.points ?? 0}</strong></p>
-                    <p>Badges: <strong>{(user?.badges && user.badges.length) ? user.badges.join(", ") : "—"}</strong></p>
-                  </div>
+                  <p>
+                    Email: <strong>{user?.email}</strong>
+                  </p>
+                  <p>
+                    Points: <strong>{user?.points ?? 0}</strong>
+                  </p>
+                  <p>
+                    Streak: <strong>{user?.streakCount ?? 0} days</strong>
+                  </p>
+                  <p>
+                    Badges:{" "}
+                    <strong>
+                      {user?.badges?.length ? user.badges.join(", ") : "—"}
+                    </strong>
+                  </p>
+                  <button
+                    className="small-btn pine-btn"
+                    onClick={() => navigate("/settings")}
+                  >
+                    Open Settings
+                  </button>
                 </div>
               </div>
             )}

@@ -5,22 +5,22 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { notifyAdminsAboutUploaderRequest } from "../utils/notify.js";
 import { sendOTP } from "../utils/sendEmail.js";
-import { uploadBufferToCloudinary } from "../utils/cloudinary.js"; // 👈 added
+import { uploadBufferToCloudinary } from "../utils/cloudinary.js";
 import fs from "fs";
 import path from "path";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Helper: Generate JWT
+// Generate JWT
 const generateToken = (user) =>
   jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, {
     expiresIn: "1h",
   });
 
-// Password strength rule (same as frontend)
+// Password strength rule
 const PW_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
 
-// Helper: Send OTP async (fire-and-forget)
+// Fire-and-forget OTP email
 function sendOtpInBackground(email, otp, subject = "Eduoding OTP Verification") {
   sendOTP(email, otp, subject)
     .then(() => {
@@ -29,62 +29,50 @@ function sendOtpInBackground(email, otp, subject = "Eduoding OTP Verification") 
       }
     })
     .catch((err) =>
-      console.error(
-        `❌ OTP email failed to ${email}:`,
-        err && err.message ? err.message : err
-      )
+      console.error(`❌ OTP email failed to ${email}:`, err?.message || err)
     );
 }
 
-// -------------------------------
-// Register
+// -------------------------------------------------------------------
+// REGISTER
 const registerUser = async (req, res) => {
   try {
     const { username, email: rawEmail, password, requestedUploader } = req.body;
     const email = (rawEmail || "").toLowerCase().trim();
 
-    if (!username || !email || !password) {
+    if (!username || !email || !password)
       return res
         .status(400)
         .json({ message: "username, email and password required" });
-    }
 
-    if (!PW_REGEX.test(password)) {
+    if (!PW_REGEX.test(password))
       return res.status(400).json({
         message:
           "Password must include 1 uppercase, 1 lowercase, 1 number, and 1 special character",
       });
-    }
 
     let existing = await User.findOne({ email });
     if (existing) {
-      // If user exists but not verified — resend OTP
       if (!existing.isVerified) {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         existing.otp = otp;
         existing.otpExpires = Date.now() + 5 * 60 * 1000;
         await existing.save();
         sendOtpInBackground(email, otp);
-        if (process.env.SHOW_OTP_IN_RESPONSE === "true") {
-          return res.json({ message: "OTP resent (dev).", otp });
-        }
         return res.json({ message: "OTP resent. Please verify." });
       }
       return res.status(409).json({ message: "User already exists" });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
+    const hashedPassword = await bcrypt.hash(password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = Date.now() + 5 * 60 * 1000;
 
-    const user = new User({
+    const user = await User.create({
       username,
       email,
       password: hashedPassword,
       otp,
-      otpExpires,
+      otpExpires: Date.now() + 5 * 60 * 1000,
       isVerified: false,
       provider: "local",
       role: "user",
@@ -92,35 +80,25 @@ const registerUser = async (req, res) => {
         requestedUploader === true || requestedUploader === "true",
     });
 
-    await user.save();
-
-    // send OTP in background, don't block response
     sendOtpInBackground(email, otp);
 
-    // notify admins for uploader request (fire-and-forget)
     if (user.requestedUploader) {
       notifyAdminsAboutUploaderRequest(user).catch((e) =>
-        console.error("notifyAdmins error:", e && e.message ? e.message : e)
+        console.error("notifyAdmins error:", e?.message || e)
       );
     }
 
-    if (process.env.SHOW_OTP_IN_RESPONSE === "true") {
-      return res
-        .status(201)
-        .json({ message: "User created. OTP will be sent.", otp });
-    }
-
-    res
-      .status(201)
-      .json({ message: "User created. OTP will be sent to your email." });
+    res.status(201).json({
+      message: "User created. OTP will be sent to your email.",
+    });
   } catch (err) {
-    console.error("registerUser error:", err && err.message ? err.message : err);
+    console.error("registerUser error:", err?.message || err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
-// -------------------------------
-// Verify OTP
+// -------------------------------------------------------------------
+// VERIFY OTP
 const verifyOTP = async (req, res) => {
   try {
     const email = (req.body.email || "").toLowerCase().trim();
@@ -148,18 +126,16 @@ const verifyOTP = async (req, res) => {
     const token = generateToken(user);
     const safeUser = user.toObject();
     delete safeUser.password;
-    delete safeUser.otp;
-    delete safeUser.otpExpires;
 
     res.json({ message: "Email verified successfully!", token, user: safeUser });
   } catch (err) {
-    console.error("verifyOTP error:", err && err.message ? err.message : err);
+    console.error("verifyOTP error:", err?.message || err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
-// -------------------------------
-// Login
+// -------------------------------------------------------------------
+// LOGIN  (✨ includes streak + badge update)
 const loginUser = async (req, res) => {
   try {
     const { email: rawEmail, password } = req.body;
@@ -173,6 +149,30 @@ const loginUser = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password || "");
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
+    // ✅ Gamification logic
+    const today = new Date().toDateString();
+    const lastLogin = user.lastLoginDate
+      ? user.lastLoginDate.toDateString()
+      : null;
+
+    if (lastLogin !== today) {
+      user.streakCount += 1;
+      user.points += 5; // daily bonus
+      user.lastLoginDate = new Date();
+
+      // update longest streak
+      if (user.streakCount > user.longestStreak)
+        user.longestStreak = user.streakCount;
+
+      // give streak badges
+      if (user.streakCount === 5 && !user.badges.includes("🔥 5-Day Streak"))
+        user.badges.push("🔥 5-Day Streak");
+      if (user.streakCount === 10 && !user.badges.includes("🌟 10-Day Legend"))
+        user.badges.push("🌟 10-Day Legend");
+    }
+
+    await user.save();
+
     const token = generateToken(user);
     const safeUser = user.toObject();
     delete safeUser.password;
@@ -181,18 +181,16 @@ const loginUser = async (req, res) => {
 
     res.json({ message: "Login successful", token, user: safeUser });
   } catch (err) {
-    console.error("loginUser error:", err && err.message ? err.message : err);
+    console.error("loginUser error:", err?.message || err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
-// -------------------------------
-// Forgot Password
+// -------------------------------------------------------------------
+// FORGOT / RESET PASSWORD
 const forgotPassword = async (req, res) => {
   try {
-    const { email: rawEmail } = req.body;
-    const email = (rawEmail || "").toLowerCase().trim();
-
+    const email = (req.body.email || "").toLowerCase().trim();
     if (!email) return res.status(400).json({ message: "Email is required" });
 
     const user = await User.findOne({ email });
@@ -204,20 +202,13 @@ const forgotPassword = async (req, res) => {
     await user.save();
 
     sendOtpInBackground(email, resetOtp, "Password Reset OTP");
-
-    if (process.env.SHOW_OTP_IN_RESPONSE === "true") {
-      return res.json({ message: "Reset OTP generated (dev).", otp: resetOtp });
-    }
-
-    res.json({ message: "Reset OTP sent to your email (if delivery succeeds)." });
+    res.json({ message: "Reset OTP sent to your email." });
   } catch (err) {
-    console.error("forgotPassword error:", err && err.message ? err.message : err);
+    console.error("forgotPassword error:", err?.message || err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
-// -------------------------------
-// Reset Password
 const resetPassword = async (req, res) => {
   try {
     const { email: rawEmail, otp, newPassword } = req.body;
@@ -235,36 +226,29 @@ const resetPassword = async (req, res) => {
       !user.otp ||
       user.otp.toString() !== otp.toString() ||
       (user.otpExpires && user.otpExpires < Date.now())
-    ) {
+    )
       return res.status(400).json({ message: "Invalid or expired OTP" });
-    }
 
-    if (!PW_REGEX.test(newPassword)) {
+    if (!PW_REGEX.test(newPassword))
       return res.status(400).json({
         message:
           "Weak password: must include 1 uppercase, 1 lowercase, 1 number, and 1 special character",
       });
-    }
 
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
+    user.password = await bcrypt.hash(newPassword, 10);
     user.otp = null;
     user.otpExpires = null;
     await user.save();
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`✅ Password reset successful for ${email}`);
-    }
-
     res.json({ message: "✅ Password reset successful!" });
   } catch (err) {
-    console.error("resetPassword error:", err && err.message ? err.message : err);
+    console.error("resetPassword error:", err?.message || err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
-// -------------------------------
-// Google Login
+// -------------------------------------------------------------------
+// GOOGLE LOGIN
 const googleLogin = async (req, res) => {
   try {
     const { token } = req.body;
@@ -274,14 +258,10 @@ const googleLogin = async (req, res) => {
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
-
     const payload = ticket.getPayload();
+
     const email = (payload?.email || "").toLowerCase();
     const name = payload?.name || "GoogleUser";
-
-    if (!email) {
-      return res.status(400).json({ message: "Google account email missing" });
-    }
 
     let user = await User.findOne({ email });
     if (!user) {
@@ -298,66 +278,59 @@ const googleLogin = async (req, res) => {
     const appToken = generateToken(user);
     const safeUser = user.toObject();
     delete safeUser.password;
-    delete safeUser.otp;
-    delete safeUser.otpExpires;
 
     res.json({ token: appToken, user: safeUser });
-  } catch (error) {
-    console.error("googleLogin error:", error && error.message ? error.message : error);
+  } catch (err) {
+    console.error("googleLogin error:", err?.message || err);
     res.status(500).json({ message: "Google login failed" });
   }
 };
 
-// -------------------------------
-// Update Profile
+// -------------------------------------------------------------------
+// UPDATE PROFILE
 const updateProfile = async (req, res) => {
   try {
-    let userId = req.user?.id || req.user?._id || null;
-
+    let userId = req.user?.id || req.user?._id;
     if (!userId) {
-      const authHeader = req.headers.authorization || "";
-      const token = authHeader.split(" ")[1];
+      const token = (req.headers.authorization || "").split(" ")[1];
       if (!token) return res.status(401).json({ message: "Unauthorized" });
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        userId = decoded.id;
-      } catch (e) {
-        return res.status(401).json({ message: "Invalid token" });
-      }
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      userId = decoded.id;
     }
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const { username, name, avatar, theme } = req.body;
-
-    if (typeof username !== "undefined") user.username = username.trim();
-    if (typeof name !== "undefined") user.name = name?.trim() || "";
-    if (typeof avatar !== "undefined") user.avatarUrl = avatar;
-    if (typeof theme !== "undefined") user.theme = theme;
+    if (username) user.username = username.trim();
+    if (name) user.name = name.trim();
+    if (avatar) user.avatarUrl = avatar;
+    if (theme) user.theme = theme;
 
     await user.save();
-    const freshUser = await User.findById(user._id).select("-password -otp -otpExpires").lean();
-
-    res.json({ message: "Profile updated", user: freshUser });
+    const fresh = await User.findById(user._id).select(
+      "-password -otp -otpExpires"
+    );
+    res.json({ message: "Profile updated", user: fresh });
   } catch (err) {
-    console.error("updateProfile error:", err && err.message ? err.message : err);
+    console.error("updateProfile error:", err?.message || err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
-// -------------------------------
-// Upload Avatar (Cloudinary + fallback local)
+// -------------------------------------------------------------------
+// UPLOAD AVATAR
 const uploadAvatarHandler = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
     let avatarUrl;
-
     if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
-      const result = await uploadBufferToCloudinary(req.file.buffer, "eduoding/avatars", {
-        transformation: [{ width: 512, height: 512, crop: "limit" }],
-      });
+      const result = await uploadBufferToCloudinary(
+        req.file.buffer,
+        "eduoding/avatars",
+        { transformation: [{ width: 512, height: 512, crop: "limit" }] }
+      );
       avatarUrl = result.secure_url;
     } else {
       const uploadsDir = path.join(process.cwd(), "server", "uploads");
@@ -370,11 +343,8 @@ const uploadAvatarHandler = async (req, res) => {
 
     req.user.avatarUrl = avatarUrl;
     await req.user.save();
-
     const safeUser = req.user.toObject();
     delete safeUser.password;
-    delete safeUser.otp;
-    delete safeUser.otpExpires;
 
     res.json({ message: "Avatar uploaded successfully", avatarUrl, user: safeUser });
   } catch (err) {
@@ -383,8 +353,7 @@ const uploadAvatarHandler = async (req, res) => {
   }
 };
 
-// -------------------------------
-// Exports
+// -------------------------------------------------------------------
 export {
   registerUser,
   verifyOTP,
@@ -393,5 +362,5 @@ export {
   resetPassword,
   googleLogin,
   updateProfile,
-  uploadAvatarHandler, // 👈 added
+  uploadAvatarHandler,
 };

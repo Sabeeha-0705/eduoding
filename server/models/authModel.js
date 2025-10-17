@@ -61,8 +61,16 @@ const userSchema = new mongoose.Schema(
     },
 
     // --------- Gamification fields ----------
-    points: { type: Number, default: 0 },
-    badges: { type: [String], default: [] },
+    points: { type: Number, default: 0 }, // total points
+    badges: { type: [String], default: [] }, // earned badges
+
+    // ✅ NEW: Daily Streak System
+    streakCount: { type: Number, default: 0 }, // consecutive login days
+    lastLoginDate: { type: Date, default: null }, // last login date
+    longestStreak: { type: Number, default: 0 }, // highest streak achieved
+
+    // ✅ Optional bonus: total lessons completed (for analytics)
+    totalLessonsCompleted: { type: Number, default: 0 },
 
     // Quiz performance history
     quizHistory: [
@@ -97,6 +105,8 @@ userSchema.methods.publicProfile = function () {
     avatarUrl: this.avatarUrl || "",
     points: this.points || 0,
     badges: this.badges || [],
+    streakCount: this.streakCount || 0,
+    longestStreak: this.longestStreak || 0,
     theme: this.theme || "system",
   };
 };

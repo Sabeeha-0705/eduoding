@@ -102,19 +102,12 @@ nav ul {
   cursor: pointer;
   color: rgba(255, 255, 255, 0.9);
   transition: background 0.18s, transform 0.12s;
+  outline: none;
 }
-.sidebar-item:hover {
+.sidebar-item:hover,
+.sidebar-item:focus {
   background: rgba(255, 255, 255, 0.04);
   transform: translateX(2px);
-}
-.sidebar-item .item-icon {
-  width: 28px;
-  text-align: center;
-  font-size: 18px;
-}
-.sidebar-item .item-text {
-  font-weight: 600;
-  font-size: 15px;
 }
 .sidebar-item.active {
   background: linear-gradient(
@@ -174,6 +167,38 @@ nav ul {
   color: rgba(255, 255, 255, 0.85);
 }
 
+/* 🏆 GAMIFICATION SUMMARY */
+.gamify-summary {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  line-height: 1.5;
+  font-size: 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+.gamify-summary p {
+  margin-bottom: 4px;
+}
+.gamify-summary strong {
+  color: #ffd166;
+}
+/* Badge chip base */
+.gamify-summary .badge {
+  display: inline-block;
+  margin: 3px 4px 0 0;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  background: linear-gradient(90deg, #ffb703, #fb8500);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  will-change: transform, box-shadow;
+  transition: transform 180ms ease, box-shadow 220ms ease;
+  cursor: default;
+}
+
 /* MAIN */
 .main-content {
   flex: 1;
@@ -181,27 +206,22 @@ nav ul {
   overflow-y: auto;
   background: linear-gradient(180deg, #f9fbff 0%, #f2f6fb 100%);
   min-height: 100vh;
-  transition: filter 0.18s ease;
 }
 .page-inner {
   max-width: 1200px;
   margin: 0 auto;
 }
-.header-row {
+.header-row,
+.dash-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
   margin-bottom: 12px;
 }
-.header-row h2 {
+.dash-header h2 {
   font-size: 24px;
   font-weight: 700;
   color: #1f2937;
-}
-.small-meta {
-  color: #6b7280;
-  font-size: 13px;
 }
 
 /* --- Pine green action buttons --- */
@@ -218,18 +238,9 @@ nav ul {
   box-shadow: 0 8px 20px rgba(5, 122, 117, 0.12);
   transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
 }
-.pine-btn:hover,
-.small-btn.pine-btn:hover,
-.tiny-btn.pine-btn:hover {
+.pine-btn:hover {
   background: linear-gradient(90deg, var(--pine-green-dark), #033f3c);
   transform: translateY(-2px);
-  box-shadow: 0 12px 26px rgba(4, 86, 82, 0.14);
-}
-.pine-btn:disabled,
-.small-btn.pine-btn:disabled {
-  opacity: 0.9;
-  filter: none;
-  cursor: not-allowed;
 }
 
 /* courses */
@@ -250,16 +261,6 @@ nav ul {
   transform: translateY(-6px);
   box-shadow: 0 12px 28px rgba(16, 24, 40, 0.08);
 }
-.course-card h3 {
-  font-size: 18px;
-  margin-bottom: 8px;
-  color: #111827;
-}
-.course-card p {
-  color: #6b7280;
-  font-size: 14px;
-  margin-bottom: 12px;
-}
 
 /* progress bar */
 .progress-bar {
@@ -275,28 +276,8 @@ nav ul {
   border-radius: 8px;
   transition: width 0.4s ease;
 }
-.progress-text {
-  color: #374151;
-  font-size: 13px;
-  margin-bottom: 12px;
-}
 
-/* buttons */
-.join-btn {
-  width: 100%;
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
-  background: linear-gradient(90deg, #4b61e6, #1ea0ff);
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-}
-.join-btn:hover {
-  transform: translateY(-2px);
-}
-
-/* notes */
+/* Notes */
 .notes-list {
   list-style: none;
   padding: 0;
@@ -312,20 +293,6 @@ nav ul {
   justify-content: space-between;
   gap: 12px;
 }
-
-/* default small-btn (generic) */
-.small-btn {
-  background: transparent;
-  border: 1px solid #e5e7eb;
-  padding: 6px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-/* === Make delete button visible inside notes list ===
-   Targets only small buttons that are direct descendants of a notes list item.
-   This keeps other .small-btn usages (e.g. header controls) unchanged.
-*/
 .notes-list li .small-btn {
   background: var(--pine-green);
   border: none;
@@ -333,13 +300,11 @@ nav ul {
   padding: 8px 12px;
   border-radius: 8px;
   font-weight: 700;
-  box-shadow: 0 6px 16px rgba(5, 122, 117, 0.12);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s;
+  transition: transform 0.12s ease;
 }
 .notes-list li .small-btn:hover {
   background: var(--pine-green-dark);
   transform: translateY(-2px);
-  box-shadow: 0 10px 26px rgba(4, 86, 82, 0.12);
 }
 
 /* empty card */
@@ -379,17 +344,12 @@ nav ul {
     width: 260px;
     z-index: 100;
   }
-  /* when sidebar open, slightly darken main content */
-  .sidebar:not(.collapsed) ~ .main-content {
-    filter: blur(0.2px);
-  }
   .courses-grid {
     grid-template-columns: 1fr;
   }
 }
-
 @media (max-width: 480px) {
-  .header-row h2 {
+  .dash-header h2 {
     font-size: 20px;
   }
   .course-card {
@@ -397,5 +357,56 @@ nav ul {
   }
   .logo {
     font-size: 18px;
+  }
+  .gamify-summary {
+    font-size: 13px;
+    padding: 8px;
+  }
+}
+
+/* 🏅 Badge Glow Animation */
+@keyframes badge-glow {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0px rgba(255, 183, 3, 0);
+  }
+  50% {
+    transform: scale(1.2);
+    box-shadow: 0 0 16px rgba(255, 183, 3, 0.6);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0px rgba(255, 183, 3, 0);
+  }
+}
+
+/* Apply glow effect when new badge added (snappier) */
+.gamify-summary .badge.new-badge {
+  animation: badge-glow 1.4s ease-in-out;
+}
+
+/* Optional: slight hover effect */
+.gamify-summary .badge:hover {
+  transform: scale(1.06);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+}
+
+/* Keyboard focus visible for badges */
+.gamify-summary .badge:focus {
+  outline: 3px solid rgba(255, 183, 3, 0.18);
+  outline-offset: 3px;
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .gamify-summary .badge,
+  .gamify-summary .badge.new-badge,
+  .progress,
+  .course-card,
+  .sidebar-item {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    box-shadow: none !important;
   }
 }
