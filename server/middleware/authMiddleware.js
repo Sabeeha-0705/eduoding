@@ -59,5 +59,8 @@ export const protect = async (req, res, next) => {
   }
 };
 
+// named export that matches route imports elsewhere
+export const authMiddleware = protect;
+
 // also export default for files that import default
 export default protect;

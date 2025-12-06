@@ -1,7 +1,7 @@
 // server/routes/certRoutes.js (ESM)
 import express from "express";
 import { generateCertificate, getMyCertificates } from "../controllers/certController.js";
-import { authMiddleware } from "../middleware/authMiddleware.js"; // adjust path if needed
+import { authMiddleware } from "../middleware/authMiddleware.js"; // now provided as named export
 
 const router = express.Router();
 
