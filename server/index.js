@@ -20,6 +20,8 @@ import quizRoutes from "./routes/quizRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import codeRoutes from "./routes/codeRoutes.js";
 import codeTestRoutes from "./routes/codeTestRoutes.js";
+import certRoutes from "./routes/certRoutes.js";
+
 import sendEmail, { verifyTransporter } from "./utils/sendEmail.js";
 
 dotenv.config();
@@ -112,6 +114,7 @@ app.use("/api/judge0", judge0Routes);
 app.use("/api/users", userRoutes);
 app.use("/api/code", codeRoutes);
 app.use("/api/code-test", codeTestRoutes);
+app.use("/api/certificates", certRoutes);
 
 // ==================== UPLOADS (Local Fallback) ====================
 // Serve uploaded files locally only (when Cloudinary is off)

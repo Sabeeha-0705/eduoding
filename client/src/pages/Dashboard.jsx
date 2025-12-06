@@ -18,6 +18,9 @@ export default function Dashboard() {
   // NEW: index of badge that should animate (or null)
   const [newBadgeIndex, setNewBadgeIndex] = useState(null);
 
+  // NEW: certificate count for quick button
+  const [certCount, setCertCount] = useState(0);
+
   const navigate = useNavigate();
   const bcRef = useRef(null);
   const mountedRef = useRef(true);
@@ -59,6 +62,18 @@ export default function Dashboard() {
     }
   }, [navigate]);
 
+  // Fetch certificate list (for count) — small and fast
+  const fetchCertificatesCount = useCallback(async () => {
+    try {
+      const res = await API.get("/certificates/me");
+      const list = Array.isArray(res.data) ? res.data : res.data?.certificates || [];
+      if (mountedRef.current) setCertCount(list.length);
+    } catch (e) {
+      // silently ignore; leave count as 0
+      if (mountedRef.current) setCertCount(0);
+    }
+  }, []);
+
   // Fetch all dashboard data
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -70,6 +85,7 @@ export default function Dashboard() {
       }
 
       await fetchUser();
+      await fetchCertificatesCount();
 
       // Notes
       try {
@@ -113,7 +129,7 @@ export default function Dashboard() {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [fetchUser, navigate]);
+  }, [fetchUser, fetchCertificatesCount, navigate]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -245,6 +261,58 @@ export default function Dashboard() {
   const effectiveCourses =
     Array.isArray(courses) && courses.length ? courses : fallbackCourses;
 
+  // -------------------------
+  // Small helper components
+  // -------------------------
+  function CertificatesCard({ count = 0 }) {
+    return (
+      <div className="course-card certificates-card" role="region" aria-label="Certificates">
+        <h3>🎓 My Certificates</h3>
+        <p className="muted">{count} earned</p>
+        <div style={{ marginTop: 12 }}>
+          <button
+            className="join-btn"
+            onClick={() => navigate("/certificates")}
+            aria-label="View certificates"
+          >
+            View Certificates
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function NotesPreview({ notesList = [] }) {
+    const top = Array.isArray(notesList) ? notesList.slice(0, 3) : [];
+    return (
+      <div className="notes-preview card">
+        <h4>📝 Recent Notes</h4>
+        {top.length ? (
+          <ul>
+            {top.map((n) => (
+              <li key={n._id || n.id} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <div style={{ maxWidth: "70%" }}>{(n.content || n.text || "").slice(0, 120)}</div>
+                  <div>
+                    <button className="small-btn" onClick={() => navigate("/notes")}>Open</button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="empty-card-inline">
+            <p className="muted">No notes yet — take notes while watching lessons.</p>
+            <button className="join-btn" onClick={() => setActiveTab("courses")}>Go to Courses</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // -------------------------
+  // RENDER
+  // -------------------------
   if (loading)
     return (
       <div className="dashboard-container">
@@ -355,7 +423,8 @@ export default function Dashboard() {
               days
             </p>
             <p>
-              💎 <strong>Points:</strong> {user?.points ?? 0}
+              💎 <strong>Points:</strong>{" "}
+              <span className="points points-pulse">{user?.points ?? 0}</span>
             </p>
             <div>
               <strong>🏅 Badges:</strong>{" "}
@@ -408,8 +477,26 @@ export default function Dashboard() {
                 >
                   Leaderboard
                 </button>
+
+                {/* NEW: Certificates quick button */}
+                <button
+                  className="small-btn pine-btn"
+                  style={{ marginLeft: 8 }}
+                  onClick={() => navigate("/certificates")}
+                  aria-label="Open certificates"
+                  title="View your certificates"
+                >
+                  🎓 My Certificates {certCount ? `(${certCount})` : ""}
+                </button>
               </div>
             </div>
+
+            {/* Notes preview (quick) */}
+            {activeTab === "courses" && (
+              <div style={{ marginBottom: 18 }}>
+                <NotesPreview notesList={notes} />
+              </div>
+            )}
 
             {/* Courses Tab */}
             {activeTab === "courses" && (
@@ -417,6 +504,8 @@ export default function Dashboard() {
                 <h3>📘 Your Courses</h3>
                 <p>Select a course and start learning 🚀</p>
                 <div className="courses-grid">
+                  {/* CertificatesCard as first card for visibility */}
+                  <CertificatesCard count={certCount} />
                   {effectiveCourses.map((course) => {
                     const progress = getProgressForCourse(course.id);
                     return (
