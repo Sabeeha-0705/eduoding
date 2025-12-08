@@ -5,18 +5,18 @@ import Certificate from "../models/certificateModel.js";
 import { uploadPDFBuffer } from "../utils/upload.js"; // must exist (ESM)
 import path from "path";
 
-/* optional models */
+/* optional models (keep them optional) */
 let User = null;
 let Course = null;
 try {
   User = (await import("../models/User.js")).default;
 } catch (e) {
-  // ignore
+  /* ok - fallback to minimal info */
 }
 try {
   Course = (await import("../models/Course.js")).default;
 } catch (e) {
-  // ignore
+  /* ok */
 }
 
 /* helper */
@@ -28,7 +28,7 @@ function escapeHtml(s = "") {
     .replace(/"/g, "&quot;");
 }
 
-/* template */
+/* HTML template */
 function generateCertificateHTML({ name, courseTitle, score, issuedAt, id, logoUrl }) {
   const issuedStr = issuedAt ? new Date(issuedAt).toLocaleDateString() : "";
   return `<!doctype html>
@@ -126,31 +126,70 @@ export async function generateCertificate(req, res) {
       logoUrl: process.env.CERT_LOGO_URL || "",
     });
 
-    // Puppeteer
-    const browser = await puppeteer.launch({
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      headless: true,
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    });
+    // TEMP: allow skipping heavy PDF generation (useful during debugging or if Puppeteer fails on host)
+    if (process.env.DISABLE_CERT_PDF === "true") {
+      const certDoc = new Certificate({
+        userId: targetUserId,
+        courseId: courseId || (course && course._id) || String(courseId || ""),
+        quizId: quizId || null,
+        score: score ?? null,
+        passed: typeof passed === "boolean" ? passed : (typeof score === "number" ? score >= 50 : true),
+        pdfUrl: null,
+        certificateId: certId,
+      });
+      await certDoc.save();
+      return res.json({ success: true, pdfUrl: null, certificate: certDoc });
+    }
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1200, height: 1600, deviceScaleFactor: 1 });
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    // Puppeteer: render PDF (wrapped so we get good error info)
+    let pdfBuffer = null;
+    try {
+      const launchOpts = {
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        headless: true,
+      };
+      // allow custom executable path if provided (Render or other hosts may require)
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        launchOpts.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      }
+      const browser = await puppeteer.launch(launchOpts);
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1200, height: 1600, deviceScaleFactor: 1 });
+      await page.setContent(html, { waitUntil: "networkidle0" });
+      pdfBuffer = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        margin: { top: "18mm", bottom: "18mm", left: "12mm", right: "12mm" },
+      });
+      await browser.close();
+    } catch (puppErr) {
+      console.error("Puppeteer PDF render failed:", puppErr);
+      return res.status(500).json({
+        message: "Failed to render certificate PDF",
+        detail: puppErr?.message || String(puppErr),
+      });
+    }
 
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "18mm", bottom: "18mm", left: "12mm", right: "12mm" },
-    });
+    if (!pdfBuffer) {
+      return res.status(500).json({ message: "PDF generation produced empty buffer" });
+    }
 
-    await browser.close();
+    // Upload PDF buffer (cloudinary or s3)
+    let uploadRes;
+    try {
+      const filename = `certificate-${targetUserId}-${courseId || "general"}-${Date.now()}.pdf`;
+      uploadRes = await uploadPDFBuffer(pdfBuffer, filename);
+    } catch (upErr) {
+      console.error("uploadPDFBuffer failed:", upErr);
+      return res.status(500).json({
+        message: "Failed to upload certificate PDF",
+        detail: upErr?.message || String(upErr),
+      });
+    }
 
-    // Upload
-    const filename = `certificate-${targetUserId}-${courseId || "general"}-${Date.now()}.pdf`;
-    const uploadRes = await uploadPDFBuffer(pdfBuffer, filename);
     const pdfUrl = uploadRes?.url || uploadRes?.Location || uploadRes?.secure_url || null;
 
-    // Save DB
+    // Save DB record
     const certDoc = new Certificate({
       userId: targetUserId,
       courseId: courseId || (course && course._id) || String(courseId || ""),
@@ -166,7 +205,10 @@ export async function generateCertificate(req, res) {
     return res.json({ success: true, pdfUrl, certificate: certDoc });
   } catch (err) {
     console.error("generateCertificate error:", err);
-    return res.status(500).json({ message: "Failed to generate certificate", detail: err.message });
+    return res.status(500).json({
+      message: "Failed to generate certificate",
+      detail: err?.message || String(err),
+    });
   }
 }
 
