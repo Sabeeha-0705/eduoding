@@ -1,3 +1,4 @@
+// babel.config.js
 module.exports = function(api) {
   api.cache(true);
   return {
@@ -13,6 +14,6 @@ module.exports = function(api) {
           extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
         }
       ]
-    ]
+    ],
   };
 };
