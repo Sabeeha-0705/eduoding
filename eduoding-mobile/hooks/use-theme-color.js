@@ -1,17 +1,26 @@
 // hooks/use-theme-color.js
-/**
- * Learn more about light and dark modes:
- * https://docs.expo.dev/guides/color-schemes/
- */
-
+import { useColorScheme } from './use-color-scheme';
 import { Colors } from '../constants/theme';
-import useColorScheme from './use-color-scheme';
 
-export default function useThemeColor(props = {}, colorName) {
-  const theme = useColorScheme(); // returns 'light' or 'dark'
-  const colorFromProps = props[colorName];
-  if (colorFromProps) return colorFromProps;
+/**
+ * useThemeColor(props = {}, colorName)
+ * - props: optional override object, can be { light: '#fff', dark: '#000' } OR { light: '#fff' } etc.
+ * - colorName: key from your Colors theme (e.g. 'background', 'text', 'icon')
+ *
+ * Returns the appropriate color string for the current color scheme.
+ */
+export function useThemeColor(props = {}, colorName) {
+  const scheme = useColorScheme() ?? 'light';
 
-  // Colors is a JS object like: { light: {...}, dark: {...} }
-  return Colors[theme][colorName];
+  // If caller passed per-scheme override (props.light / props.dark), prefer that
+  if (props && props[scheme]) {
+    return props[scheme];
+  }
+
+  // Fallback to Colors constant
+  const themeColors = Colors[scheme] || Colors.light;
+  return (themeColors && themeColors[colorName]) || null;
 }
+
+// Optional default export for files that used default import style
+export default useThemeColor;
