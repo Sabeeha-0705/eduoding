@@ -1,9 +1,77 @@
-import { View, Text } from "react-native";
+// app/(tabs)/index.jsx
+import { View, Text, StyleSheet, Pressable } from "react-native";
+import { useEffect } from "react";
+import { router } from "expo-router";
+import { useAuth } from "../../context/AuthContext";
 
 export default function HomeScreen() {
+  const { token, user, logout } = useAuth();
+
+  // 🔐 If not logged in → go to auth
+  useEffect(() => {
+    if (!token) {
+      router.replace("/auth");
+    }
+  }, [token]);
+
+  if (!token) return null; // avoid flicker
+
   return (
-    <View>
-      <Text>Hello Sabeeha, App Run Aagiduchu! 🎉</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>
+        Welcome to Eduoding 🎓
+      </Text>
+
+      <Text style={styles.subtitle}>
+        Logged in as: {user?.email}
+      </Text>
+
+      <Text style={styles.role}>
+        Role: {user?.role}
+      </Text>
+
+      <Pressable
+        style={styles.logoutBtn}
+        onPress={logout}
+      >
+        <Text style={styles.logoutText}>Logout</Text>
+      </Pressable>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 10,
+    color: "#111",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#444",
+    marginBottom: 6,
+  },
+  role: {
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 20,
+  },
+  logoutBtn: {
+    backgroundColor: "#ff4d4f",
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+  },
+  logoutText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+});
