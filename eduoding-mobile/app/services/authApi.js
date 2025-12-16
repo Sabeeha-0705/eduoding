@@ -1,4 +1,4 @@
-// eduoding-mobile/services/authApi.js
+// eduoding-mobile/app/services/authApi.js
 import axios from "axios";
 
 const API = axios.create({
