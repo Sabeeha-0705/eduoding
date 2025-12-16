@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import API from "../api"; // mobile api file
+import API from "../../services/api";
+
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
