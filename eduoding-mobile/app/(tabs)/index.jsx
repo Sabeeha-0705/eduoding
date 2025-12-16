@@ -18,7 +18,7 @@ export default function HomeScreen() {
     if (!ready) return;
 
     if (!token) {
-      router.replace("/auth"); // auth.jsx
+      router.replace("auth/auth"); // auth.jsx
     }
   }, [ready, token]);
 
