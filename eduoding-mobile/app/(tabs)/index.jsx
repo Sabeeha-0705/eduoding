@@ -1,26 +1,32 @@
 // app/(tabs)/index.jsx
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 
 export default function HomeScreen() {
   const { token, user, logout } = useAuth();
+  const [ready, setReady] = useState(false);
 
-  // 🔐 If not logged in → go to auth
+  // 🟢 wait till RootLayout + context ready
   useEffect(() => {
-    if (!token) {
-      router.replace("/auth");
-    }
-  }, [token]);
+    const t = setTimeout(() => setReady(true), 100);
+    return () => clearTimeout(t);
+  }, []);
 
-  if (!token) return null; // avoid flicker
+  useEffect(() => {
+    if (!ready) return;
+
+    if (!token) {
+      router.replace("/auth"); // auth.jsx
+    }
+  }, [ready, token]);
+
+  if (!ready || !token) return null;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>
-        Welcome to Eduoding 🎓
-      </Text>
+      <Text style={styles.title}>Welcome to Eduoding 🎓</Text>
 
       <Text style={styles.subtitle}>
         Logged in as: {user?.email}
@@ -30,10 +36,7 @@ export default function HomeScreen() {
         Role: {user?.role}
       </Text>
 
-      <Pressable
-        style={styles.logoutBtn}
-        onPress={logout}
-      >
+      <Pressable style={styles.logoutBtn} onPress={logout}>
         <Text style={styles.logoutText}>Logout</Text>
       </Pressable>
     </View>

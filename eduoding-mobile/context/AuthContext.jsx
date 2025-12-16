@@ -1,31 +1,28 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import API from "../app/services/api";
-
-
-
+import API from "../services/api";
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
 
+  // load token on app start
   useEffect(() => {
-    loadToken();
+    AsyncStorage.getItem("authToken").then((t) => {
+      if (t) setToken(t);
+    });
   }, []);
 
-  async function loadToken() {
-    const saved = await AsyncStorage.getItem("authToken");
-    if (saved) {
-      setToken(saved);
-      decodeUser(saved);
+  // decode token
+  useEffect(() => {
+    if (!token) {
+      setUser(null);
+      return;
     }
-  }
-
-  function decodeUser(jwt) {
     try {
       const payload = JSON.parse(
-        atob(jwt.split(".")[1])
+        atob(token.split(".")[1])
       );
       setUser({
         id: payload.id,
@@ -35,13 +32,13 @@ export function AuthProvider({ children }) {
     } catch {
       setUser(null);
     }
-  }
+  }, [token]);
 
-  async function logout() {
+  const logout = async () => {
     await AsyncStorage.removeItem("authToken");
     setToken(null);
     setUser(null);
-  }
+  };
 
   return (
     <AuthContext.Provider

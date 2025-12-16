@@ -21,10 +21,19 @@ export default function RootLayout() {
         value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
       >
         <Stack>
+          {/* 🔐 Auth screen */}
+          <Stack.Screen
+            name="auth"
+            options={{ headerShown: false }}
+          />
+
+          {/* 🏠 Main app tabs */}
           <Stack.Screen
             name="(tabs)"
             options={{ headerShown: false }}
           />
+
+          {/* Optional modal */}
           <Stack.Screen
             name="modal"
             options={{ presentation: "modal", title: "Modal" }}
