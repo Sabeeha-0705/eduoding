@@ -20,18 +20,38 @@ export default function RootLayout() {
       <ThemeProvider
         value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
       >
-        <Stack>
+        <Stack screenOptions={{ headerShown: false }}>
           {/* 🔐 Auth screen */}
-          <Stack.Screen
-            name="auth"
-            options={{ headerShown: false }}
-          />
+          <Stack.Screen name="auth/auth" />
 
           {/* 🏠 Main app tabs */}
-          <Stack.Screen
-            name="(tabs)"
-            options={{ headerShown: false }}
-          />
+          <Stack.Screen name="(tabs)" />
+
+          {/* Course routes */}
+          <Stack.Screen name="course/[id]" />
+          <Stack.Screen name="course/[courseId]/lesson/[lessonId]" />
+          <Stack.Screen name="course/[courseId]/quiz" />
+
+          {/* Code routes */}
+          <Stack.Screen name="code/editor" />
+          <Stack.Screen name="code/mine/all" />
+          <Stack.Screen name="code/[id]" />
+
+          {/* User pages */}
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="notes" />
+          <Stack.Screen name="certificates" />
+          <Stack.Screen name="leaderboard" />
+          <Stack.Screen name="badges" />
+
+          {/* Uploader routes */}
+          <Stack.Screen name="uploader/upload" />
+          <Stack.Screen name="uploader/dashboard" />
+
+          {/* Admin routes */}
+          <Stack.Screen name="admin/requests" />
+          <Stack.Screen name="admin/videos" />
+          <Stack.Screen name="add-lesson" />
 
           {/* Optional modal */}
           <Stack.Screen

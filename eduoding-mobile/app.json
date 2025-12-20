@@ -45,7 +45,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "API_BASE": "https://eduoding-backend.onrender.com"
+      "API_BASE": "https://eduoding-backend.onrender.com",
+      "GOOGLE_CLIENT_ID": "YOUR_GOOGLE_CLIENT_ID_HERE"
     }
   }
 }

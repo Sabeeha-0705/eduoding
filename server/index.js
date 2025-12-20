@@ -97,8 +97,12 @@ app.get("/", (_, res) => res.send("🚀 Eduoding API is running..."));
 app.get("/healthz", (_, res) => res.status(200).json({ ok: true }));
 
 // Log email environment sanity
-console.log("✅ SENDGRID_API_KEY loaded:", !!process.env.SENDGRID_API_KEY);
-console.log("📧 EMAIL_FROM:", process.env.EMAIL_FROM);
+console.log("📧 Email Configuration:");
+console.log("   EMAIL_FROM:", process.env.EMAIL_FROM || process.env.SMTP_USER || "not set");
+console.log("   SMTP_HOST:", process.env.SMTP_HOST || "smtp.gmail.com");
+console.log("   SMTP_PORT:", process.env.SMTP_PORT || "587");
+console.log("   SMTP_USER:", process.env.SMTP_USER ? "***" : "NOT SET");
+console.log("   SMTP_PASS:", process.env.SMTP_PASS ? "***" : "NOT SET");
 
 // ==================== ROUTES ====================
 app.use("/api/auth", authRoutes);

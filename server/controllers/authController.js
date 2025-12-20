@@ -20,17 +20,23 @@ const generateToken = (user) =>
 // Password strength rule
 const PW_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
 
-// Fire-and-forget OTP email
+// Fire-and-forget OTP email (logs result for debugging)
 function sendOtpInBackground(email, otp, subject = "Eduoding OTP Verification") {
   sendOTP(email, otp, subject)
-    .then(() => {
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`✅ OTP email sent to ${email}`);
+    .then((result) => {
+      if (result && result.success) {
+        console.log(`✅ OTP email sent successfully to ${email}`);
+      } else {
+        const errorMsg = result?.error || "Unknown error";
+        console.error(`❌ OTP email failed to ${email}:`, errorMsg);
       }
     })
-    .catch((err) =>
-      console.error(`❌ OTP email failed to ${email}:`, err?.message || err)
-    );
+    .catch((err) => {
+      console.error(`❌ OTP email error for ${email}:`, err?.message || err);
+      if (err?.stack) {
+        console.error("   Stack:", err.stack);
+      }
+    });
 }
 
 // -------------------------------------------------------------------
@@ -252,37 +258,127 @@ const resetPassword = async (req, res) => {
 const googleLogin = async (req, res) => {
   try {
     const { token } = req.body;
-    if (!token) return res.status(400).json({ message: "Token required" });
-
-    const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-    const payload = ticket.getPayload();
-
-    const email = (payload?.email || "").toLowerCase();
-    const name = payload?.name || "GoogleUser";
-
-    let user = await User.findOne({ email });
-    if (!user) {
-      user = await User.create({
-        username: name,
-        name: name,
-        email,
-        password: null,
-        provider: "google",
-        isVerified: true,
-      });
+    
+    if (!token) {
+      return res.status(400).json({ message: "Google ID token is required" });
     }
 
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      console.error("GOOGLE_CLIENT_ID not configured");
+      return res.status(500).json({ message: "Google authentication not configured" });
+    }
+
+    // Verify Google ID token
+    let ticket;
+    try {
+      ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+    } catch (verifyErr) {
+      console.error("Google token verification failed:", verifyErr?.message || verifyErr);
+      if (verifyErr?.message?.includes("expired")) {
+        return res.status(401).json({ message: "Google token expired. Please try again." });
+      }
+      if (verifyErr?.message?.includes("invalid")) {
+        return res.status(401).json({ message: "Invalid Google token" });
+      }
+      return res.status(401).json({ message: "Google token verification failed" });
+    }
+
+    const payload = ticket.getPayload();
+    
+    if (!payload) {
+      return res.status(401).json({ message: "Invalid Google token payload" });
+    }
+
+    const email = (payload?.email || "").toLowerCase().trim();
+    const googleId = payload?.sub || null;
+    const name = payload?.name || payload?.given_name || "GoogleUser";
+    const picture = payload?.picture || null;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email not provided by Google" });
+    }
+
+    // Find or create user
+    let user = await User.findOne({ 
+      $or: [
+        { email },
+        { googleId }
+      ]
+    });
+
+    if (!user) {
+      // Create new user with Google credentials
+      // Generate a unique username from name or email
+      let username = name.replace(/\s+/g, "").toLowerCase();
+      let usernameExists = await User.findOne({ username });
+      if (usernameExists) {
+        // Append random number if username exists
+        username = `${username}${Math.floor(Math.random() * 1000)}`;
+      }
+
+      user = await User.create({
+        username,
+        name,
+        email,
+        googleId,
+        provider: "google",
+        isVerified: true, // Google users are automatically verified
+        avatarUrl: picture || "",
+        password: null, // No password for Google users
+      });
+
+      console.log(`✅ New Google user created: ${email}`);
+    } else {
+      // Update existing user if needed
+      const updates = {};
+      if (!user.googleId && googleId) {
+        updates.googleId = googleId;
+      }
+      if (user.provider !== "google") {
+        updates.provider = "google";
+      }
+      if (!user.isVerified) {
+        updates.isVerified = true; // Auto-verify Google users
+      }
+      if (picture && !user.avatarUrl) {
+        updates.avatarUrl = picture;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        Object.assign(user, updates);
+        await user.save();
+        console.log(`✅ Google user updated: ${email}`);
+      }
+    }
+
+    // Generate JWT token
     const appToken = generateToken(user);
+    
+    // Prepare safe user object (no password, otp, etc.)
     const safeUser = user.toObject();
     delete safeUser.password;
+    delete safeUser.otp;
+    delete safeUser.otpExpires;
 
-    res.json({ token: appToken, user: safeUser });
+    console.log(`✅ Google login successful for: ${email}`);
+
+    res.json({
+      message: "Google login successful",
+      token: appToken,
+      user: safeUser,
+    });
   } catch (err) {
     console.error("googleLogin error:", err?.message || err);
-    res.status(500).json({ message: "Google login failed" });
+    if (err?.stack) {
+      console.error("Stack:", err.stack);
+    }
+    res.status(500).json({ 
+      message: err?.message || "Google login failed",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined
+    });
   }
 };
 
