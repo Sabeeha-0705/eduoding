@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import API, { fetchCourseProgress } from "../app/services/api";
+import API, { fetchCourseProgress, googleLogin } from "../app/services/api";
 
 const AuthContext = createContext();
 
@@ -46,6 +46,39 @@ export function AuthProvider({ children }) {
     }
   }
 
+  /**
+   * Handle Google login with ID token
+   * This method sends the Google ID token to the backend and stores the JWT token
+   * 
+   * @param {string} idToken - Google ID token from OAuth flow
+   * @returns {Promise<{success: boolean, message?: string}>}
+   */
+  const handleGoogleLogin = async (idToken) => {
+    try {
+      if (!idToken) {
+        return { success: false, message: "No ID token provided" };
+      }
+
+      // Send ID token to backend for verification
+      const res = await googleLogin(idToken);
+
+      if (res?.data?.token) {
+        // Save token securely
+        await AsyncStorage.setItem("authToken", res.data.token);
+        setToken(res.data.token);
+        return { success: true, message: "Google login successful" };
+      } else {
+        return { success: false, message: "No token returned from backend" };
+      }
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Google login failed";
+      return { success: false, message: errorMessage };
+    }
+  };
+
   const logout = async () => {
     await AsyncStorage.removeItem("authToken");
     setToken(null);
@@ -62,6 +95,7 @@ export function AuthProvider({ children }) {
         setUser,
         courseProgress,
         refreshProgress,
+        handleGoogleLogin,
         logout,
       }}
     >

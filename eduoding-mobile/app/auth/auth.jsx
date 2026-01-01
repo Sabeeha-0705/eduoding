@@ -1,5 +1,5 @@
 // eduoding-mobile/app/auth/auth.jsx
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,17 +13,21 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as AuthSession from "expo-auth-session";
+import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
-import API from "../services/api";
 import { useAuth } from "../../context/AuthContext";
-import Constants from "expo-constants";
+import {
+  getGoogleClientId,
+  getGoogleRedirectUri,
+  GOOGLE_SCOPES,
+} from "../../config/googleAuth";
 
 // Complete the auth session for better UX
+// This allows Expo to automatically dismiss the OAuth browser window
 WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
-  const { setToken } = useAuth();
+  const { setToken, handleGoogleLogin: authHandleGoogleLogin } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [msg, setMsg] = useState("");
   const [otpStep, setOtpStep] = useState(false);
@@ -38,6 +42,122 @@ export default function AuthScreen() {
   const [requestedUploader, setRequestedUploader] = useState(false);
   const [loading, setLoading] = useState(false);
   const [otp, setOtp] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Google OAuth hook - handles the authentication flow
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: getGoogleClientId(),
+    scopes: GOOGLE_SCOPES,
+    redirectUri: getGoogleRedirectUri(),
+  });
+
+  // Handle Google OAuth response
+  useEffect(() => {
+    if (response?.type === "success") {
+      // Extract ID token from response
+      // Google.useAuthRequest returns it in authentication.idToken
+      // Fallback to params.id_token for compatibility
+      const idToken =
+        response.authentication?.idToken ||
+        response.params?.id_token ||
+        null;
+      handleGoogleAuthSuccess(idToken);
+    } else if (response?.type === "error") {
+      handleGoogleAuthError(response.error);
+    } else if (response?.type === "cancel") {
+      setGoogleLoading(false);
+      setMsg("Google login cancelled");
+    }
+  }, [response]);
+
+  /**
+   * Handle successful Google authentication
+   * Sends the ID token to the backend and processes the response
+   */
+  const handleGoogleAuthSuccess = async (idToken) => {
+    if (!idToken) {
+      setGoogleLoading(false);
+      setMsg("❌ Google login failed: No ID token received");
+      return;
+    }
+
+    try {
+      console.log("✅ Received Google ID token, sending to backend...");
+
+      // Use AuthContext helper to handle backend call and token storage
+      const result = await authHandleGoogleLogin(idToken);
+
+      if (result.success) {
+        setMsg("✅ Google login successful!");
+        
+        // Navigate to dashboard
+        router.replace("/(tabs)");
+      } else {
+        setMsg(`❌ ${result.message || "Google login failed"}`);
+      }
+    } catch (err) {
+      console.error("Backend Google login error:", err);
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Google login failed. Please try again.";
+      setMsg(`❌ ${errorMessage}`);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  /**
+   * Handle Google authentication errors
+   */
+  const handleGoogleAuthError = (error) => {
+    setGoogleLoading(false);
+    console.error("Google OAuth error:", error);
+    
+    if (error?.code === "ERR_REQUEST_CANCELED") {
+      setMsg("Google login cancelled");
+    } else if (error?.message) {
+      setMsg(`❌ Google login failed: ${error.message}`);
+    } else {
+      setMsg("❌ Google login failed. Please try again.");
+    }
+  };
+
+  /**
+   * Initiate Google login flow
+   * This triggers the OAuth prompt
+   */
+  const handleGoogleLogin = async () => {
+    try {
+      setGoogleLoading(true);
+      setMsg("");
+
+      // Check if Google Client ID is configured
+      const clientId = getGoogleClientId();
+      if (!clientId) {
+        setMsg("❌ Google login is not configured. Please set GOOGLE_CLIENT_ID in app.json");
+        setGoogleLoading(false);
+        return;
+      }
+
+      // Check if request is ready
+      if (!request) {
+        setMsg("❌ Google login is initializing. Please wait...");
+        setGoogleLoading(false);
+        return;
+      }
+
+      console.log("🚀 Starting Google OAuth flow...");
+      console.log("Redirect URI:", getGoogleRedirectUri());
+
+      // Prompt the user for Google authentication
+      await promptAsync();
+    } catch (err) {
+      console.error("Google login initiation error:", err);
+      setMsg(err.message || "❌ Failed to start Google login. Please try again.");
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     setMsg("");
@@ -95,70 +215,6 @@ export default function AuthScreen() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      setGoogleLoading(true);
-      setMsg("");
-
-      // Get Google Client ID from environment
-      const googleClientId = Constants.expoConfig?.extra?.GOOGLE_CLIENT_ID || 
-                             Constants.manifest?.extra?.GOOGLE_CLIENT_ID ||
-                             process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
-
-      if (!googleClientId) {
-        setMsg("Google login is not configured. Please set GOOGLE_CLIENT_ID.");
-        return;
-      }
-
-      // Configure Google OAuth request
-      const redirectUri = AuthSession.makeRedirectUri({
-        scheme: "eduodingmobile",
-        path: "redirect",
-      });
-
-      const discovery = {
-        authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-        tokenEndpoint: "https://oauth2.googleapis.com/token",
-        revocationEndpoint: "https://oauth2.googleapis.com/revoke",
-      };
-
-      const request = new AuthSession.AuthRequest({
-        clientId: googleClientId,
-        scopes: ["openid", "profile", "email"],
-        redirectUri,
-        responseType: AuthSession.ResponseType.IdToken,
-        additionalParameters: {},
-      });
-
-      // Start the authentication flow
-      const result = await request.promptAsync(discovery);
-
-      if (result.type === "success" && result.params?.id_token) {
-        const idToken = result.params.id_token;
-
-        // Send ID token to backend
-        const res = await API.post("/auth/google", { token: idToken });
-
-        if (res?.data?.token) {
-          await AsyncStorage.setItem("authToken", res.data.token);
-          setToken(res.data.token);
-          setMsg("✅ Google login successful!");
-          router.replace("/(tabs)");
-        } else {
-          setMsg("Google login failed: no token returned.");
-        }
-      } else if (result.type === "cancel") {
-        setMsg("Google login cancelled");
-      } else {
-        setMsg("Google login failed. Please try again.");
-      }
-    } catch (err) {
-      console.error("Google login error:", err);
-      setMsg(err.response?.data?.message || err.message || "Google login failed");
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
 
   const handleForgot = async () => {
     setMsg("");
@@ -296,12 +352,24 @@ export default function AuthScreen() {
           <View>
             {/* Google Login Button */}
             <Pressable
-              style={[styles.googleButton, googleLoading && styles.btnDisabled]}
+              style={[
+                styles.googleButton,
+                (googleLoading || loading || !request) && styles.btnDisabled,
+              ]}
               onPress={handleGoogleLogin}
-              disabled={googleLoading || loading}
+              disabled={googleLoading || loading || !request}
             >
+              <Image
+                source={require("../../assets/images/google.png")}
+                style={styles.googleIcon}
+                resizeMode="contain"
+              />
               <Text style={styles.googleButtonText}>
-                {googleLoading ? "Signing in..." : "Continue with Google"}
+                {googleLoading
+                  ? "Signing in..."
+                  : !request
+                  ? "Initializing..."
+                  : "Continue with Google"}
               </Text>
             </Pressable>
 
@@ -650,6 +718,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+  },
+  googleIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 12,
   },
   googleButtonText: {
     color: "#333",

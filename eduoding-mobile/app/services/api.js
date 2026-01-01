@@ -46,6 +46,16 @@ API.interceptors.response.use(
   }
 );
 
+// Auth helpers
+/**
+ * Send Google ID token to backend for authentication
+ * @param {string} idToken - Google ID token from OAuth flow
+ * @returns {Promise} API response with JWT token and user data
+ */
+export const googleLogin = (idToken) => {
+  return API.post("/auth/google", { token: idToken });
+};
+
 // Progress helpers
 export const toggleLessonProgress = (courseId, lessonId, completed, totalLessons) =>
   API.post(`/progress/${courseId}/lesson`, { lessonId, completed, totalLessons });

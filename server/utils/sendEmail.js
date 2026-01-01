@@ -43,14 +43,27 @@ export async function verifyTransporter() {
       tls: { rejectUnauthorized: false },
     });
 
-    // Verify transporter connection
-    await t.verify();
+    // Verify transporter connection only in non-production
+    // This prevents ETIMEDOUT errors on Render (production)
+    // Email sending will still work - verification is just a startup check
+    if (process.env.NODE_ENV !== "production") {
+      try {
+        await t.verify();
+        console.info("✅ SMTP transporter verified successfully");
+      } catch (verifyErr) {
+        console.warn("⚠️ SMTP verification failed (non-production):", verifyErr?.message || verifyErr);
+        console.warn("   Email sending may still work. This is just a connectivity check.");
+      }
+    } else {
+      console.info("ℹ️ Skipping SMTP verification in production (prevents ETIMEDOUT on Render)");
+      console.info("   Email transporter created. Verification skipped - email sending will work.");
+    }
+
     nodemailerTransporter = t;
-    console.info("✅ SMTP transporter verified successfully");
     console.info(`   Host: ${SMTP_HOST}:${SMTP_PORT}, User: ${SMTP_USER}, Secure: ${SMTP_SECURE}`);
     return { type: "smtp", transporter: nodemailerTransporter };
   } catch (err) {
-    console.error("❌ SMTP transporter verification failed:", err?.message || err);
+    console.error("❌ SMTP transporter creation failed:", err?.message || err);
     if (err?.code) {
       console.error("   Error code:", err.code);
     }
@@ -58,7 +71,7 @@ export async function verifyTransporter() {
       console.error("   Error response:", err.response);
     }
     nodemailerTransporter = null;
-    throw new Error(`SMTP verification failed: ${err?.message || err}`);
+    throw new Error(`SMTP creation failed: ${err?.message || err}`);
   }
 }
 

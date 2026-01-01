@@ -1,6 +1,6 @@
 // server/routes/codeTestRoutes.js
 import express from "express";
-import rateLimit from "express-rate-limit";
+import { createLimiter, ipKeyGenerator } from "../middleware/rateLimit.js";
 import protect from "../middleware/authMiddleware.js";
 import CodeSubmission from "../models/codeSubmissionModel.js";
 import Quiz from "../models/quizModel.js";
@@ -12,19 +12,20 @@ const router = express.Router();
 
 /**
  * Per-user rate limiter (fallback to IP if unauthenticated).
- * Adjust windowMs/max to taste.
+ * Uses IPv6-safe keyGenerator to prevent ERR_ERL_KEY_GEN_IPV6 errors on Render.
+ * Prefers user ID for authenticated requests, falls back to IP for anonymous.
  */
-const codeLimiter = rateLimit({
+const codeLimiter = createLimiter({
   windowMs: 60 * 1000, // 1 minute
   max: 20, // max submissions per window
   message: { message: "Too many code submissions, try again in a minute." },
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     try {
-      return req.user?.id ? String(req.user.id) : req.ip;
+      // Use user ID if authenticated, otherwise use IPv6-safe IP extraction
+      return req.user?.id ? String(req.user.id) : ipKeyGenerator(req);
     } catch {
-      return req.ip;
+      // Fallback to IPv6-safe IP extraction on error
+      return ipKeyGenerator(req);
     }
   },
 });

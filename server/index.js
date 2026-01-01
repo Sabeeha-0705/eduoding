@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import rateLimit from "express-rate-limit";
+import { apiLimiter } from "./middleware/rateLimit.js";
 
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -29,33 +29,15 @@ connectDB();
 
 const app = express();
 
-// 🛡 Trust proxy for rate limiter + Render support
+// 🛡 Trust proxy for rate limiter + Render support (IPv6 safe)
 app.set("trust proxy", true);
 
 // Parse JSON requests safely
 app.use(express.json({ limit: "10mb" }));
 
 // ==================== RATE LIMITER ====================
-const globalLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 200, // 200 requests/min per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const xf = req.headers["x-forwarded-for"];
-    if (xf && typeof xf === "string") {
-      return xf.split(",")[0].trim();
-    }
-    return (
-      req.ip ||
-      req.connection?.remoteAddress ||
-      req.socket?.remoteAddress ||
-      req.hostname ||
-      "unknown"
-    );
-  },
-});
-app.use(globalLimiter);
+// Uses IPv6-safe keyGenerator (fixes ERR_ERL_KEY_GEN_IPV6 on Render)
+app.use(apiLimiter);
 
 // ==================== CORS ====================
 const allowedOrigins = new Set([
