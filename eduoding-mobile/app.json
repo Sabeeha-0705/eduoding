@@ -2,6 +2,7 @@
   "expo": {
     "name": "eduoding-mobile",
     "slug": "eduoding-mobile",
+    "owner": "sabeeha_fathima",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -47,7 +48,11 @@
     },
     "extra": {
       "API_BASE": "https://eduoding-backend.onrender.com",
-      "GOOGLE_CLIENT_ID": "143463127207-432kgink3qbm9lr651f91ddauf73srf6.apps.googleusercontent.com"
+      "GOOGLE_CLIENT_ID": "143463127207-432kgink3qbm9lr651f91ddauf73srf6.apps.googleusercontent.com",
+      "router": {},
+      "eas": {
+        "projectId": "76492400-55a4-4775-9021-c30fce54d02a"
+      }
     }
   }
 }
