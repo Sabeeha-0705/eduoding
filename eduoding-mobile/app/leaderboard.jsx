@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Image,
 } from "react-native";
-import API from "./services/api";
+import API from "../services/api";
 
 const DEFAULT_AVATAR = require("../assets/images/default-avatar.png");
 

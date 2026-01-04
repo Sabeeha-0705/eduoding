@@ -1,7 +1,7 @@
 // eduoding-mobile/app/badges.jsx - BadgesPage
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image } from "react-native";
-import API from "./services/api";
+import API from "../services/api";
 
 export default function BadgesPage() {
   const [user, setUser] = useState(null);

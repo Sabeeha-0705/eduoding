@@ -13,10 +13,11 @@ import {
 import { router } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import API from "../services/api";
+import API from "../../services/api";
 
 export default function DashboardScreen() {
-  const { token, user, logout, courseProgress } = useAuth();
+  const auth = useAuth();
+  const { token, user, logout, courseProgress } = auth || { token: null, user: null, logout: async () => {}, courseProgress: {} };
   const [activeTab, setActiveTab] = useState("courses");
   const [notes, setNotes] = useState([]);
   const [progressData, setProgressData] = useState([]);
@@ -43,7 +44,7 @@ export default function DashboardScreen() {
   const fetchUser = useCallback(async () => {
     try {
       if (!token) {
-        router.replace("/auth/auth");
+        // Navigation deferred to useEffect to prevent pre-mount navigation
         return null;
       }
       const profileRes = await API.get("/users/me").catch(() =>
@@ -53,7 +54,7 @@ export default function DashboardScreen() {
     } catch (err) {
       console.error("fetchUser error:", err);
       await AsyncStorage.removeItem("authToken");
-      router.replace("/auth/auth");
+      // Navigation deferred to useEffect to prevent pre-mount navigation
       return null;
     }
   }, [token]);
@@ -74,7 +75,7 @@ export default function DashboardScreen() {
     setLoading(true);
     try {
       if (!token) {
-        router.replace("/auth/auth");
+        // Navigation deferred to useEffect to prevent pre-mount navigation
         return;
       }
 
@@ -131,16 +132,26 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     mountedRef.current = true;
-    if (token) {
-      fetchAll();
-    } else {
-      router.replace("/auth/auth");
+    
+    // Navigation must happen AFTER component mount (in useEffect)
+    // This prevents "navigate before Root Layout mounts" error
+    if (!token) {
+      // Use setTimeout to ensure navigation happens after render
+      const timer = setTimeout(() => {
+        router.replace("/auth/login");
+      }, 0);
+      return () => {
+        clearTimeout(timer);
+        mountedRef.current = false;
+      };
     }
+    
+    fetchAll();
 
     return () => {
       mountedRef.current = false;
     };
-  }, [token]);
+  }, [token, fetchAll]);
 
   // Badge animation
   useEffect(() => {

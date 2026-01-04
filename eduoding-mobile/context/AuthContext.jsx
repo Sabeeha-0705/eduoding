@@ -1,19 +1,44 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import API, { fetchCourseProgress, googleLogin } from "../app/services/api";
+import API, { fetchCourseProgress, googleLogin as googleLoginAPI } from "../services/api";
 
-const AuthContext = createContext();
+const AuthContext = createContext({
+  user: null,
+  token: null,
+  loading: true,
+  googleLogin: async () => ({ success: false, message: "Not initialized" }),
+  logout: async () => {},
+  login: async () => ({ success: false, message: "Not initialized" }),
+  courseProgress: {},
+  refreshProgress: async () => {},
+  setToken: () => {},
+  setUser: () => {},
+});
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
-  const [courseProgress, setCourseProgress] = useState({}); // { courseId: percent }
+  const [loading, setLoading] = useState(true);
+  const [courseProgress, setCourseProgress] = useState({});
 
   // load token on app start
   useEffect(() => {
-    AsyncStorage.getItem("authToken").then((t) => {
-      if (t) setToken(t);
-    });
+    const loadAuth = async () => {
+      try {
+        const t = await AsyncStorage.getItem("authToken");
+        if (t) {
+          setToken(t);
+        } else {
+          setToken(null);
+        }
+      } catch (err) {
+        console.error("Failed to load auth token:", err);
+        setToken(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAuth();
   }, []);
 
   // decode token
@@ -29,7 +54,8 @@ export function AuthProvider({ children }) {
         email: payload.email,
         role: payload.role,
       });
-    } catch {
+    } catch (err) {
+      console.error("Failed to decode token:", err);
       setUser(null);
     }
   }, [token]);
@@ -47,23 +73,46 @@ export function AuthProvider({ children }) {
   }
 
   /**
-   * Handle Google login with ID token
-   * This method sends the Google ID token to the backend and stores the JWT token
-   * 
-   * @param {string} idToken - Google ID token from OAuth flow
+   * Login with email and password
+   * @param {string} email - User email
+   * @param {string} password - User password
    * @returns {Promise<{success: boolean, message?: string}>}
    */
-  const handleGoogleLogin = async (idToken) => {
+  const login = async (email, password, remember = false) => {
     try {
-      if (!idToken) {
+      const res = await API.post("/auth/login", {
+        email: email.toLowerCase().trim(),
+        password,
+      });
+
+      if (res?.data?.token) {
+        await AsyncStorage.setItem("authToken", res.data.token);
+        setToken(res.data.token);
+        return { success: true, message: "Login successful" };
+      } else {
+        return { success: false, message: "Login failed: no token returned" };
+      }
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || err.message || "Login failed";
+      return { success: false, message: errorMessage };
+    }
+  };
+
+  /**
+   * Handle Google login with ID token
+   * @param {string} token - Google ID token from OAuth flow
+   * @returns {Promise<{success: boolean, message?: string}>}
+   */
+  const googleLogin = async (token) => {
+    try {
+      if (!token) {
         return { success: false, message: "No ID token provided" };
       }
 
-      // Send ID token to backend for verification
-      const res = await googleLogin(idToken);
+      const res = await googleLoginAPI(token);
 
       if (res?.data?.token) {
-        // Save token securely
         await AsyncStorage.setItem("authToken", res.data.token);
         setToken(res.data.token);
         return { success: true, message: "Google login successful" };
@@ -89,14 +138,16 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider
       value={{
+        user,
+        loading,
+        googleLogin,
+        logout,
         token,
         setToken,
-        user,
         setUser,
         courseProgress,
         refreshProgress,
-        handleGoogleLogin,
-        logout,
+        login,
       }}
     >
       {children}
@@ -104,4 +155,21 @@ export function AuthProvider({ children }) {
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    return {
+      user: null,
+      token: null,
+      loading: true,
+      googleLogin: async () => ({ success: false, message: "AuthContext not available" }),
+      logout: async () => {},
+      login: async () => ({ success: false, message: "AuthContext not available" }),
+      courseProgress: {},
+      refreshProgress: async () => {},
+      setToken: () => {},
+      setUser: () => {},
+    };
+  }
+  return context;
+};

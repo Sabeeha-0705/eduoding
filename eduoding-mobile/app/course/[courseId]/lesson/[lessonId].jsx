@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { WebView } from "react-native-webview";
-import API from "../../../services/api";
+import API from "../../../../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LessonPage() {

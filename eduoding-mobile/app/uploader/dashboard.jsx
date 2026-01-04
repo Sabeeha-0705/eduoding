@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
-import { getMyVideos } from "../services/videos";
+import { getMyVideos } from "../../services/videos";
 import VideoCard from "../../components/VideoCard";
 
 export default function UploaderDashboard() {

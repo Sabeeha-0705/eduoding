@@ -5,28 +5,23 @@ import { useAuth } from "../context/AuthContext";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 
 export default function ProtectedRoute({ children }) {
-  const { token, user } = useAuth();
+  const auth = useAuth();
+  const { token, loading } = auth || { token: null, loading: true };
   const segments = useSegments();
 
   useEffect(() => {
-    if (token === null) {
-      // Not loaded yet, wait
-      return;
-    }
+    if (loading) return;
 
     const inAuthGroup = segments[0] === "auth";
 
     if (!token && !inAuthGroup) {
-      // Redirect to auth if not authenticated
-      router.replace("/auth/auth");
+      router.replace("/auth/login");
     } else if (token && inAuthGroup) {
-      // Redirect to dashboard if authenticated
       router.replace("/(tabs)");
     }
-  }, [token, segments]);
+  }, [token, loading, segments]);
 
-  // Show loading while checking auth
-  if (token === null && segments[0] !== "auth") {
+  if (loading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#6c63ff" />

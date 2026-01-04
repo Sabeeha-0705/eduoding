@@ -12,7 +12,7 @@ import {
 // TODO: Install expo-document-picker: npx expo install expo-document-picker
 // import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
-import API from "./services/api";
+import API from "../services/api";
 
 export default function AddLesson() {
   const [title, setTitle] = useState("");

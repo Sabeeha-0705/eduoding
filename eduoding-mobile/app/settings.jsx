@@ -13,7 +13,7 @@ import {
 } from "react-native";
 // Note: expo-image-picker needs to be installed: npx expo install expo-image-picker
 // import * as ImagePicker from "expo-image-picker";
-import API from "./services/api";
+import API from "../services/api";
 
 export default function Settings() {
   const [user, setUser] = useState(null);

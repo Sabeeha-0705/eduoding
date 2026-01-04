@@ -5,23 +5,20 @@ import { useAuth } from "../context/AuthContext";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 
 export default function AdminRoute({ children }) {
-  const { user, token } = useAuth();
+  const auth = useAuth();
+  const { user, token, loading } = auth || { user: null, token: null, loading: true };
 
   useEffect(() => {
-    if (token === null) {
-      // Not loaded yet, wait
-      return;
-    }
+    if (loading) return;
 
     if (!token) {
-      router.replace("/auth/auth");
-    } else if (!user || user.role !== "admin") {
+      router.replace("/auth/login");
+    } else if (!user || user?.role !== "admin") {
       router.replace("/(tabs)");
     }
-  }, [token, user]);
+  }, [token, user, loading, router]);
 
-  // Show loading while checking auth
-  if (token === null || (token && !user)) {
+  if (loading || (token && !user)) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#6c63ff" />
@@ -29,7 +26,6 @@ export default function AdminRoute({ children }) {
     );
   }
 
-  // If not admin, return null (redirect will happen)
   if (token && user && user.role !== "admin") {
     return null;
   }

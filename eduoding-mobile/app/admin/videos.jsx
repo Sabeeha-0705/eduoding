@@ -10,7 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { router } from "expo-router";
-import API from "../services/api";
+import API from "../../services/api";
 import AdminRoute from "../../components/AdminRoute";
 
 function AdminVideosContent() {

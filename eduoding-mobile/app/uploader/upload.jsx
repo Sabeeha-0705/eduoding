@@ -13,7 +13,7 @@ import {
 // TODO: Install expo-document-picker: npx expo install expo-document-picker
 // import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
-import { uploadVideoFile, addYoutubeVideo, getCourses } from "../services/videos";
+import { uploadVideoFile, addYoutubeVideo, getCourses } from "../../services/videos";
 
 export default function UploadVideo() {
   const [mode, setMode] = useState("upload"); // "upload" | "youtube"

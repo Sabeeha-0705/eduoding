@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { WebView } from "react-native-webview";
-import API from "./services/api";
+import API from "../services/api";
 import Constants from "expo-constants";
 
 function CertificateCard({ cert, onView, onShowQR }) {

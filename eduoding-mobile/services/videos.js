@@ -1,4 +1,4 @@
-// eduoding-mobile/app/services/videos.js
+// eduoding-mobile/services/videos.js
 import API from "./api";
 
 export const uploadVideoFile = async (formData, onProgress) => {
@@ -19,3 +19,9 @@ export const getCourses = () => API.get("/courses");
 
 export const getMyVideos = () => API.get("/videos/mine");
 
+export default {
+  uploadVideoFile,
+  addYoutubeVideo,
+  getCourses,
+  getMyVideos,
+};

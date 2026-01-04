@@ -1,7 +1,7 @@
-// eduoding-mobile/app/services/api.js
+// eduoding-mobile/services/api.js
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_BASE } from "../../constants/config";
+import { API_BASE } from "../constants/config";
 
 let BASE_URL = API_BASE;
 if (!BASE_URL) {
@@ -52,8 +52,8 @@ API.interceptors.response.use(
  * @param {string} idToken - Google ID token from OAuth flow
  * @returns {Promise} API response with JWT token and user data
  */
-export const googleLogin = (idToken) => {
-  return API.post("/auth/google", { token: idToken });
+export const googleLogin = (token) => {
+  return API.post("/auth/google", { token });
 };
 
 // Progress helpers
@@ -68,3 +68,4 @@ export const fetchAllProgress = () => API.get("/progress");
 // Named and default export
 export const api = API;
 export default API;
+

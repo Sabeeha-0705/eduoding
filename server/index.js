@@ -44,18 +44,23 @@ const allowedOrigins = new Set([
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://eduoding-frontend.onrender.com",
+  "exp://",
+  "http://",
+  "https://",
 ]);
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (!origin) {
+  const userAgent = req.headers["user-agent"] || "";
+  const isMobile = userAgent.includes("Expo") || userAgent.includes("ReactNative");
+  
+  if (!origin || isMobile) {
     res.setHeader("Access-Control-Allow-Origin", "*");
-  } else if (allowedOrigins.has(origin)) {
+  } else if (allowedOrigins.has(origin) || origin.startsWith("exp://") || origin.startsWith("http://localhost") || origin.startsWith("http://127.0.0.1")) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
   } else {
-    console.warn(`🚫 CORS Blocked: ${origin}`);
-    res.setHeader("Access-Control-Allow-Origin", "null");
+    res.setHeader("Access-Control-Allow-Origin", "*");
   }
 
   res.setHeader("Access-Control-Allow-Credentials", "true");

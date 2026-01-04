@@ -11,7 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { router } from "expo-router";
-import API from "./services/api";
+import API from "../services/api";
 
 export default function Notes() {
   const [notes, setNotes] = useState([]);

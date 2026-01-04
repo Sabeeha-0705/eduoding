@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import API from "../services/api";
+import API from "../../services/api";
 
 export default function CodeEditor() {
   const { courseId, lessonId } = useLocalSearchParams();
