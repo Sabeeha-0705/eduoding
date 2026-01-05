@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import API from "../../services/api";
 import AdminRoute from "../../components/AdminRoute";
 
@@ -17,6 +17,7 @@ function AdminVideosContent() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(new Set());
+  const router = useRouter();
 
   useEffect(() => {
     let mounted = true;
@@ -109,12 +110,17 @@ function AdminVideosContent() {
                   <Text style={styles.videoMeta}>By: {uploaderName}</Text>
                   <Text style={styles.videoMeta}>Status: {video.status}</Text>
                   {video.description && (
-                    <Text style={styles.videoDescription}>{video.description}</Text>
+                    <Text style={styles.videoDescription}>
+                      {video.description}
+                    </Text>
                   )}
                 </View>
                 <View style={styles.videoActions}>
                   <Pressable
-                    style={[styles.approveButton, isBusy && styles.buttonDisabled]}
+                    style={[
+                      styles.approveButton,
+                      isBusy && styles.buttonDisabled,
+                    ]}
                     disabled={isBusy}
                     onPress={() => changeStatus(video._id, "approved")}
                   >
@@ -123,7 +129,10 @@ function AdminVideosContent() {
                     </Text>
                   </Pressable>
                   <Pressable
-                    style={[styles.rejectButton, isBusy && styles.buttonDisabled]}
+                    style={[
+                      styles.rejectButton,
+                      isBusy && styles.buttonDisabled,
+                    ]}
                     disabled={isBusy}
                     onPress={() => handleReject(video._id)}
                   >
@@ -268,4 +277,3 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 });
-

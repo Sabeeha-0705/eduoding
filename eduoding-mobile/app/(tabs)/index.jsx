@@ -10,14 +10,15 @@ import {
   Alert,
   RefreshControl,
 } from "react-native";
-import { router } from "expo-router";
-import { useAuth } from "../../context/AuthContext";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../../services/api";
+import { useRouter } from "expo-router";
 
 export default function DashboardScreen() {
-  const auth = useAuth();
-  const { token, user, logout, courseProgress } = auth || { token: null, user: null, logout: async () => {}, courseProgress: {} };
+  // No auth: treat as no user
+  const user = null;
+
   const [activeTab, setActiveTab] = useState("courses");
   const [notes, setNotes] = useState([]);
   const [progressData, setProgressData] = useState([]);
@@ -26,8 +27,8 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [certCount, setCertCount] = useState(0);
-  const [newBadgeIndex, setNewBadgeIndex] = useState(null);
   const mountedRef = useRef(true);
+  const router = useRouter();
 
   // Normalize progress list
   const normalizeProgressList = (list) => {
@@ -40,30 +41,13 @@ export default function DashboardScreen() {
     return map;
   };
 
-  // Fetch user
-  const fetchUser = useCallback(async () => {
-    try {
-      if (!token) {
-        // Navigation deferred to useEffect to prevent pre-mount navigation
-        return null;
-      }
-      const profileRes = await API.get("/users/me").catch(() =>
-        API.get("/auth/profile")
-      );
-      return profileRes.data?.user || profileRes.data;
-    } catch (err) {
-      console.error("fetchUser error:", err);
-      await AsyncStorage.removeItem("authToken");
-      // Navigation deferred to useEffect to prevent pre-mount navigation
-      return null;
-    }
-  }, [token]);
-
-  // Fetch certificates count
+  // Fetch certificates count (public endpoint)
   const fetchCertificatesCount = useCallback(async () => {
     try {
-      const res = await API.get("/certificates/me");
-      const list = Array.isArray(res.data) ? res.data : res.data?.certificates || [];
+      const res = await API.get("/certificates");
+      const list = Array.isArray(res.data)
+        ? res.data
+        : res.data?.certificates || [];
       if (mountedRef.current) setCertCount(list.length);
     } catch {
       if (mountedRef.current) setCertCount(0);
@@ -74,12 +58,6 @@ export default function DashboardScreen() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      if (!token) {
-        // Navigation deferred to useEffect to prevent pre-mount navigation
-        return;
-      }
-
-      await fetchUser();
       await fetchCertificatesCount();
 
       // Notes
@@ -128,58 +106,18 @@ export default function DashboardScreen() {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [token, fetchUser, fetchCertificatesCount]);
+  }, [fetchCertificatesCount]);
 
   useEffect(() => {
     mountedRef.current = true;
-    
-    // Navigation must happen AFTER component mount (in useEffect)
-    // This prevents "navigate before Root Layout mounts" error
-    if (!token) {
-      // Use setTimeout to ensure navigation happens after render
-      const timer = setTimeout(() => {
-        router.replace("/auth/login");
-      }, 0);
-      return () => {
-        clearTimeout(timer);
-        mountedRef.current = false;
-      };
-    }
-    
+
+    // No auth gating - just fetch data
     fetchAll();
 
     return () => {
       mountedRef.current = false;
     };
-  }, [token, fetchAll]);
-
-  // Badge animation
-  useEffect(() => {
-    if (!user) {
-      setNewBadgeIndex(null);
-      return;
-    }
-
-    const badges = Array.isArray(user.badges) ? user.badges : [];
-    if (badges.length === 0) {
-      setNewBadgeIndex(null);
-      return;
-    }
-
-    const LS_KEY = "eduoding:lastSeenBadge";
-    AsyncStorage.getItem(LS_KEY).then((lastSeen) => {
-      const latestBadge = badges[badges.length - 1];
-      if (latestBadge && lastSeen !== latestBadge) {
-        setNewBadgeIndex(badges.length - 1);
-        setTimeout(() => {
-          setNewBadgeIndex(null);
-          AsyncStorage.setItem(LS_KEY, latestBadge).catch(() => {});
-        }, 1500);
-      } else {
-        setNewBadgeIndex(null);
-      }
-    });
-  }, [user]);
+  }, [fetchAll]);
 
   const handleDeleteNote = async (noteId) => {
     try {
@@ -232,7 +170,7 @@ export default function DashboardScreen() {
   const effectiveCourses =
     Array.isArray(courses) && courses.length ? courses : fallbackCourses;
 
-  if (loading && !user) {
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6c63ff" />
@@ -316,9 +254,7 @@ export default function DashboardScreen() {
                       style={[styles.progressFill, { width: `${progress}%` }]}
                     />
                   </View>
-                  <Text style={styles.progressText}>
-                    {progress}% Completed
-                  </Text>
+                  <Text style={styles.progressText}>{progress}% Completed</Text>
                   <Text style={styles.courseButton}>
                     {progress === 100 ? "Review Course" : "Continue"} →
                   </Text>
@@ -366,7 +302,10 @@ export default function DashboardScreen() {
             <Text style={styles.sectionTitle}>📊 Progress</Text>
             {progressData.length > 0 ? (
               progressData.map((p) => (
-                <View key={p._id || `${p.courseId}`} style={styles.progressItem}>
+                <View
+                  key={p._id || `${p.courseId}`}
+                  style={styles.progressItem}
+                >
                   <Text style={styles.progressItemText}>
                     Course {String(p.courseId)}:{" "}
                     {Math.round(p.completedPercent)}%
@@ -389,29 +328,17 @@ export default function DashboardScreen() {
           <Text style={styles.statsText}>
             🔥 Streak: {user?.streakCount ?? 0} days
           </Text>
-          <Text style={styles.statsText}>
-            💎 Points: {user?.points ?? 0}
-          </Text>
+          <Text style={styles.statsText}>💎 Points: {user?.points ?? 0}</Text>
           <Text style={styles.statsText}>
             🏅 Badges:{" "}
             {user?.badges?.length
               ? user.badges.map((b, i) => (
-                  <Text
-                    key={i}
-                    style={
-                      newBadgeIndex === i
-                        ? styles.badgeNew
-                        : styles.badgeText
-                    }
-                  >
+                  <Text key={i} style={styles.badgeText}>
                     {b}{" "}
                   </Text>
                 ))
               : "—"}
           </Text>
-          <Pressable style={styles.logoutBtn} onPress={logout}>
-            <Text style={styles.logoutBtnText}>Logout</Text>
-          </Pressable>
         </View>
       </ScrollView>
     </View>
@@ -655,22 +582,5 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 14,
     color: "#333",
-  },
-  badgeNew: {
-    fontSize: 14,
-    color: "#6c63ff",
-    fontWeight: "700",
-  },
-  logoutBtn: {
-    marginTop: 20,
-    paddingVertical: 12,
-    backgroundColor: "#ff4d4f",
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  logoutBtnText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
   },
 });

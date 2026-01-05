@@ -11,7 +11,7 @@ import {
 } from "react-native";
 // TODO: Install expo-document-picker: npx expo install expo-document-picker
 // import * as DocumentPicker from "expo-document-picker";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import API from "../services/api";
 
 export default function AddLesson() {
@@ -21,10 +21,14 @@ export default function AddLesson() {
   const [file, setFile] = useState(null);
   const [msg, setMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const router = useRouter();
 
   const pickVideo = async () => {
     // TODO: Install expo-document-picker and uncomment below
-    Alert.alert("Coming Soon", "Video picker will be available after installing expo-document-picker");
+    Alert.alert(
+      "Coming Soon",
+      "Video picker will be available after installing expo-document-picker"
+    );
     // try {
     //   const DocumentPicker = require("expo-document-picker");
     //   const result = await DocumentPicker.getDocumentAsync({
@@ -106,7 +110,10 @@ export default function AddLesson() {
               <Text style={styles.label}>Type</Text>
               <View style={styles.typeSelector}>
                 <Pressable
-                  style={[styles.typeButton, type === "youtube" && styles.typeButtonActive]}
+                  style={[
+                    styles.typeButton,
+                    type === "youtube" && styles.typeButtonActive,
+                  ]}
                   onPress={() => setType("youtube")}
                 >
                   <Text
@@ -119,7 +126,10 @@ export default function AddLesson() {
                   </Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.typeButton, type === "upload" && styles.typeButtonActive]}
+                  style={[
+                    styles.typeButton,
+                    type === "upload" && styles.typeButtonActive,
+                  ]}
                   onPress={() => setType("upload")}
                 >
                   <Text
@@ -158,9 +168,14 @@ export default function AddLesson() {
             )}
 
             <Pressable
-              style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+              style={[
+                styles.submitButton,
+                submitting && styles.submitButtonDisabled,
+              ]}
               onPress={handleSubmit}
-              disabled={submitting || !title || (type === "youtube" ? !videoUrl : !file)}
+              disabled={
+                submitting || !title || (type === "youtube" ? !videoUrl : !file)
+              }
             >
               <Text style={styles.submitButtonText}>
                 {submitting ? "Adding..." : "Add Lesson"}
@@ -312,4 +327,3 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-

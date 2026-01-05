@@ -12,7 +12,7 @@ import {
   Alert,
   Linking,
 } from "react-native";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import { WebView } from "react-native-webview";
 import API from "../services/api";
 import Constants from "expo-constants";
@@ -39,7 +39,10 @@ function CertificateCard({ cert, onView, onShowQR }) {
       <View style={styles.certInfo}>
         <Text style={styles.certTitle}>{label}</Text>
         <Text style={styles.certDate}>
-          Issued: {issued ? issued.toLocaleDateString() + " " + issued.toLocaleTimeString() : "—"}
+          Issued:{" "}
+          {issued
+            ? issued.toLocaleDateString() + " " + issued.toLocaleTimeString()
+            : "—"}
         </Text>
         {cert.score != null && (
           <Text style={styles.certScore}>
@@ -47,7 +50,9 @@ function CertificateCard({ cert, onView, onShowQR }) {
           </Text>
         )}
         {cert.certificateId && (
-          <Text style={styles.certId}>Certificate ID: {cert.certificateId}</Text>
+          <Text style={styles.certId}>
+            Certificate ID: {cert.certificateId}
+          </Text>
         )}
 
         <View style={styles.certActions}>
@@ -106,21 +111,34 @@ function ViewerModal({ cert, onClose }) {
   };
 
   return (
-    <Modal visible={!!cert} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={!!cert}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <View>
               <Text style={styles.modalTitle}>{title}</Text>
-              <Text style={styles.modalSubtitle}>{cert.userName || cert.username || ""}</Text>
+              <Text style={styles.modalSubtitle}>
+                {cert.userName || cert.username || ""}
+              </Text>
             </View>
             <View style={styles.modalHeaderActions}>
               {pdfUrl && (
                 <>
-                  <Pressable style={styles.modalButton} onPress={handleDownload}>
+                  <Pressable
+                    style={styles.modalButton}
+                    onPress={handleDownload}
+                  >
                     <Text style={styles.modalButtonText}>Open</Text>
                   </Pressable>
-                  <Pressable style={styles.modalButton} onPress={handleDownload}>
+                  <Pressable
+                    style={styles.modalButton}
+                    onPress={handleDownload}
+                  >
                     <Text style={styles.modalButtonText}>Download</Text>
                   </Pressable>
                 </>
@@ -133,10 +151,15 @@ function ViewerModal({ cert, onClose }) {
 
           <View style={styles.pdfContainer}>
             {pdfUrl ? (
-              <WebView source={{ uri: pdfUrl + "#view=FitH" }} style={styles.pdfWebView} />
+              <WebView
+                source={{ uri: pdfUrl + "#view=FitH" }}
+                style={styles.pdfWebView}
+              />
             ) : (
               <View style={styles.noPdfContainer}>
-                <Text style={styles.noPdfText}>No certificate PDF available for preview.</Text>
+                <Text style={styles.noPdfText}>
+                  No certificate PDF available for preview.
+                </Text>
               </View>
             )}
           </View>
@@ -149,17 +172,25 @@ function ViewerModal({ cert, onClose }) {
 function QRModal({ cert, onClose }) {
   if (!cert) return null;
 
-  const appUrl = Constants.expoConfig?.extra?.FRONTEND_URL || "https://eduoding.com";
+  const appUrl =
+    Constants.expoConfig?.extra?.FRONTEND_URL || "https://eduoding.com";
   const id = cert.certificateId || cert._id || cert.id;
   const verifyUrl = `${appUrl}/verify-certificate/${encodeURIComponent(id)}`;
-  const qrImg = `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(verifyUrl)}`;
+  const qrImg = `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(
+    verifyUrl
+  )}`;
 
   const handleCopy = () => {
     Alert.alert("Verify URL", verifyUrl, [{ text: "OK" }]);
   };
 
   return (
-    <Modal visible={!!cert} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={!!cert}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <View style={styles.modalOverlay}>
         <View style={styles.qrModalContent}>
           <Text style={styles.qrModalTitle}>Verify certificate</Text>
@@ -192,6 +223,7 @@ function QRModal({ cert, onClose }) {
 export default function CertificatePage() {
   const [certs, setCerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   const [activeCert, setActiveCert] = useState(null);
   const [qrCert, setQrCert] = useState(null);
   const [error, setError] = useState(null);
@@ -209,7 +241,9 @@ export default function CertificatePage() {
           res = await API.get("/quiz/certificates/all");
         }
 
-        const data = Array.isArray(res.data) ? res.data : res.data?.certificates || res.data || [];
+        const data = Array.isArray(res.data)
+          ? res.data
+          : res.data?.certificates || res.data || [];
         if (mounted) {
           const normalized = data.map((c) => ({
             _id: c._id || c.id,
@@ -223,14 +257,17 @@ export default function CertificatePage() {
             createdAt: c.createdAt || c.issuedAt || c.createdAt,
             score: c.score ?? c.percent ?? null,
             userName: c.userName || c.username || c.name || "",
-            certificateId: c.certificateId || c.certificateId || c.certId || null,
+            certificateId:
+              c.certificateId || c.certificateId || c.certId || null,
           }));
           setCerts(normalized);
         }
       } catch (err) {
         console.error("Failed to fetch certificates:", err);
         if (mounted) {
-          setError(err.response?.data?.message || err.message || "Failed to load");
+          setError(
+            err.response?.data?.message || err.message || "Failed to load"
+          );
         }
       } finally {
         if (mounted) setLoading(false);
@@ -257,8 +294,13 @@ export default function CertificatePage() {
         </View>
       ) : certs.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No certificates yet. Pass a quiz to earn one.</Text>
-          <Pressable style={styles.browseButton} onPress={() => router.push("/(tabs)")}>
+          <Text style={styles.emptyText}>
+            No certificates yet. Pass a quiz to earn one.
+          </Text>
+          <Pressable
+            style={styles.browseButton}
+            onPress={() => router.push("/(tabs)")}
+          >
             <Text style={styles.browseButtonText}>Browse Courses</Text>
           </Pressable>
         </View>
@@ -595,4 +637,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-

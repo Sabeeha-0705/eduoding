@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import API from "../services/api";
 
 export default function Notes() {
@@ -18,6 +18,7 @@ export default function Notes() {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const router = useRouter();
 
   const fetchNotes = async () => {
     try {
@@ -44,7 +45,10 @@ export default function Notes() {
       setNotes([res.data, ...notes]);
       setContent("");
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to save note");
+      Alert.alert(
+        "Error",
+        err.response?.data?.message || "Failed to save note"
+      );
     } finally {
       setLoading(false);
     }
@@ -86,11 +90,16 @@ export default function Notes() {
             textAlignVertical="top"
           />
           <Pressable
-            style={[styles.saveButton, (!content.trim() || loading) && styles.saveButtonDisabled]}
+            style={[
+              styles.saveButton,
+              (!content.trim() || loading) && styles.saveButtonDisabled,
+            ]}
             onPress={addNote}
             disabled={!content.trim() || loading}
           >
-            <Text style={styles.saveButtonText}>{loading ? "Saving..." : "Save"}</Text>
+            <Text style={styles.saveButtonText}>
+              {loading ? "Saving..." : "Save"}
+            </Text>
           </Pressable>
         </View>
 
@@ -119,7 +128,11 @@ export default function Notes() {
                     <Pressable
                       style={styles.openButton}
                       onPress={() =>
-                        router.push(`/course/${note.courseId || ""}/lesson/${note.lessonId}`)
+                        router.push(
+                          `/course/${note.courseId || ""}/lesson/${
+                            note.lessonId
+                          }`
+                        )
                       }
                     >
                       <Text style={styles.openButtonText}>Open Lesson</Text>
@@ -251,4 +264,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

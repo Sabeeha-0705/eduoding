@@ -10,12 +10,15 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import API from "../../services/api";
 
 export default function CodeEditor() {
   const { courseId, lessonId } = useLocalSearchParams();
-  const [source, setSource] = useState(`// Hello world\nconsole.log("Hello from Eduoding");`);
+  const router = useRouter();
+  const [source, setSource] = useState(
+    `// Hello world\nconsole.log("Hello from Eduoding");`
+  );
   const [language, setLanguage] = useState("63"); // Default to Node.js
   const [stdin, setStdin] = useState("");
   const [running, setRunning] = useState(false);
@@ -58,7 +61,8 @@ export default function CodeEditor() {
       });
     } catch (err) {
       console.error("Run failed:", err);
-      const msg = err?.response?.data?.message || err?.message || "Execution failed";
+      const msg =
+        err?.response?.data?.message || err?.message || "Execution failed";
       setError(msg);
     } finally {
       setRunning(false);
@@ -78,7 +82,9 @@ export default function CodeEditor() {
             onPress={runCode}
             disabled={running}
           >
-            <Text style={styles.runButtonText}>{running ? "Running…" : "Run & Save"}</Text>
+            <Text style={styles.runButtonText}>
+              {running ? "Running…" : "Run & Save"}
+            </Text>
           </Pressable>
           <Pressable
             style={styles.solutionsButton}
@@ -113,7 +119,8 @@ export default function CodeEditor() {
                   <Text
                     style={[
                       styles.languageButtonText,
-                      language === lang.value && styles.languageButtonTextActive,
+                      language === lang.value &&
+                        styles.languageButtonTextActive,
                     ]}
                   >
                     {lang.label}
@@ -162,7 +169,9 @@ export default function CodeEditor() {
 
           {!result && !error && (
             <View style={styles.emptyOutput}>
-              <Text style={styles.emptyOutputText}>No output yet — run the code.</Text>
+              <Text style={styles.emptyOutputText}>
+                No output yet — run the code.
+              </Text>
             </View>
           )}
 
@@ -171,21 +180,27 @@ export default function CodeEditor() {
               <View style={styles.outputContainer}>
                 <Text style={styles.outputTitle}>Stdout:</Text>
                 <Text style={styles.outputText}>
-                  {result.judgeResult?.stdout ?? result.submission?.stdout ?? "(empty)"}
+                  {result.judgeResult?.stdout ??
+                    result.submission?.stdout ??
+                    "(empty)"}
                 </Text>
               </View>
 
               {result.judgeResult?.stderr && (
                 <View style={styles.errorOutputContainer}>
                   <Text style={styles.errorTitle}>Stderr:</Text>
-                  <Text style={styles.errorOutputText}>{result.judgeResult.stderr}</Text>
+                  <Text style={styles.errorOutputText}>
+                    {result.judgeResult.stderr}
+                  </Text>
                 </View>
               )}
 
               {result.judgeResult?.compile_output && (
                 <View style={styles.errorOutputContainer}>
                   <Text style={styles.errorTitle}>Compile Output:</Text>
-                  <Text style={styles.errorOutputText}>{result.judgeResult.compile_output}</Text>
+                  <Text style={styles.errorOutputText}>
+                    {result.judgeResult.compile_output}
+                  </Text>
                 </View>
               )}
 
@@ -195,7 +210,9 @@ export default function CodeEditor() {
                     Submission saved.{" "}
                     <Text
                       style={styles.linkText}
-                      onPress={() => router.push(`/code/${result.submission._id}`)}
+                      onPress={() =>
+                        router.push(`/code/${result.submission._id}`)
+                      }
                     >
                       View
                     </Text>{" "}
@@ -432,4 +449,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

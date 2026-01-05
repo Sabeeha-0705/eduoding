@@ -9,11 +9,12 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import API from "../../services/api";
 
 export default function CoursePage() {
   const { id } = useLocalSearchParams();
+  const router = useRouter();
   const [lessons, setLessons] = useState([]);
   const [course, setCourse] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -58,8 +59,14 @@ export default function CoursePage() {
         const normalized = serverVideos.map((v) => ({
           _id: v._id || v.id,
           title: v.title || v.name || v.videoTitle || "Untitled",
-          youtubeUrl: v.youtubeUrl || v.videoUrl || (v.url && v.url.includes("youtube") ? v.url : undefined),
-          fileUrl: v.fileUrl || v.videoUrl || (v.url && !v.url.includes("youtube") ? v.url : undefined),
+          youtubeUrl:
+            v.youtubeUrl ||
+            v.videoUrl ||
+            (v.url && v.url.includes("youtube") ? v.url : undefined),
+          fileUrl:
+            v.fileUrl ||
+            v.videoUrl ||
+            (v.url && !v.url.includes("youtube") ? v.url : undefined),
           sourceType: v.sourceType || (v.youtubeUrl ? "youtube" : "upload"),
         }));
 
@@ -72,7 +79,9 @@ export default function CoursePage() {
         // Progress for this course
         try {
           const progRes = await API.get("/progress");
-          const userProgressList = Array.isArray(progRes.data) ? progRes.data : [];
+          const userProgressList = Array.isArray(progRes.data)
+            ? progRes.data
+            : [];
           const userProgress = userProgressList.find(
             (p) =>
               String(p.courseId) === String(id) ||
@@ -111,10 +120,7 @@ export default function CoursePage() {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>Course not found!</Text>
-        <Pressable
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </Pressable>
       </View>
@@ -154,9 +160,7 @@ export default function CoursePage() {
             <Pressable
               key={lesson._id}
               style={styles.lessonCard}
-              onPress={() =>
-                router.push(`/course/${id}/lesson/${lesson._id}`)
-              }
+              onPress={() => router.push(`/course/${id}/lesson/${lesson._id}`)}
             >
               <View style={styles.lessonHeader}>
                 <Text style={styles.lessonNumber}>{idx + 1}.</Text>
@@ -323,4 +327,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

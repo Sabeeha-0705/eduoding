@@ -8,11 +8,12 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import API from "../../services/api";
 
 export default function SubmissionView() {
   const { id } = useLocalSearchParams();
+  const router = useRouter();
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -63,7 +64,8 @@ export default function SubmissionView() {
       <ScrollView style={styles.content}>
         <View style={styles.metaSection}>
           <Text style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Title:</Text> {submission.title || "Untitled"}
+            <Text style={styles.metaLabel}>Title:</Text>{" "}
+            {submission.title || "Untitled"}
           </Text>
           <Text style={styles.metaItem}>
             <Text style={styles.metaLabel}>Language:</Text>{" "}
@@ -102,7 +104,9 @@ export default function SubmissionView() {
           {submission.compileOutput && (
             <View style={styles.errorOutputContainer}>
               <Text style={styles.errorLabel}>Compiler:</Text>
-              <Text style={styles.errorOutputText}>{submission.compileOutput}</Text>
+              <Text style={styles.errorOutputText}>
+                {submission.compileOutput}
+              </Text>
             </View>
           )}
         </View>
@@ -282,4 +286,3 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
 });
-

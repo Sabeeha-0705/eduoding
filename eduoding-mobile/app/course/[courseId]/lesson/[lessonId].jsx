@@ -11,13 +11,14 @@ import {
   Alert,
   Switch,
 } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { WebView } from "react-native-webview";
 import API from "../../../../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LessonPage() {
   const { courseId, lessonId } = useLocalSearchParams();
+  const router = useRouter();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -32,7 +33,8 @@ export default function LessonPage() {
     if (!url) return "";
     if (url.includes("/embed/")) return url;
     if (url.includes("watch?v=")) return url.replace("watch?v=", "embed/");
-    if (url.includes("youtu.be/")) return url.replace("youtu.be/", "www.youtube.com/embed/");
+    if (url.includes("youtu.be/"))
+      return url.replace("youtu.be/", "www.youtube.com/embed/");
     return url;
   };
 
@@ -47,7 +49,9 @@ export default function LessonPage() {
         const p = await API.get(`/progress/${courseId}`);
         setCompletedIds(p.data?.completedLessonIds || []);
       } catch (e) {
-        setErr(e?.response?.data?.message || e.message || "Failed to load videos");
+        setErr(
+          e?.response?.data?.message || e.message || "Failed to load videos"
+        );
       } finally {
         setLoading(false);
       }
@@ -75,7 +79,9 @@ export default function LessonPage() {
   const currentVideo = useMemo(() => {
     if (!videos?.length) return null;
     if (lessonId) {
-      return videos.find((v) => String(v._id) === String(lessonId)) || videos[0];
+      return (
+        videos.find((v) => String(v._id) === String(lessonId)) || videos[0]
+      );
     }
     return videos[0];
   }, [videos, lessonId]);
@@ -102,7 +108,7 @@ export default function LessonPage() {
       // fallback to AsyncStorage
     }
 
-    const saved = await AsyncStorage.getItem(key) || "";
+    const saved = (await AsyncStorage.getItem(key)) || "";
     setNote(saved || "");
     setNoteId(null);
   };
@@ -143,7 +149,10 @@ export default function LessonPage() {
     } catch (err) {
       console.error("Save note failed:", err);
       await AsyncStorage.setItem(key, note);
-      Alert.alert("Saved Locally", "Saved locally (offline). Will sync when network available.");
+      Alert.alert(
+        "Saved Locally",
+        "Saved locally (offline). Will sync when network available."
+      );
     } finally {
       setUpdating(false);
     }
@@ -180,13 +189,18 @@ export default function LessonPage() {
 
   const goPrev = () => {
     if (!currentVideo) return;
-    const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
-    if (idx > 0) router.push(`/course/${courseId}/lesson/${videos[idx - 1]._id}`);
+    const idx = videos.findIndex(
+      (l) => String(l._id) === String(currentVideo._id)
+    );
+    if (idx > 0)
+      router.push(`/course/${courseId}/lesson/${videos[idx - 1]._id}`);
   };
 
   const goNext = () => {
     if (!currentVideo) return;
-    const idx = videos.findIndex((l) => String(l._id) === String(currentVideo._id));
+    const idx = videos.findIndex(
+      (l) => String(l._id) === String(currentVideo._id)
+    );
     if (idx < videos.length - 1) {
       router.push(`/course/${courseId}/lesson/${videos[idx + 1]._id}`);
     } else {
@@ -235,7 +249,10 @@ export default function LessonPage() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.push(`/course/${courseId}`)}>
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => router.push(`/course/${courseId}`)}
+        >
           <Text style={styles.backBtnText}>← Back</Text>
         </Pressable>
         <Text style={styles.headerTitle}>Lesson</Text>
@@ -257,7 +274,8 @@ export default function LessonPage() {
 
         {/* Video Container */}
         <View style={styles.videoContainer}>
-          {currentVideo?.sourceType === "youtube" || currentVideo?.youtubeUrl ? (
+          {currentVideo?.sourceType === "youtube" ||
+          currentVideo?.youtubeUrl ? (
             <WebView
               source={{ uri: `${videoUrl}?enablejsapi=1` }}
               style={styles.video}
@@ -283,13 +301,24 @@ export default function LessonPage() {
         {/* Navigation */}
         <View style={styles.pager}>
           <Pressable
-            style={[styles.pagerBtn, !videos.findIndex((l) => String(l._id) === String(currentVideo._id)) && styles.pagerBtnDisabled]}
+            style={[
+              styles.pagerBtn,
+              !videos.findIndex(
+                (l) => String(l._id) === String(currentVideo._id)
+              ) && styles.pagerBtnDisabled,
+            ]}
             onPress={goPrev}
           >
             <Text style={styles.pagerBtnText}>◀ Prev</Text>
           </Pressable>
           <Pressable
-            style={[styles.pagerBtn, videos.findIndex((l) => String(l._id) === String(currentVideo._id)) >= videos.length - 1 && styles.pagerBtnDisabled]}
+            style={[
+              styles.pagerBtn,
+              videos.findIndex(
+                (l) => String(l._id) === String(currentVideo._id)
+              ) >=
+                videos.length - 1 && styles.pagerBtnDisabled,
+            ]}
             onPress={goNext}
           >
             <Text style={styles.pagerBtnText}>Next ▶</Text>
@@ -350,8 +379,13 @@ export default function LessonPage() {
             return (
               <Pressable
                 key={v._id}
-                style={[styles.lessonListItem, active && styles.lessonListItemActive]}
-                onPress={() => router.push(`/course/${courseId}/lesson/${v._id}`)}
+                style={[
+                  styles.lessonListItem,
+                  active && styles.lessonListItemActive,
+                ]}
+                onPress={() =>
+                  router.push(`/course/${courseId}/lesson/${v._id}`)
+                }
               >
                 <View style={styles.lessonListItemContent}>
                   <Switch
@@ -359,7 +393,12 @@ export default function LessonPage() {
                     onValueChange={(value) => toggleCompleted(v._id, value)}
                     disabled={updating}
                   />
-                  <Text style={[styles.lessonListItemText, active && styles.lessonListItemTextActive]}>
+                  <Text
+                    style={[
+                      styles.lessonListItemText,
+                      active && styles.lessonListItemTextActive,
+                    ]}
+                  >
                     #{i + 1} {v.title}
                   </Text>
                 </View>
@@ -589,4 +628,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

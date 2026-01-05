@@ -8,7 +8,7 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import { getMyVideos } from "../../services/videos";
 import VideoCard from "../../components/VideoCard";
 
@@ -16,6 +16,7 @@ export default function UploaderDashboard() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const router = useRouter();
 
   useEffect(() => {
     (async () => {
@@ -24,7 +25,9 @@ export default function UploaderDashboard() {
         const res = await getMyVideos();
         setVideos(res.data || []);
       } catch (e) {
-        setErr(e.response?.data?.message || e.message || "Failed to load videos");
+        setErr(
+          e.response?.data?.message || e.message || "Failed to load videos"
+        );
       } finally {
         setLoading(false);
       }
@@ -59,7 +62,9 @@ export default function UploaderDashboard() {
             style={styles.uploadButtonLarge}
             onPress={() => router.push("/uploader/upload")}
           >
-            <Text style={styles.uploadButtonLargeText}>Upload your first video</Text>
+            <Text style={styles.uploadButtonLargeText}>
+              Upload your first video
+            </Text>
           </Pressable>
         </View>
       ) : (
@@ -151,4 +156,3 @@ const styles = StyleSheet.create({
     padding: 16,
   },
 });
-

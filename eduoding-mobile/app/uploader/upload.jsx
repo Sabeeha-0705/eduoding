@@ -12,8 +12,12 @@ import {
 } from "react-native";
 // TODO: Install expo-document-picker: npx expo install expo-document-picker
 // import * as DocumentPicker from "expo-document-picker";
-import { router } from "expo-router";
-import { uploadVideoFile, addYoutubeVideo, getCourses } from "../../services/videos";
+import { useRouter } from "expo-router";
+import {
+  uploadVideoFile,
+  addYoutubeVideo,
+  getCourses,
+} from "../../services/videos";
 
 export default function UploadVideo() {
   const [mode, setMode] = useState("upload"); // "upload" | "youtube"
@@ -26,6 +30,7 @@ export default function UploadVideo() {
   const [courses, setCourses] = useState([]);
   const [courseId, setCourseId] = useState("");
   const [uploading, setUploading] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const load = async () => {
@@ -55,7 +60,10 @@ export default function UploadVideo() {
 
   const pickVideo = async () => {
     // TODO: Install expo-document-picker and uncomment below
-    Alert.alert("Coming Soon", "Video picker will be available after installing expo-document-picker");
+    Alert.alert(
+      "Coming Soon",
+      "Video picker will be available after installing expo-document-picker"
+    );
     // try {
     //   const DocumentPicker = require("expo-document-picker");
     //   const result = await DocumentPicker.getDocumentAsync({
@@ -144,7 +152,10 @@ export default function UploadVideo() {
       <ScrollView style={styles.content}>
         <View style={styles.modeSelector}>
           <Pressable
-            style={[styles.modeButton, mode === "upload" && styles.modeButtonActive]}
+            style={[
+              styles.modeButton,
+              mode === "upload" && styles.modeButtonActive,
+            ]}
             onPress={() => {
               setMode("upload");
               setMsg("");
@@ -160,7 +171,10 @@ export default function UploadVideo() {
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.modeButton, mode === "youtube" && styles.modeButtonActive]}
+            style={[
+              styles.modeButton,
+              mode === "youtube" && styles.modeButtonActive,
+            ]}
             onPress={() => {
               setMode("youtube");
               setMsg("");
@@ -193,7 +207,8 @@ export default function UploadVideo() {
                   <Text
                     style={[
                       styles.courseOptionText,
-                      courseId === (c.id ?? c._id) && styles.courseOptionTextActive,
+                      courseId === (c.id ?? c._id) &&
+                        styles.courseOptionTextActive,
                     ]}
                   >
                     {c.title || c.name || `Course ${c.id ?? c._id}`}
@@ -238,7 +253,9 @@ export default function UploadVideo() {
               {progress > 0 && (
                 <View style={styles.progressContainer}>
                   <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                    <View
+                      style={[styles.progressFill, { width: `${progress}%` }]}
+                    />
                   </View>
                   <Text style={styles.progressText}>{progress}%</Text>
                 </View>
@@ -256,14 +273,17 @@ export default function UploadVideo() {
                 keyboardType="url"
               />
               <Text style={styles.hint}>
-                Paste full YouTube link (watch?v= or youtu.be). We'll keep it and admin will
-                approve.
+                Paste full YouTube link (watch?v= or youtu.be). We'll keep it
+                and admin will approve.
               </Text>
             </View>
           )}
 
           <Pressable
-            style={[styles.submitButton, uploading && styles.submitButtonDisabled]}
+            style={[
+              styles.submitButton,
+              uploading && styles.submitButtonDisabled,
+            ]}
             onPress={handleSubmit}
             disabled={uploading}
           >
@@ -458,4 +478,3 @@ const styles = StyleSheet.create({
     color: "#c62828",
   },
 });
-

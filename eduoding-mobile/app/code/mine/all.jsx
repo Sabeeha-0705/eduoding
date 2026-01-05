@@ -8,12 +8,13 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import API from "../../../services/api";
 
 export default function MySolutions() {
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const load = async () => {
@@ -47,7 +48,8 @@ export default function MySolutions() {
       ) : subs.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>
-            No submissions yet. Go to a quiz or code editor and submit your code.
+            No submissions yet. Go to a quiz or code editor and submit your
+            code.
           </Text>
           <Pressable
             style={styles.dashboardButton}
@@ -254,4 +256,3 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
-

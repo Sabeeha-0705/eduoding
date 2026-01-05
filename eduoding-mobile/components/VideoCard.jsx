@@ -1,11 +1,14 @@
 // eduoding-mobile/components/VideoCard.jsx
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 
 export default function VideoCard({ video }) {
+  const router = useRouter();
   const title = video.title || video.name || "Untitled";
   const status = video.status || "pending";
-  const createdAt = video.createdAt ? new Date(video.createdAt).toLocaleDateString() : "";
+  const createdAt = video.createdAt
+    ? new Date(video.createdAt).toLocaleDateString()
+    : "";
 
   const getStatusColor = () => {
     switch (status) {
@@ -27,7 +30,9 @@ export default function VideoCard({ video }) {
         </Text>
         {createdAt && <Text style={styles.date}>{createdAt}</Text>}
       </View>
-      {video.description && <Text style={styles.description}>{video.description}</Text>}
+      {video.description && (
+        <Text style={styles.description}>{video.description}</Text>
+      )}
       {video.courseId && (
         <Pressable
           style={styles.viewButton}
@@ -89,4 +94,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

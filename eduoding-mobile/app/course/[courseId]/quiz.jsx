@@ -10,11 +10,12 @@ import {
   TextInput,
   Alert,
 } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import API from "../../../services/api";
 
 export default function QuizPage() {
   const { courseId } = useLocalSearchParams();
+  const router = useRouter();
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState([]);
   const [result, setResult] = useState(null);
@@ -22,7 +23,9 @@ export default function QuizPage() {
   const [loadError, setLoadError] = useState(null);
 
   // Coding challenge state
-  const [code, setCode] = useState("// write your code here\nconsole.log('Hello Eduoding');");
+  const [code, setCode] = useState(
+    "// write your code here\nconsole.log('Hello Eduoding');"
+  );
   const [codeSaved, setCodeSaved] = useState(false);
   const [codeRunning, setCodeRunning] = useState(false);
   const [runOutput, setRunOutput] = useState(null);
@@ -37,7 +40,9 @@ export default function QuizPage() {
         const qobj = res.data || null;
         setQuiz(qobj);
         setAnswers(
-          new Array(Array.isArray(qobj?.questions) ? qobj.questions.length : 0).fill(null)
+          new Array(
+            Array.isArray(qobj?.questions) ? qobj.questions.length : 0
+          ).fill(null)
         );
       } catch (err) {
         console.error("Quiz load failed:", err);
@@ -63,7 +68,10 @@ export default function QuizPage() {
       const res = await API.post(`/quiz/${courseId}/submit`, { answers });
       setResult(res.data);
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || err.message || "Submit failed");
+      Alert.alert(
+        "Error",
+        err.response?.data?.message || err.message || "Submit failed"
+      );
     }
   };
 
@@ -84,11 +92,18 @@ export default function QuizPage() {
       setRunError(null);
       setCodeRunning(true);
 
-      const payload = { source: code, language, stdin: "", title: `Quiz-${courseId}-run` };
+      const payload = {
+        source: code,
+        language,
+        stdin: "",
+        title: `Quiz-${courseId}-run`,
+      };
       const res = await API.post("/code/submit", payload);
       const jr = res.data.judgeResult || res.data.judge || res.data;
       const stdout = (jr && (jr.stdout || jr.stdout_text || jr.output)) || "";
-      const stderr = jr && (jr.stderr || jr.compile_output || jr.compile_output_text) || "";
+      const stderr =
+        (jr && (jr.stderr || jr.compile_output || jr.compile_output_text)) ||
+        "";
       setRunOutput(stdout);
       setRunError(stderr);
     } catch (err) {
@@ -110,7 +125,9 @@ export default function QuizPage() {
   if (loadError) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Error loading quiz. Check console / network tab.</Text>
+        <Text style={styles.errorText}>
+          Error loading quiz. Check console / network tab.
+        </Text>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </Pressable>
@@ -156,10 +173,14 @@ export default function QuizPage() {
                       router.push("/certificates");
                     }}
                   >
-                    <Text style={styles.certButtonText}>Download Certificate</Text>
+                    <Text style={styles.certButtonText}>
+                      Download Certificate
+                    </Text>
                   </Pressable>
                 ) : (
-                  <Text style={styles.noteText}>Certificate will appear in "My Certificates".</Text>
+                  <Text style={styles.noteText}>
+                    Certificate will appear in "My Certificates".
+                  </Text>
                 )}
               </>
             ) : (
@@ -168,9 +189,12 @@ export default function QuizPage() {
 
             <Text style={styles.reviewTitle}>Review Answers</Text>
             {questions.map((q, i) => {
-              const isCorrect = result.correctAnswers && result.correctAnswers[i] === answers[i];
+              const isCorrect =
+                result.correctAnswers &&
+                result.correctAnswers[i] === answers[i];
               const isSelected = answers[i] !== null;
-              const correctAnswer = result.correctAnswers && result.correctAnswers[i];
+              const correctAnswer =
+                result.correctAnswers && result.correctAnswers[i];
 
               return (
                 <View key={i} style={styles.questionCard}>
@@ -178,23 +202,26 @@ export default function QuizPage() {
                     {i + 1}. {q.question}
                   </Text>
                   <View style={styles.optionsList}>
-                    {(Array.isArray(q.options) ? q.options : []).map((opt, j) => {
-                      const isCorrectOption = correctAnswer === j;
-                      const isSelectedOption = answers[i] === j;
-                      let optionStyle = styles.option;
-                      if (isCorrectOption) optionStyle = [styles.option, styles.optionCorrect];
-                      if (isSelectedOption && !isCorrectOption)
-                        optionStyle = [styles.option, styles.optionWrong];
+                    {(Array.isArray(q.options) ? q.options : []).map(
+                      (opt, j) => {
+                        const isCorrectOption = correctAnswer === j;
+                        const isSelectedOption = answers[i] === j;
+                        let optionStyle = styles.option;
+                        if (isCorrectOption)
+                          optionStyle = [styles.option, styles.optionCorrect];
+                        if (isSelectedOption && !isCorrectOption)
+                          optionStyle = [styles.option, styles.optionWrong];
 
-                      return (
-                        <View key={j} style={optionStyle}>
-                          <Text style={styles.optionText}>
-                            {opt}
-                            {isSelectedOption ? " (your answer)" : ""}
-                          </Text>
-                        </View>
-                      );
-                    })}
+                        return (
+                          <View key={j} style={optionStyle}>
+                            <Text style={styles.optionText}>
+                              {opt}
+                              {isSelectedOption ? " (your answer)" : ""}
+                            </Text>
+                          </View>
+                        );
+                      }
+                    )}
                   </View>
                 </View>
               );
@@ -227,15 +254,23 @@ export default function QuizPage() {
                     />
                     <View style={styles.codeActions}>
                       <Pressable
-                        style={[styles.codeButton, codeRunning && styles.buttonDisabled]}
-                        onPress={() => handleCodeRun(q.language || "javascript")}
+                        style={[
+                          styles.codeButton,
+                          codeRunning && styles.buttonDisabled,
+                        ]}
+                        onPress={() =>
+                          handleCodeRun(q.language || "javascript")
+                        }
                         disabled={codeRunning}
                       >
                         <Text style={styles.codeButtonText}>
                           {codeRunning ? "Running…" : "Run"}
                         </Text>
                       </Pressable>
-                      <Pressable style={styles.saveButton} onPress={handleCodeSave}>
+                      <Pressable
+                        style={styles.saveButton}
+                        onPress={handleCodeSave}
+                      >
                         <Text style={styles.saveButtonText}>Save</Text>
                       </Pressable>
                     </View>
@@ -254,25 +289,28 @@ export default function QuizPage() {
                   </View>
                 ) : (
                   <View style={styles.optionsList}>
-                    {(Array.isArray(q.options) ? q.options : []).map((opt, j) => (
-                      <Pressable
-                        key={j}
-                        style={[
-                          styles.optionButton,
-                          answers[i] === j && styles.optionButtonSelected,
-                        ]}
-                        onPress={() => handleSelect(i, j)}
-                      >
-                        <Text
+                    {(Array.isArray(q.options) ? q.options : []).map(
+                      (opt, j) => (
+                        <Pressable
+                          key={j}
                           style={[
-                            styles.optionButtonText,
-                            answers[i] === j && styles.optionButtonTextSelected,
+                            styles.optionButton,
+                            answers[i] === j && styles.optionButtonSelected,
                           ]}
+                          onPress={() => handleSelect(i, j)}
                         >
-                          {opt}
-                        </Text>
-                      </Pressable>
-                    ))}
+                          <Text
+                            style={[
+                              styles.optionButtonText,
+                              answers[i] === j &&
+                                styles.optionButtonTextSelected,
+                            ]}
+                          >
+                            {opt}
+                          </Text>
+                        </Pressable>
+                      )
+                    )}
                   </View>
                 )}
               </View>
@@ -282,14 +320,19 @@ export default function QuizPage() {
               <Pressable style={styles.submitButton} onPress={handleSubmit}>
                 <Text style={styles.submitButtonText}>Submit Quiz</Text>
               </Pressable>
-              <Pressable style={styles.cancelButton} onPress={() => router.back()}>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => router.back()}
+              >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </Pressable>
             </View>
 
             {quiz.allowGlobalCode && (
               <View style={styles.globalCodeSection}>
-                <Text style={styles.globalCodeTitle}>💻 Global Coding Challenge</Text>
+                <Text style={styles.globalCodeTitle}>
+                  💻 Global Coding Challenge
+                </Text>
                 <TextInput
                   style={styles.codeEditor}
                   value={code}
@@ -300,7 +343,10 @@ export default function QuizPage() {
                 />
                 <View style={styles.codeActions}>
                   <Pressable
-                    style={[styles.codeButton, codeRunning && styles.buttonDisabled]}
+                    style={[
+                      styles.codeButton,
+                      codeRunning && styles.buttonDisabled,
+                    ]}
                     onPress={() => handleCodeRun("javascript")}
                     disabled={codeRunning}
                   >
@@ -627,4 +673,3 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 });
-

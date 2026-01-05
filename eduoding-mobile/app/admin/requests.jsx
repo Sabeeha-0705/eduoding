@@ -9,16 +9,15 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import API from "../../services/api";
-import { useAuth } from "../../context/AuthContext";
 import AdminRoute from "../../components/AdminRoute";
 
 function AdminRequestsContent() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
-  const { token } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -29,14 +28,19 @@ function AdminRequestsContent() {
         setRequests(res.data || []);
       } catch (e) {
         console.error("Fetch uploader requests failed:", e);
-        setErr(e?.response?.data?.message || e?.message || "Failed to load uploader requests");
+        setErr(
+          e?.response?.data?.message ||
+            e?.message ||
+            "Failed to load uploader requests"
+        );
       } finally {
         setLoading(false);
       }
     };
 
-    if (token) fetchRequests();
-  }, [token]);
+    // Attempt to fetch (may fail without auth) — handle error gracefully
+    fetchRequests();
+  }, []);
 
   const approve = async (id) => {
     Alert.alert("Approve User", "Approve this user as uploader?", [
@@ -100,12 +104,17 @@ function AdminRequestsContent() {
                 <Text style={styles.username}>{u.username || u.email}</Text>
                 <Text style={styles.email}>{u.email}</Text>
                 {u.requestedUploader && (
-                  <Text style={styles.requestedLabelText}>Requested uploader</Text>
+                  <Text style={styles.requestedLabelText}>
+                    Requested uploader
+                  </Text>
                 )}
               </View>
 
               <View style={styles.requestActions}>
-                <Pressable style={styles.approveButton} onPress={() => approve(u._id)}>
+                <Pressable
+                  style={styles.approveButton}
+                  onPress={() => approve(u._id)}
+                >
                   <Text style={styles.approveButtonText}>Approve</Text>
                 </Pressable>
 
@@ -256,4 +265,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-
